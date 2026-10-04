@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 PASSAGE = "学者多从质问，为执经讲解，亡所倦。"
 CHOICES = ["来自", "跟从求教", "听从命令"]
 
@@ -44,6 +43,7 @@ def _hint(level: int) -> str:
 
 
 def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> TransitionResult:
+    """Apply one user intent. This layer deliberately has no HTTP or database imports."""
     action = command["type"]
     payload = command.get("payload", {})
     next_snapshot = dict(snapshot)
@@ -69,9 +69,7 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         events.append({"type": "training.variable_revisited", "payload": {"variable": "从"}})
     elif action == "REQUEST_HINT":
         level = min(snapshot["hint_level"] + 1, 4)
-        next_snapshot["hint_level"] = level
-        next_snapshot["hint"] = _hint(level)
-        next_snapshot["state"] = "HINT_PRESENTED"
+        next_snapshot.update(hint_level=level, hint=_hint(level), state="HINT_PRESENTED")
         next_snapshot["feedback"] = "提示只增加一条必要信息；答案仍要由你自己作出。"
         events.append({"type": "training.hint_presented", "payload": {"level": level}})
     elif action == "SUBMIT_ATTEMPT":
@@ -81,9 +79,8 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         next_snapshot["selected_answer"] = answer
         correct = answer == "跟从求教"
         if correct and snapshot["evidence_selected"]:
-            next_snapshot["state"] = "ANSWER_VALIDATED"
+            next_snapshot.update(state="ANSWER_VALIDATED", transfer_ready=True)
             next_snapshot["feedback"] = "判断成立：后文的“讲解”说明学者是求学者，因此“从”是跟从求教。"
-            next_snapshot["transfer_ready"] = True
             events.append({"type": "training.answer_validated", "payload": {"label": "CORRECT_REASONING"}})
         elif correct:
             next_snapshot["state"] = "AWAITING_REASONING"
@@ -96,8 +93,7 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
     elif action == "CONTINUE_TO_TRANSFER":
         if not snapshot["transfer_ready"]:
             raise ValueError("TRANSFER_NOT_READY")
-        next_snapshot["state"] = "SESSION_COMPLETED"
-        next_snapshot["completed"] = True
+        next_snapshot.update(state="SESSION_COMPLETED", completed=True)
         next_snapshot["feedback"] = "迁移任务已解锁：在陌生文本里继续寻找“人物—行为—关系”的证据链。"
         events.append({"type": "training.session_completed", "payload": {"mastery": "emerging"}})
     else:

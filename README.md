@@ -1,20 +1,43 @@
-# 文言·推理 Demo
+# 文言·推理
 
-本地可运行的 Gold Case Demo：用《宋史·范仲淹传》中的“从”完成“作答 → 证据 → 暂放 → 提示 → 回溯 → 迁移”闭环。
+可本地运行的全栈 Demo：以“证据—判断—回溯—迁移”完成一条文言实词推理训练闭环。
 
-## 启动
+## 技术栈
+
+- `frontend/`：React、Vite、TypeScript，开发预览运行在 `http://127.0.0.1:5173`
+- `backend/`：FastAPI、SQLAlchemy、SQLite，API 运行在 `http://127.0.0.1:8000`
+
+SQLite 是当前 Demo 的零配置开发数据库；启动服务时会自动创建 `data/wenyan.db`，该运行数据不会提交到 Git。
+
+## 本地启动
+
+在两个 PowerShell 终端分别执行：
 
 ```powershell
-python server.py
+# 终端 1：安装后端依赖并启动 API
+python -m pip install -r backend/requirements.txt
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 `http://127.0.0.1:8000`。首次启动会创建 `data/wenyan-demo.db`。
+```powershell
+# 终端 2：安装前端依赖并启动开发预览
+Set-Location frontend
+npm ci
+npm run dev
+```
 
-## 架构
+打开 `http://127.0.0.1:5173`。Vite 已将 `/api` 请求代理到 FastAPI 的 8000 端口。
 
-- `domain/`：无框架依赖的训练状态机与 Gold Case
-- `storage/`：SQLite 事件、会话、幂等命令存储
-- `server.py`：HTTP API 与静态资源服务
-- `web/`：响应式黑白 UI
+## 验证
 
-Demo 使用 SQLite 以零依赖在本机运行；生产基线仍应按工程规格迁移至 PostgreSQL、FastAPI、Redis 与对象存储。
+```powershell
+# API 单元测试
+python -m pytest backend/tests/test_api.py -q
+
+# 前端生产构建
+Set-Location frontend
+npm run build
+
+# 健康检查
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/health
+```

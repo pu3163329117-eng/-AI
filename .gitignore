@@ -1,7 +1,24 @@
+# Python
 __pycache__/
-data/*.db
-data/*.db-*
+*.py[cod]
+.pytest_cache/
+
+# Runtime data and secrets
+data/
+*.db
+*.db-*
 .env
-output/
+
+# JavaScript
+node_modules/
+dist/
+.vite/
+
+# Local tooling and generated assets
 .playwright-cli/
+output/
 transcripts/
+UI设计图/
+*.m4a
+项目开发计划-录音整理.md
+文言AI-UI设计稿.html
