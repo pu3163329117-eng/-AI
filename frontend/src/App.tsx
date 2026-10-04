@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { trainingApi } from './api'
 import type { CommandType, TrainingSession } from './types'
 
@@ -67,50 +67,62 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
   onReturnHome: () => void
 }) {
   const [answer, setAnswer] = useState<string | null>(session.selected_answer)
+  useEffect(() => setAnswer(session.selected_answer), [session.selected_answer, session.stage])
+
   const submit = () => answer && onCommand('SUBMIT_ATTEMPT', { answer })
   const isTransferReady = session.transfer_ready && !session.completed
+  const isSummaryReady = session.summary_ready && !session.completed
+  const currentStep = session.completed ? 4 : session.stage === 'TRANSFER' ? 3 : 1
+  const [beforeVariable, afterVariable = ''] = session.passage.split(session.variable)
 
   return (
     <main className="training-page">
       <div className="training-shell">
         <aside className="step-list" aria-label="训练步骤">
           <b>本次训练</b>
-          {taskLabels.map((label, index) => <span className={index === 0 ? 'done' : index === 1 ? 'current' : ''} key={label}>{label}</span>)}
+          {taskLabels.map((label, index) => <span className={index < currentStep ? 'done' : index === currentStep ? 'current' : ''} key={label}>{label}</span>)}
         </aside>
         <section className="lesson" aria-labelledby="question-title">
-          <div className="lesson-meta"><span>《宋史·范仲淹传》</span><span>02 / 04</span></div>
-          <p className="passage">学者多<span>{session.variable}</span>质问，<br />为执经讲解，亡所倦。</p>
-          <div className="question-area">
-            <h1 id="question-title">“{session.variable}”在这里是什么意思？</h1>
-            <div className="choice-list" role="radiogroup" aria-label="选择词义">
-              {session.choices.map((choice) => (
-                <button
-                  type="button"
-                  key={choice}
-                  role="radio"
-                  aria-checked={answer === choice}
-                  className={answer === choice ? 'selected' : ''}
-                  disabled={busy || session.completed}
-                  onClick={() => setAnswer(choice)}
-                >
-                  <span className="radio-dot" aria-hidden="true" />{choice}
+          <div className="lesson-meta"><span>{session.source}</span><span>{session.stage === 'CORE' ? '02 / 04' : '04 / 04'}</span></div>
+          {session.completed && session.summary ? (
+            <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
+          ) : (
+            <>
+              <p className="passage">{beforeVariable}<span>{session.variable}</span>{afterVariable}</p>
+              <div className="question-area">
+                <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
+                <h1 id="question-title">{session.question}</h1>
+                <div className="choice-list" role="radiogroup" aria-label="选择词义">
+                  {session.choices.map((choice) => (
+                    <button
+                      type="button"
+                      key={choice}
+                      role="radio"
+                      aria-checked={answer === choice}
+                      className={answer === choice ? 'selected' : ''}
+                      disabled={busy}
+                      onClick={() => setAnswer(choice)}
+                    >
+                      <span className="radio-dot" aria-hidden="true" />{choice}
+                    </button>
+                  ))}
+                </div>
+                <button className="button button-primary submit" onClick={submit} disabled={!answer || busy}>
+                  {busy ? '正在核验…' : '提交判断'}
                 </button>
-              ))}
-            </div>
-            <button className="button button-primary submit" onClick={submit} disabled={!answer || busy || session.completed}>
-              {busy ? '正在核验…' : session.completed ? '本节已完成' : '提交判断'}
-            </button>
-          </div>
-          <div className={`feedback ${session.transfer_ready ? 'success' : ''}`} aria-live="polite">
-            {error ? `操作未完成：${error}` : session.feedback}
-          </div>
-          {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={busy}>进入陌生文挑战 →</button>}
-          {session.completed && <button className="text-button" onClick={onReturnHome}>返回今日训练 →</button>}
+              </div>
+              <div className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
+                {error ? `操作未完成：${error}` : session.feedback}
+              </div>
+              {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={busy}>进入陌生文挑战 →</button>}
+              {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={busy}>查看本关总结 →</button>}
+            </>
+          )}
         </section>
         <aside className="evidence-panel" aria-label="推理工具">
           <b>证据板</b>
           <button className={session.evidence_selected ? 'selected' : ''} onClick={() => onCommand('SELECT_EVIDENCE')} disabled={busy || session.completed}>
-            <span aria-hidden="true">“</span>为执经讲解<span aria-hidden="true">”</span>
+            <span aria-hidden="true">“</span>{session.evidence}<span aria-hidden="true">”</span>
           </button>
           <hr />
           <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={busy || session.completed}>先暂放这个字</button>
@@ -119,6 +131,21 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
         </aside>
       </div>
     </main>
+  )
+}
+
+function LessonSummary({ summary, onReturnHome }: { summary: NonNullable<TrainingSession['summary']>; onReturnHome: () => void }) {
+  return (
+    <section className="lesson-summary" aria-labelledby="summary-title">
+      <p className="stage-label">本关总结</p>
+      <h1 id="summary-title">你不是猜对，<br />是推出来的。</h1>
+      <div className="summary-lines">
+        <article><b>积累</b><p>{summary.accumulation}</p></article>
+        <article><b>推理</b><p>{summary.reasoning}</p></article>
+      </div>
+      <div className="earned-points" aria-label={`本关获得 ${summary.earned_points} 点`}>+{summary.earned_points}<span>知行</span></div>
+      <button className="button button-primary" onClick={onReturnHome}>返回今日训练 <span aria-hidden="true">→</span></button>
+    </section>
   )
 }
 

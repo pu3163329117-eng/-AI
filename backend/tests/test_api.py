@@ -38,3 +38,34 @@ def test_version_conflict():
         )
         assert result.status_code == 409
         assert result.json()["error"]["code"] == "VERSION_CONFLICT"
+
+
+def test_transfer_challenge_and_dual_track_summary():
+    with TestClient(app) as client:
+        session_id = client.post("/api/v1/training/sessions", json={}).json()["session_id"]
+
+        def send(version: int, command_type: str, payload: dict, key: str):
+            return client.post(
+                f"/api/v1/training/sessions/{session_id}/commands",
+                json={"type": command_type, "expected_state_version": version, "payload": payload},
+                headers={"Idempotency-Key": key},
+            )
+
+        assert send(1, "SELECT_EVIDENCE", {}, "core-evidence").status_code == 200
+        assert send(2, "SUBMIT_ATTEMPT", {"answer": "跟从求教"}, "core-answer").json()["session"]["transfer_ready"] is True
+
+        transfer = send(3, "CONTINUE_TO_TRANSFER", {}, "transfer-start")
+        assert transfer.status_code == 200
+        assert transfer.json()["session"]["stage"] == "TRANSFER"
+        assert transfer.json()["session"]["source"] == "《论语·述而》"
+
+        assert send(4, "SELECT_EVIDENCE", {}, "transfer-evidence").status_code == 200
+        validated = send(5, "SUBMIT_ATTEMPT", {"answer": "跟随、学习"}, "transfer-answer")
+        assert validated.status_code == 200
+        assert validated.json()["state"] == "TRANSFER_VALIDATED"
+        assert validated.json()["session"]["summary_ready"] is True
+
+        completed = send(6, "COMPLETE_SESSION", {}, "complete")
+        assert completed.status_code == 200
+        assert completed.json()["session"]["completed"] is True
+        assert completed.json()["session"]["summary"]["earned_points"] == 20
