@@ -81,3 +81,8 @@ def test_transfer_challenge_and_dual_track_summary():
         profile = client.get(f"/api/v1/profiles/{profile_id}")
         assert profile.status_code == 200
         assert profile.json()["profile"]["completed_levels"] == 1
+
+        history = client.get(f"/api/v1/profiles/{profile_id}/sessions")
+        assert history.status_code == 200
+        assert history.json()["sessions"][0]["session_id"] == session_id
+        assert history.json()["sessions"][0]["completed"] is True

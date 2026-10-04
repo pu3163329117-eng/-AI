@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { profileApi, trainingApi } from './api'
-import type { CommandType, LearnerProfile, SchoolStage, TrainingSession } from './types'
+import type { CommandType, LearnerProfile, ReviewSession, SchoolStage, TrainingSession } from './types'
 
-type Page = 'home' | 'training' | 'skills' | 'profile' | 'onboarding'
+type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'onboarding'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
 
@@ -19,7 +19,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
         <button className={page === 'skills' ? 'is-active' : ''} onClick={() => onNavigate('skills')}>
           能力地图
         </button>
-        <button disabled title="复习模块将在下一版开放">复习</button>
+        <button className={page === 'review' ? 'is-active' : ''} onClick={() => onNavigate('review')} disabled={!profile}>复习</button>
         <button className={page === 'profile' ? 'is-active' : ''} onClick={() => onNavigate('profile')} disabled={!profile}>我的</button>
       </nav>
       <button className="account" aria-label="查看学习档案" onClick={() => profile && onNavigate('profile')} disabled={!profile}>{profile?.display_name.slice(0, 1) ?? '—'}</button>
@@ -101,6 +101,28 @@ function ProfilePage({ profile, onStart }: { profile: LearnerProfile; onStart: (
         <article><span>累计知行</span><strong>{profile.total_points}</strong></article>
       </section>
       <button className="button button-primary" onClick={onStart}>继续训练 <span aria-hidden="true">→</span></button>
+    </main>
+  )
+}
+
+function ReviewPage({ sessions, loading, error, onOpen }: { sessions: ReviewSession[]; loading: boolean; error: string | null; onOpen: (sessionId: string) => void }) {
+  return (
+    <main className="review-page">
+      <p className="eyebrow">复习</p>
+      <h1>把走过的推理，<br />再走一遍。</h1>
+      <p className="intro">这里显示当前设备档案下的最近训练；未完成的关卡可以从原处继续。</p>
+      {loading ? <p className="review-status">正在读取训练记录…</p> : error ? <p className="request-error" role="alert">无法读取训练记录：{error}</p> : sessions.length === 0 ? (
+        <section className="review-empty"><b>还没有可回看的训练。</b><p>完成第一关后，它会出现在这里。</p></section>
+      ) : (
+        <section className="review-list" aria-label="最近训练记录">
+          {sessions.map((item) => (
+            <article key={item.session_id}>
+              <div><span>{item.completed ? '已完成' : '进行中'}</span><strong>{item.source}</strong><p>{item.feedback}</p></div>
+              <button className="text-button" onClick={() => onOpen(item.session_id)}>{item.completed ? '查看总结' : '继续练习'} →</button>
+            </article>
+          ))}
+        </section>
+      )}
     </main>
   )
 }
@@ -225,6 +247,9 @@ export function App() {
   const [page, setPage] = useState<Page>('home')
   const [profile, setProfile] = useState<LearnerProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [busy, setBusy] = useState(false)
@@ -258,6 +283,15 @@ export function App() {
     } finally { setBusy(false) }
   }, [])
 
+  useEffect(() => {
+    if (page !== 'review' || !profile) return
+    setReviewsLoading(true); setReviewError(null)
+    profileApi.listSessions(profile.id)
+      .then(({ sessions }) => setReviewSessions(sessions))
+      .catch((reason) => setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED'))
+      .finally(() => setReviewsLoading(false))
+  }, [page, profile])
+
   const start = useCallback(async () => {
     if (!profile) { setPage('onboarding'); return }
     setBusy(true); setError(null)
@@ -281,9 +315,20 @@ export function App() {
     } finally { setBusy(false) }
   }, [session, sessionId])
 
+  const openReviewSession = useCallback(async (nextSessionId: string) => {
+    setBusy(true); setError(null)
+    try {
+      const response = await trainingApi.getSession(nextSessionId)
+      setSessionId(nextSessionId); setSession(response.session); setPage('training')
+    } catch (reason) {
+      setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setBusy(false) }
+  }, [])
+
   const navigate = (next: Page) => {
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
+    else if (next === 'review' && profile) setPage('review')
     else if (next === 'profile' && profile) setPage('profile')
   }
 
@@ -294,6 +339,7 @@ export function App() {
     {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} onStart={start} isStarting={busy} error={error} />}
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={start} />}
+    {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={start} />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
   </div>

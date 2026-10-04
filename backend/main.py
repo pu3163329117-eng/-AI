@@ -54,6 +54,18 @@ def _profile_payload(profile: LearnerProfile) -> dict:
     }
 
 
+def _review_session_payload(record: TrainingSession) -> dict:
+    snapshot = record.snapshot
+    return {
+        "session_id": record.id,
+        "source": snapshot["source"],
+        "stage": snapshot["stage"],
+        "completed": snapshot["completed"],
+        "feedback": snapshot["feedback"],
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "service": "wenyan-api", "database": "sqlite"}
@@ -77,6 +89,19 @@ def get_profile(profile_id: str, db: DbSession) -> dict:
     return {"profile": _profile_payload(profile)}
 
 
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/sessions")
+def list_profile_sessions(profile_id: str, db: DbSession) -> dict:
+    if not db.get(LearnerProfile, profile_id):
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    records = db.scalars(
+        select(TrainingSession)
+        .where(TrainingSession.profile_id == profile_id)
+        .order_by(TrainingSession.updated_at.desc())
+        .limit(20)
+    ).all()
+    return {"sessions": [_review_session_payload(record) for record in records]}
+
+
 @app.post(f"{API_PREFIX}/training/sessions", status_code=status.HTTP_201_CREATED)
 def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
     profile = db.get(LearnerProfile, request.profile_id)
@@ -84,7 +109,7 @@ def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
         raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
     snapshot = initial_snapshot()
     snapshot["profile_id"] = profile.id
-    record = TrainingSession(state_version=snapshot["state_version"], snapshot=snapshot)
+    record = TrainingSession(profile_id=profile.id, state_version=snapshot["state_version"], snapshot=snapshot)
     db.add(record)
     db.commit()
     return _session_payload(record)

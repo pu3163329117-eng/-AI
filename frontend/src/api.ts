@@ -1,4 +1,4 @@
-import type { CommandType, LearnerProfile, SchoolStage, TrainingSession } from './types'
+import type { CommandType, LearnerProfile, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -11,6 +11,7 @@ type CommandResponse = {
 }
 
 type ProfileResponse = { profile: LearnerProfile }
+type ReviewSessionsResponse = { sessions: ReviewSession[] }
 
 type ErrorResponse = { error?: { code?: string } }
 
@@ -43,6 +44,7 @@ export const trainingApi = {
         expected_state_version: expectedStateVersion,
       }),
     }),
+  getSession: (sessionId: string) => request<{ session: TrainingSession }>(`/api/v1/training/sessions/${sessionId}`),
 }
 
 export const profileApi = {
@@ -53,4 +55,5 @@ export const profileApi = {
       body: JSON.stringify({ display_name: displayName, school_stage: schoolStage }),
     }),
   get: (profileId: string) => request<ProfileResponse>(`/api/v1/profiles/${profileId}`),
+  listSessions: (profileId: string) => request<ReviewSessionsResponse>(`/api/v1/profiles/${profileId}/sessions`),
 }

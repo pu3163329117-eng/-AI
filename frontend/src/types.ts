@@ -28,6 +28,15 @@ export type LearnerProfile = {
   completed_levels: number
 }
 
+export type ReviewSession = {
+  session_id: string
+  source: string
+  stage: TrainingStage
+  completed: boolean
+  feedback: string
+  updated_at: string | null
+}
+
 export type TrainingSession = {
   stage: TrainingStage
   state: TrainingState
