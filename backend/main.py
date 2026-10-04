@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from backend.config import API_PREFIX
 from backend.db.init import init_db
-from backend.db.models import CommandReceipt, TrainingEvent, TrainingSession
+from backend.db.models import CommandReceipt, LearnerProfile, TrainingEvent, TrainingSession
 from backend.db.session import get_db
 from backend.domain.training import apply_command, initial_snapshot
-from backend.schemas import CommandRequest, CreateSessionRequest
+from backend.schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -44,14 +44,46 @@ def _hash_request(command: CommandRequest) -> str:
     return hashlib.sha256(command.model_dump_json().encode("utf-8")).hexdigest()
 
 
+def _profile_payload(profile: LearnerProfile) -> dict:
+    return {
+        "id": profile.id,
+        "display_name": profile.display_name,
+        "school_stage": profile.school_stage,
+        "total_points": profile.total_points,
+        "completed_levels": profile.completed_levels,
+    }
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "service": "wenyan-api", "database": "sqlite"}
 
 
+@app.post(f"{API_PREFIX}/profiles", status_code=status.HTTP_201_CREATED)
+def create_profile(request: CreateProfileRequest, db: DbSession) -> dict:
+    profile = LearnerProfile(display_name=request.display_name.strip(), school_stage=request.school_stage)
+    if not profile.display_name:
+        raise HTTPException(status_code=422, detail={"code": "DISPLAY_NAME_REQUIRED"})
+    db.add(profile)
+    db.commit()
+    return {"profile": _profile_payload(profile)}
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}")
+def get_profile(profile_id: str, db: DbSession) -> dict:
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    return {"profile": _profile_payload(profile)}
+
+
 @app.post(f"{API_PREFIX}/training/sessions", status_code=status.HTTP_201_CREATED)
-def create_session(_: CreateSessionRequest, db: DbSession) -> dict:
+def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
+    profile = db.get(LearnerProfile, request.profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
     snapshot = initial_snapshot()
+    snapshot["profile_id"] = profile.id
     record = TrainingSession(state_version=snapshot["state_version"], snapshot=snapshot)
     db.add(record)
     db.commit()
@@ -108,6 +140,13 @@ def command(
     for offset, event in enumerate(result.events, start=1):
         db.add(TrainingEvent(session_id=session_id, sequence_no=request.expected_state_version + offset, type=event["type"], payload=event["payload"]))
     response = {"session_id": session_id, "state": result.state, "state_version": result.snapshot["state_version"], "session": result.snapshot}
+    if request.type == "COMPLETE_SESSION":
+        profile_id = result.snapshot.get("profile_id")
+        profile = db.get(LearnerProfile, profile_id) if profile_id else None
+        if profile:
+            profile.total_points += result.snapshot["summary"]["earned_points"]
+            profile.completed_levels += 1
+            response["profile"] = _profile_payload(profile)
     db.add(CommandReceipt(session_id=session_id, idempotency_key=idempotency_key, request_hash=request_hash, response=response))
     try:
         db.commit()

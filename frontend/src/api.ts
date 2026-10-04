@@ -1,4 +1,4 @@
-import type { CommandType, TrainingSession } from './types'
+import type { CommandType, LearnerProfile, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -7,7 +7,10 @@ type CommandResponse = {
   state: string
   state_version: number
   session: TrainingSession
+  profile?: LearnerProfile
 }
+
+type ProfileResponse = { profile: LearnerProfile }
 
 type ErrorResponse = { error?: { code?: string } }
 
@@ -21,11 +24,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const trainingApi = {
-  createSession: () =>
+  createSession: (profileId: string) =>
     request<SessionResponse>('/api/v1/training/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{}',
+      body: JSON.stringify({ profile_id: profileId }),
     }),
   command: (sessionId: string, expectedStateVersion: number, type: CommandType, payload = {}) =>
     request<CommandResponse>(`/api/v1/training/sessions/${sessionId}/commands`, {
@@ -40,4 +43,14 @@ export const trainingApi = {
         expected_state_version: expectedStateVersion,
       }),
     }),
+}
+
+export const profileApi = {
+  create: (displayName: string, schoolStage: SchoolStage) =>
+    request<ProfileResponse>('/api/v1/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: displayName, school_stage: schoolStage }),
+    }),
+  get: (profileId: string) => request<ProfileResponse>(`/api/v1/profiles/${profileId}`),
 }

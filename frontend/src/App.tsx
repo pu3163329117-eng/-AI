@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
-import { trainingApi } from './api'
-import type { CommandType, TrainingSession } from './types'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { profileApi, trainingApi } from './api'
+import type { CommandType, LearnerProfile, SchoolStage, TrainingSession } from './types'
 
-type Page = 'home' | 'training' | 'skills'
+type Page = 'home' | 'training' | 'skills' | 'profile' | 'onboarding'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
 
-function AppHeader({ page, onNavigate }: { page: Page; onNavigate: (page: Page) => void }) {
+function AppHeader({ page, profile, onNavigate }: { page: Page; profile: LearnerProfile | null; onNavigate: (page: Page) => void }) {
   return (
     <header className="app-header">
       <button className="brand" onClick={() => onNavigate('home')} aria-label="返回首页">
@@ -20,19 +20,19 @@ function AppHeader({ page, onNavigate }: { page: Page; onNavigate: (page: Page) 
           能力地图
         </button>
         <button disabled title="复习模块将在下一版开放">复习</button>
-        <button disabled title="个人中心将在下一版开放">我的</button>
+        <button className={page === 'profile' ? 'is-active' : ''} onClick={() => onNavigate('profile')} disabled={!profile}>我的</button>
       </nav>
-      <button className="account" aria-label="当前账户">林</button>
+      <button className="account" aria-label="查看学习档案" onClick={() => profile && onNavigate('profile')} disabled={!profile}>{profile?.display_name.slice(0, 1) ?? '—'}</button>
     </header>
   )
 }
 
-function HomePage({ onStart, isStarting, error }: { onStart: () => void; isStarting: boolean; error: string | null }) {
+function HomePage({ profile, onStart, isStarting, error }: { profile: LearnerProfile; onStart: () => void; isStarting: boolean; error: string | null }) {
   return (
     <main className="home-page">
       <section className="hero" aria-labelledby="home-title">
         <div>
-          <p className="eyebrow">10 月 4 日 · 约 8 分钟</p>
+          <p className="eyebrow">{profile.school_stage === 'JUNIOR' ? '初中' : '高中'} · 今日约 8 分钟</p>
           <h1 id="home-title">读懂，<br />不是记住。</h1>
           <p className="intro">从一个字开始，读见整篇文章。今天练习“暂放与回溯”。</p>
           <button className="button button-primary" onClick={onStart} disabled={isStarting}>
@@ -41,9 +41,9 @@ function HomePage({ onStart, isStarting, error }: { onStart: () => void; isStart
           {error && <p className="request-error" role="alert">无法开始训练：{error}</p>}
         </div>
         <aside className="streak" aria-label="连续学习进度">
-          <div className="progress-ring"><b>3/4</b></div>
-          <strong>连续学习 7 天</strong>
-          <small>完成今天的训练，解锁<br />“以证据作答”徽章。</small>
+          <div className="progress-ring" aria-label={`已完成 ${profile.completed_levels} 关`}><b>{profile.completed_levels}</b><small>关</small></div>
+          <strong>{profile.display_name}的学习档案</strong>
+          <small>已完成 {profile.completed_levels} 关<br />累计 {profile.total_points} 知行。</small>
         </aside>
       </section>
       <section className="task-cards" aria-label="训练任务">
@@ -57,6 +57,52 @@ function HomePage({ onStart, isStarting, error }: { onStart: () => void; isStart
 
 function TaskCard({ number, title, description }: { number: string; title: string; description: string }) {
   return <article className="task-card"><em>{number}</em><b>{title}</b><p>{description}</p></article>
+}
+
+function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: string | null; onCreate: (name: string, stage: SchoolStage) => void }) {
+  const [name, setName] = useState('')
+  const [stage, setStage] = useState<SchoolStage>('JUNIOR')
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (name.trim()) onCreate(name.trim(), stage)
+  }
+  return (
+    <main className="onboarding-page">
+      <section className="onboarding-copy">
+        <p className="eyebrow">开始之前</p>
+        <h1>先留下<br />你的起点。</h1>
+        <p>这份档案只保存在当前设备，用来记录你的分级、完成关卡和知行积分。</p>
+      </section>
+      <form className="profile-form" onSubmit={submit}>
+        <label>怎么称呼你？<input value={name} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
+        <fieldset>
+          <legend>你现在的学习阶段</legend>
+          <label><input type="radio" name="stage" checked={stage === 'JUNIOR'} onChange={() => setStage('JUNIOR')} /> 初中</label>
+          <label><input type="radio" name="stage" checked={stage === 'SENIOR'} onChange={() => setStage('SENIOR')} /> 高中</label>
+        </fieldset>
+        <button className="button button-primary" disabled={!name.trim() || busy}>{busy ? '正在建立档案…' : '建立学习档案'} <span aria-hidden="true">→</span></button>
+        {error && <p className="request-error" role="alert">无法建立档案：{error}</p>}
+      </form>
+    </main>
+  )
+}
+
+function ProfilePage({ profile, onStart }: { profile: LearnerProfile; onStart: () => void }) {
+  const stage = profile.school_stage === 'JUNIOR' ? '初中' : '高中'
+  const title = profile.total_points >= 60 ? '行读者' : profile.total_points >= 20 ? '见习推理者' : '初入文境'
+  return (
+    <main className="profile-page">
+      <p className="eyebrow">我的学习档案</p>
+      <h1>{profile.display_name}，<br />继续把依据说清楚。</h1>
+      <p className="intro">当前分级：{stage}。数据随本机 SQLite 档案保存。</p>
+      <section className="profile-stats" aria-label="学习进度">
+        <article><span>当前身份</span><strong>{title}</strong></article>
+        <article><span>完成关卡</span><strong>{profile.completed_levels}</strong></article>
+        <article><span>累计知行</span><strong>{profile.total_points}</strong></article>
+      </section>
+      <button className="button button-primary" onClick={onStart}>继续训练 <span aria-hidden="true">→</span></button>
+    </main>
+  )
 }
 
 function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
@@ -149,11 +195,12 @@ function LessonSummary({ summary, onReturnHome }: { summary: NonNullable<Trainin
   )
 }
 
-function SkillsPage({ onStart }: { onStart: () => void }) {
+function SkillsPage({ profile, onStart }: { profile: LearnerProfile; onStart: () => void }) {
+  const progress = Math.min(100, profile.completed_levels * 50)
   const skills = [
-    ['语境定位', '能够标记一个词的上下文边界', 78],
-    ['关系推断', '从人物与行为中找依据', 56],
-    ['暂放回溯', '等到新证据出现后再判断', 32],
+    ['语境定位', '在句子里标出判断所需的证据', progress],
+    ['关系推断', '从人物与行为中找依据', Math.max(0, progress - 10)],
+    ['暂放回溯', '等到新证据出现后再判断', Math.max(0, progress - 20)],
   ] as const
   return (
     <main className="skills-page">
@@ -176,20 +223,51 @@ function SkillsPage({ onStart }: { onStart: () => void }) {
 
 export function App() {
   const [page, setPage] = useState<Page>('home')
+  const [profile, setProfile] = useState<LearnerProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const start = useCallback(async () => {
+  useEffect(() => {
+    const storedProfileId = window.localStorage.getItem('wenyan.profile-id')
+    if (!storedProfileId) {
+      setProfileLoading(false)
+      setPage('onboarding')
+      return
+    }
+    profileApi.get(storedProfileId)
+      .then(({ profile: nextProfile }) => setProfile(nextProfile))
+      .catch(() => {
+        window.localStorage.removeItem('wenyan.profile-id')
+        setPage('onboarding')
+      })
+      .finally(() => setProfileLoading(false))
+  }, [])
+
+  const createProfile = useCallback(async (displayName: string, schoolStage: SchoolStage) => {
     setBusy(true); setError(null)
     try {
-      const response = await trainingApi.createSession()
-      setSessionId(response.session_id); setSession(response.session); setPage('training')
+      const response = await profileApi.create(displayName, schoolStage)
+      window.localStorage.setItem('wenyan.profile-id', response.profile.id)
+      setProfile(response.profile)
+      setPage('home')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setBusy(false) }
   }, [])
+
+  const start = useCallback(async () => {
+    if (!profile) { setPage('onboarding'); return }
+    setBusy(true); setError(null)
+    try {
+      const response = await trainingApi.createSession(profile.id)
+      setSessionId(response.session_id); setSession(response.session); setPage('training')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setBusy(false) }
+  }, [profile])
 
   const command = useCallback(async (type: CommandType, payload: Record<string, string> = {}) => {
     if (!sessionId || !session) return
@@ -197,6 +275,7 @@ export function App() {
     try {
       const response = await trainingApi.command(sessionId, session.state_version, type, payload)
       setSession(response.session)
+      if (response.profile) setProfile(response.profile)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setBusy(false) }
@@ -205,12 +284,17 @@ export function App() {
   const navigate = (next: Page) => {
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
+    else if (next === 'profile' && profile) setPage('profile')
   }
 
+  if (profileLoading) return <main className="loading-page" aria-live="polite">正在读取学习档案…</main>
+
   return <div className="app-shell">
-    <AppHeader page={page} onNavigate={navigate} />
-    {page === 'home' && <HomePage onStart={start} isStarting={busy} error={error} />}
-    {page === 'skills' && <SkillsPage onStart={start} />}
+    <AppHeader page={page} profile={profile} onNavigate={navigate} />
+    {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
+    {page === 'home' && profile && <HomePage profile={profile} onStart={start} isStarting={busy} error={error} />}
+    {page === 'skills' && profile && <SkillsPage profile={profile} onStart={start} />}
+    {page === 'profile' && profile && <ProfilePage profile={profile} onStart={start} />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
   </div>
 }

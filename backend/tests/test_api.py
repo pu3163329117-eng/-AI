@@ -9,9 +9,15 @@ from fastapi.testclient import TestClient  # noqa: E402
 from backend.main import app  # noqa: E402
 
 
+def create_profile(client: TestClient, stage: str = "JUNIOR") -> str:
+    response = client.post("/api/v1/profiles", json={"display_name": "小林", "school_stage": stage})
+    assert response.status_code == 201
+    return response.json()["profile"]["id"]
+
+
 def test_training_happy_path_and_idempotency():
     with TestClient(app) as client:
-        created = client.post("/api/v1/training/sessions", json={})
+        created = client.post("/api/v1/training/sessions", json={"profile_id": create_profile(client)})
         assert created.status_code == 201
         session_id = created.json()["session_id"]
         start_version = created.json()["session"]["state_version"]
@@ -30,7 +36,7 @@ def test_training_happy_path_and_idempotency():
 
 def test_version_conflict():
     with TestClient(app) as client:
-        session_id = client.post("/api/v1/training/sessions", json={}).json()["session_id"]
+        session_id = client.post("/api/v1/training/sessions", json={"profile_id": create_profile(client, "SENIOR")}).json()["session_id"]
         result = client.post(
             f"/api/v1/training/sessions/{session_id}/commands",
             json={"type": "REQUEST_HINT", "expected_state_version": 99, "payload": {}},
@@ -42,7 +48,8 @@ def test_version_conflict():
 
 def test_transfer_challenge_and_dual_track_summary():
     with TestClient(app) as client:
-        session_id = client.post("/api/v1/training/sessions", json={}).json()["session_id"]
+        profile_id = create_profile(client)
+        session_id = client.post("/api/v1/training/sessions", json={"profile_id": profile_id}).json()["session_id"]
 
         def send(version: int, command_type: str, payload: dict, key: str):
             return client.post(
@@ -69,3 +76,8 @@ def test_transfer_challenge_and_dual_track_summary():
         assert completed.status_code == 200
         assert completed.json()["session"]["completed"] is True
         assert completed.json()["session"]["summary"]["earned_points"] == 20
+        assert completed.json()["profile"]["total_points"] == 20
+
+        profile = client.get(f"/api/v1/profiles/{profile_id}")
+        assert profile.status_code == 200
+        assert profile.json()["profile"]["completed_levels"] == 1

@@ -18,6 +18,16 @@ export type TrainingSummary = {
   earned_points: number
 }
 
+export type SchoolStage = 'JUNIOR' | 'SENIOR'
+
+export type LearnerProfile = {
+  id: string
+  display_name: string
+  school_stage: SchoolStage
+  total_points: number
+  completed_levels: number
+}
+
 export type TrainingSession = {
   stage: TrainingStage
   state: TrainingState
@@ -38,6 +48,7 @@ export type TrainingSession = {
   summary_ready: boolean
   summary: TrainingSummary | null
   completed: boolean
+  profile_id?: string
 }
 
 export type CommandType =
