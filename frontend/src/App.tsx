@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
 
-type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
+type Page = 'home' | 'training' | 'skills' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
 
@@ -19,6 +19,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
         <button className={page === 'skills' ? 'is-active' : ''} onClick={() => onNavigate('skills')}>
           能力地图
         </button>
+        <button className={page === 'practice' ? 'is-active' : ''} onClick={() => onNavigate('practice')} disabled={!profile}>专项练习</button>
         <button className={page === 'review' ? 'is-active' : ''} onClick={() => onNavigate('review')} disabled={!profile}>复习</button>
         <button className={page === 'profile' ? 'is-active' : ''} onClick={() => onNavigate('profile')} disabled={!profile}>我的</button>
         <button className={page === 'report' ? 'is-active' : ''} onClick={() => onNavigate('report')} disabled={!profile}>学习报告</button>
@@ -337,6 +338,98 @@ function ReviewPage({
   )
 }
 
+const practiceGroupOptions: Array<{ value: PracticePlanGroupBy; label: string; description: string }> = [
+  { value: 'theme', label: '主题', description: '围绕同一阅读语境，连续练习。' },
+  { value: 'textbook_tag', label: '教材标签', description: '按教材单元与篇目线索回看。' },
+  { value: 'reasoning_point', label: '推理考点', description: '把同一种推断方法练得更扎实。' },
+]
+
+function SpecializedPracticePage({
+  plans,
+  groupBy,
+  loading,
+  error,
+  startingLesson,
+  startError,
+  onGroupByChange,
+  onRetry,
+  onStartLesson,
+}: {
+  plans: PracticePlan[]
+  groupBy: PracticePlanGroupBy
+  loading: boolean
+  error: string | null
+  startingLesson: boolean
+  startError: string | null
+  onGroupByChange: (groupBy: PracticePlanGroupBy) => void
+  onRetry: () => void
+  onStartLesson: (lessonId: string) => void
+}) {
+  const [openPlanId, setOpenPlanId] = useState<string | null>(null)
+  const activeOption = practiceGroupOptions.find((option) => option.value === groupBy) ?? practiceGroupOptions[0]
+
+  useEffect(() => {
+    setOpenPlanId((current) => plans.some((plan) => plan.id === current) ? current : plans[0]?.id ?? null)
+  }, [plans, groupBy])
+
+  return (
+    <main className="practice-page">
+      <header className="practice-heading">
+        <div>
+          <p className="eyebrow">专项练习</p>
+          <h1>把一种方法，<br />练到会用。</h1>
+          <p>从已发布课程中按同一线索重新组织训练。选择一个专题，连续完成其中的关卡。</p>
+        </div>
+        <aside className="practice-signal" aria-label="当前专项练习模式">
+          <span>当前聚合</span>
+          <strong>{activeOption.label}</strong>
+          <small>{activeOption.description}</small>
+        </aside>
+      </header>
+
+      <section className="practice-controls" aria-label="专项练习分类">
+        <p>选择组织方式</p>
+        <div role="tablist" aria-label="专项练习分类方式">
+          {practiceGroupOptions.map((option) => <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={groupBy === option.value}
+            className={groupBy === option.value ? 'is-active' : ''}
+            onClick={() => onGroupByChange(option.value)}
+            disabled={loading}
+          >{option.label}</button>)}
+        </div>
+      </section>
+
+      <section className="practice-plan-list" aria-labelledby="practice-list-title">
+        <header className="practice-list-heading"><div><p className="eyebrow">课程专题</p><h2 id="practice-list-title">按{activeOption.label}组织的课程。</h2></div>{!loading && !error && <span>{plans.length} 个专题</span>}</header>
+        {loading ? <div className="practice-state" aria-live="polite"><b>正在整理专项练习…</b><p>正在按{activeOption.label}汇总已发布的课程。</p></div>
+          : error ? <div className="practice-state" role="alert"><b>专项练习暂时无法读取。</b><p>请确认本地服务仍在运行。错误代码：{error}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
+            : plans.length === 0 ? <div className="practice-state"><b>暂时没有可用的专项练习。</b><p>教研内容发布并补齐{activeOption.label}后，会自动出现在这里。</p></div>
+              : <div className="practice-plans">{plans.map((plan, planIndex) => {
+                const isOpen = openPlanId === plan.id
+                const count = plan.lessons.length || plan.lesson_count
+                return <article className={isOpen ? 'practice-plan is-open' : 'practice-plan'} key={plan.id}>
+                  <button className="practice-plan-summary" type="button" aria-expanded={isOpen} onClick={() => setOpenPlanId(isOpen ? null : plan.id)}>
+                    <span className="practice-plan-index">{String(planIndex + 1).padStart(2, '0')}</span>
+                    <span className="practice-plan-copy"><small>{count} 节课程</small><strong>{plan.label}</strong></span>
+                    <span className="practice-plan-toggle" aria-hidden="true">{isOpen ? '收起 −' : '展开 +'}</span>
+                  </button>
+                  {isOpen && <div className="practice-lessons" aria-label={`${plan.label}课程列表`}>
+                    {plan.lessons.length === 0 ? <p>这个专题暂时没有可开始的课程。</p> : plan.lessons.map((lesson, lessonIndex) => <article className="practice-lesson" key={lesson.id}>
+                      <div><span>{String(lessonIndex + 1).padStart(2, '0')}</span><h3>{lesson.title}</h3><p>{lesson.summary}</p><small>{lesson.source} · {lesson.difficulty} · 约 {lesson.estimated_minutes} 分钟</small></div>
+                      <button className="button button-secondary practice-start" onClick={() => onStartLesson(lesson.id)} disabled={startingLesson}>{startingLesson ? '正在进入…' : '开始练习'} <span aria-hidden="true">→</span></button>
+                    </article>)}
+                  </div>}
+                </article>
+              })}</div>}
+        {startError && <p className="request-error practice-action-error" role="alert">无法开始专项练习：{startError}</p>}
+      </section>
+    </main>
+  )
+}
+
 type ContentForm = {
   school_stage: SchoolStage
   title: string
@@ -647,6 +740,10 @@ export function App() {
   const [mistakes, setMistakes] = useState<Mistake[]>([])
   const [mistakesLoading, setMistakesLoading] = useState(false)
   const [mistakesError, setMistakesError] = useState<string | null>(null)
+  const [practiceGroupBy, setPracticeGroupBy] = useState<PracticePlanGroupBy>('theme')
+  const [practicePlans, setPracticePlans] = useState<PracticePlan[]>([])
+  const [practiceLoading, setPracticeLoading] = useState(false)
+  const [practiceError, setPracticeError] = useState<string | null>(null)
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
@@ -712,6 +809,21 @@ export function App() {
       .finally(() => setReviewsLoading(false))
     void loadMistakes(profile.id)
   }, [page, profile, loadMistakes])
+
+  const loadPracticePlans = useCallback(async (profileId: string, groupBy: PracticePlanGroupBy) => {
+    setPracticeLoading(true); setPracticeError(null)
+    try {
+      const response = await profileApi.getPracticePlans(profileId, groupBy)
+      setPracticePlans(response.plans)
+    } catch (reason) {
+      setPracticePlans([])
+      setPracticeError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setPracticeLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (page === 'practice' && profile) void loadPracticePlans(profile.id, practiceGroupBy)
+  }, [page, profile, practiceGroupBy, loadPracticePlans])
 
   const loadLearningSummary = useCallback(async (profileId: string) => {
     setSummaryLoading(true); setSummaryError(null)
@@ -808,6 +920,7 @@ export function App() {
   const navigate = (next: Page) => {
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
+    else if (next === 'practice' && profile) setPage('practice')
     else if (next === 'review' && profile) setPage('review')
     else if (next === 'profile' && profile) setPage('profile')
     else if (next === 'report' && profile) setPage('report')
@@ -821,6 +934,7 @@ export function App() {
     {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
+    {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}

@@ -1,4 +1,4 @@
-import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -15,6 +15,7 @@ type ReviewSessionsResponse = { sessions: ReviewSession[] }
 type MistakesResponse = { mistakes: Mistake[] }
 type LearningSummaryResponse = { summary: LearningSummary }
 type DailyMissionResponse = { mission: DailyMission }
+type PracticePlansResponse = PracticePlans
 type AchievementsResponse = Achievements
 type LessonsResponse = { lessons: Lesson[] }
 type AdminLessonsResponse = { lessons: AdminLesson[] }
@@ -67,6 +68,8 @@ export const profileApi = {
   getLearningSummary: (profileId: string) => request<LearningSummaryResponse>(`/api/v1/profiles/${profileId}/learning-summary`),
   getDailyMission: (profileId: string) => request<DailyMissionResponse>(`/api/v1/profiles/${profileId}/daily-mission`),
   getAchievements: (profileId: string) => request<AchievementsResponse>(`/api/v1/profiles/${profileId}/achievements`),
+  getPracticePlans: (profileId: string, groupBy: PracticePlanGroupBy) =>
+    request<PracticePlansResponse>(`/api/v1/profiles/${profileId}/practice-plans?group_by=${encodeURIComponent(groupBy)}`),
 }
 
 export const lessonApi = {

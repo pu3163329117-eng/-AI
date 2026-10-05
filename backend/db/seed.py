@@ -176,6 +176,20 @@ def seed_lessons(db: Session) -> None:
             lesson = Lesson(**{key: value for key, value in seed.items() if key != "contents"})
             db.add(lesson)
             db.flush()
+        else:
+            # The first local catalogue pre-dates editorial metadata.  Backfill
+            # only empty curated fields so pre-existing learner-visible lessons
+            # can participate in targeted practice without overwriting an
+            # editor's later changes.
+            for field in (
+                "textbook_tags",
+                "theme",
+                "reasoning_level",
+                "accumulation_points",
+                "reasoning_points",
+            ):
+                if not getattr(lesson, field):
+                    setattr(lesson, field, seed[field])
         for stage, payload in seed["contents"].items():
             existing = db.scalar(select(LessonContent).where(LessonContent.lesson_id == lesson.id, LessonContent.stage == stage))
             if not existing:

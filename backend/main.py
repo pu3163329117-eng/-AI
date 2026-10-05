@@ -354,6 +354,50 @@ def _lesson_payload(lesson: Lesson) -> dict:
     }
 
 
+_PRACTICE_GROUP_FIELDS = {
+    "theme": "theme",
+    "textbook_tag": "textbook_tags",
+    "reasoning_point": "reasoning_points",
+}
+
+
+def _practice_plan_labels(lesson: Lesson, group_by: str) -> list[str]:
+    """Read the requested editorial grouping field without exposing draft data.
+
+    Editorial JSON was added after the first locally authored lessons.  Treating
+    malformed or blank legacy values as absent keeps the learner catalogue
+    predictable instead of inventing an "untagged" plan with no learning value.
+    """
+    value = getattr(lesson, _PRACTICE_GROUP_FIELDS[group_by])
+    candidates = value if isinstance(value, list) else [value]
+    return [item.strip() for item in candidates if isinstance(item, str) and item.strip()]
+
+
+def _practice_plans_payload(db: Session, profile: LearnerProfile, group_by: str) -> dict:
+    """Build learner-safe topical plans from the published editorial catalogue."""
+    lessons = db.scalars(
+        select(Lesson)
+        .where(Lesson.school_stage == profile.school_stage, Lesson.status == "PUBLISHED")
+        .order_by(Lesson.level_order.asc(), Lesson.id.asc())
+    ).all()
+    grouped: dict[str, list[Lesson]] = {}
+    for lesson in lessons:
+        # A repeated tag inside one lesson must not make its count misleading.
+        for label in dict.fromkeys(_practice_plan_labels(lesson, group_by)):
+            grouped.setdefault(label, []).append(lesson)
+
+    plans = [
+        {
+            "id": f"{group_by}:{label}",
+            "label": label,
+            "lesson_count": len(grouped[label]),
+            "lessons": [_lesson_payload(lesson) for lesson in grouped[label]],
+        }
+        for label in sorted(grouped)
+    ]
+    return {"group_by": group_by, "plans": plans}
+
+
 def _daily_mission_payload(
     db: Session,
     profile: LearnerProfile,
@@ -626,6 +670,21 @@ def get_daily_mission(profile_id: str, db: DbSession) -> dict:
         else []
     )
     return {"mission": _daily_mission_payload(db, profile, records, events)}
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/practice-plans")
+def get_practice_plans(
+    profile_id: str,
+    db: DbSession,
+    group_by: str = Query(default="theme"),
+) -> dict:
+    """Offer a profile-safe route into the published, authored practice catalogue."""
+    if group_by not in _PRACTICE_GROUP_FIELDS:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PRACTICE_GROUP"})
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    return _practice_plans_payload(db, profile, group_by)
 
 
 @app.get(f"{API_PREFIX}/profiles/{{profile_id}}/achievements")

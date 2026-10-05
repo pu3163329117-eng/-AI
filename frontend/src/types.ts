@@ -88,6 +88,21 @@ export type DailyMission = {
   recommended_lesson: Lesson | null
 }
 
+export type PracticePlanGroupBy = 'theme' | 'textbook_tag' | 'reasoning_point'
+
+/** A focused, editorially grouped route back into published lessons. */
+export type PracticePlan = {
+  id: string
+  label: string
+  lesson_count: number
+  lessons: Lesson[]
+}
+
+export type PracticePlans = {
+  group_by: PracticePlanGroupBy
+  plans: PracticePlan[]
+}
+
 export type LessonStatus = 'DRAFT' | 'PUBLISHED'
 
 /** Editorial metadata is intentionally separate from the learner catalogue shape. */
