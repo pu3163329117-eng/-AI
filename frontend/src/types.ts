@@ -50,6 +50,27 @@ export type LearningSummary = {
   recent_activity: RecentActivity[]
 }
 
+export type Achievement = {
+  id: string
+  label: string
+  description: string
+  unlocked: boolean
+  current: number
+  target: number
+}
+
+export type ReviewRecommendation = {
+  kind: string
+  title: string
+  description: string
+  action_label: string
+}
+
+export type Achievements = {
+  achievements: Achievement[]
+  review_recommendation: ReviewRecommendation | null
+}
+
 export type Lesson = {
   id: string
   title: string

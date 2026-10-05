@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
@@ -155,18 +155,31 @@ function normalizedAccuracy(value: number) {
   return Math.max(0, Math.min(100, Math.round(percentage)))
 }
 
+function achievementProgress(achievement: Achievement) {
+  if (achievement.target <= 0) return achievement.unlocked ? 100 : 0
+  return Math.max(0, Math.min(100, Math.round((achievement.current / achievement.target) * 100)))
+}
+
 function LearningReportPage({
   summary,
   loading,
   error,
+  achievements,
+  achievementsLoading,
+  achievementsError,
   onRetry,
   onStart,
+  onRecommendation,
 }: {
   summary: LearningSummary | null
   loading: boolean
   error: string | null
+  achievements: Achievements | null
+  achievementsLoading: boolean
+  achievementsError: string | null
   onRetry: () => void
   onStart: () => void
+  onRecommendation: (kind: string) => void
 }) {
   if (loading) {
     return <main className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习报告</p><h1>正在整理<br />你的学习轨迹。</h1><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></main>
@@ -213,6 +226,33 @@ function LearningReportPage({
           </ol>}
         </section>
       </div>
+
+      <section className="report-achievements" aria-labelledby="achievements-title">
+        <div className="report-section-heading">
+          <div><p className="eyebrow">学习印记</p><h2 id="achievements-title">每一步都有回声</h2></div>
+          {!achievementsLoading && achievements && <span>{achievements.achievements.filter((item) => item.unlocked).length} / {achievements.achievements.length} 已解锁</span>}
+        </div>
+        {achievementsLoading ? <div className="report-empty" aria-live="polite"><b>正在整理学习印记。</b><p>完成的训练和持续练习会在这里留下进度。</p></div>
+          : achievementsError ? <div className="report-empty" role="alert"><b>学习印记暂时无法读取。</b><p>报告其他内容不受影响；请稍后重新打开学习报告。错误代码：{achievementsError}</p></div>
+            : !achievements || achievements.achievements.length === 0 ? <div className="report-empty"><b>学习印记正在准备中。</b><p>完成更多训练后，这里会展示你的阶段性进展。</p></div>
+              : <div className="achievement-list">
+                {achievements.achievements.map((achievement) => {
+                  const progress = achievementProgress(achievement)
+                  return <article key={achievement.id} className={achievement.unlocked ? 'achievement-row is-unlocked' : 'achievement-row'}>
+                    <div className="achievement-copy"><span>{achievement.unlocked ? '已解锁' : '进行中'}</span><strong>{achievement.label}</strong><p>{achievement.description}</p></div>
+                    <div className="achievement-progress">
+                      <progress value={progress} max="100" aria-label={`${achievement.label}：${achievement.current} / ${achievement.target}`} />
+                      <b>{achievement.unlocked ? '完成' : `${achievement.current} / ${achievement.target}`}</b>
+                    </div>
+                  </article>
+                })}
+              </div>}
+      </section>
+
+      {achievements?.review_recommendation && <section className="review-recommendation" aria-labelledby="recommendation-title">
+        <div><p className="eyebrow">下一次练习</p><h2 id="recommendation-title">{achievements.review_recommendation.title}</h2><p>{achievements.review_recommendation.description}</p></div>
+        <button className="button button-secondary" onClick={() => onRecommendation(achievements.review_recommendation!.kind)}>{achievements.review_recommendation.action_label} <span aria-hidden="true">→</span></button>
+      </section>}
       <button className="button button-primary report-action" onClick={onStart}>继续今日训练 <span aria-hidden="true">→</span></button>
     </main>
   )
@@ -550,6 +590,9 @@ export function App() {
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [achievements, setAchievements] = useState<Achievements | null>(null)
+  const [achievementsLoading, setAchievementsLoading] = useState(false)
+  const [achievementsError, setAchievementsError] = useState<string | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [lessonsLoading, setLessonsLoading] = useState(false)
   const [lessonsError, setLessonsError] = useState<string | null>(null)
@@ -606,9 +649,23 @@ export function App() {
     } finally { setSummaryLoading(false) }
   }, [])
 
+  const loadAchievements = useCallback(async (profileId: string) => {
+    setAchievementsLoading(true); setAchievementsError(null)
+    try {
+      const response = await profileApi.getAchievements(profileId)
+      setAchievements(response)
+    } catch (reason) {
+      setAchievements(null)
+      setAchievementsError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setAchievementsLoading(false) }
+  }, [])
+
   useEffect(() => {
-    if (page === 'report' && profile) void loadLearningSummary(profile.id)
-  }, [page, profile, loadLearningSummary])
+    if (page === 'report' && profile) {
+      void loadLearningSummary(profile.id)
+      void loadAchievements(profile.id)
+    }
+  }, [page, profile, loadLearningSummary, loadAchievements])
 
   const loadLessons = useCallback(async (schoolStage: SchoolStage) => {
     setLessonsLoading(true); setLessonsError(null)
@@ -676,7 +733,7 @@ export function App() {
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
+    {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
     {page === 'admin' && <ContentAdminPage />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}

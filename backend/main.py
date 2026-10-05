@@ -175,6 +175,64 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
     }
 
 
+def _achievements_payload(profile: LearnerProfile, records: list[TrainingSession], events: list[TrainingEvent]) -> dict:
+    """Derive small, explainable milestones from the immutable learning record.
+
+    Achievements intentionally remain calculated rather than persisted: a repaired or
+    imported learning record is reflected immediately and no secondary write model can
+    drift out of sync with sessions/events.
+    """
+    summary = _learning_summary(profile, records, events)
+    completed_sessions = max(0, int(summary["completed_sessions"]))
+    evidence_selected = max(0, sum(1 for event in events if event.type == "training.evidence_selected"))
+    current_streak = max(0, int(summary["current_streak_days"]))
+
+    definitions = (
+        ("FIRST_COMPLETION", "首次完成", "完成 1 次完整的语境推理训练。", completed_sessions, 1),
+        ("EVIDENCE_KEEPER", "证据守护者", "在判断前累计选出 3 条文本证据。", evidence_selected, 3),
+        ("STEADY_READER", "稳定阅读", "连续 3 天完成学习训练。", current_streak, 3),
+        ("PERSISTENT_READER", "坚持阅读", "累计完成 5 次完整训练。", completed_sessions, 5),
+    )
+    achievements = [
+        {
+            "id": achievement_id,
+            "label": label,
+            "description": description,
+            "unlocked": current >= target,
+            "current": current,
+            "target": target,
+        }
+        for achievement_id, label, description, current, target in definitions
+    ]
+
+    weak_skills = summary["weak_skills"]
+    if weak_skills:
+        weak_skill = weak_skills[0]
+        accuracy = round(weak_skill["accuracy"] * 100)
+        recommendation = {
+            "kind": "WEAK_SKILL",
+            "title": f"复习：{weak_skill['label']}",
+            "description": f"当前正确率为 {accuracy}%，先回到证据线索，再完成一次针对练习。",
+            "action_label": "开始复习",
+        }
+    elif completed_sessions == 0:
+        recommendation = {
+            "kind": "START",
+            "title": "从第一关开始",
+            "description": "完成一节语境推理训练，建立你的学习记录。",
+            "action_label": "开始今日关卡",
+        }
+    else:
+        recommendation = {
+            "kind": "NEXT_LESSON",
+            "title": "继续下一关",
+            "description": "保持学习节奏，在新的语境中练习用证据判断词义。",
+            "action_label": "进入下一关",
+        }
+
+    return {"achievements": achievements, "review_recommendation": recommendation}
+
+
 def _lesson_payload(lesson: Lesson) -> dict:
     """Public catalogue shape: content bodies remain private until a learner starts the lesson."""
     return {
@@ -411,6 +469,22 @@ def get_learning_summary(profile_id: str, db: DbSession) -> dict:
         else []
     )
     return {"summary": _learning_summary(profile, records, events)}
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/achievements")
+def get_achievements(profile_id: str, db: DbSession) -> dict:
+    """Return derived milestone progress plus the learner's single best next action."""
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    records = db.scalars(select(TrainingSession).where(TrainingSession.profile_id == profile_id)).all()
+    session_ids = [record.id for record in records]
+    events = (
+        db.scalars(select(TrainingEvent).where(TrainingEvent.session_id.in_(session_ids))).all()
+        if session_ids
+        else []
+    )
+    return _achievements_payload(profile, records, events)
 
 
 @app.get(f"{API_PREFIX}/profiles/{{profile_id}}/sessions")
