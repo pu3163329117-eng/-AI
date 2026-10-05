@@ -105,7 +105,21 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
             events.append({"type": "training.attempt_evaluated", "payload": {"label": "CORRECT_BUT_GUESSING"}})
         else:
             next_snapshot.update(state="AWAITING_INITIAL_ATTEMPT" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_ATTEMPT", feedback=f"这条解释暂时无法和“{snapshot['evidence']}”形成关系。试着使用证据，或请求一条提示。")
-            events.append({"type": "training.attempt_evaluated", "payload": {"label": "WRONG_CONTEXT"}})
+            # Keep the minimal attempt context on the immutable event. A session
+            # snapshot can later move on to TRANSFER, so the event itself must say
+            # which word and stage the learner was working on when the mistake was
+            # made. This gives review projections a stable, queryable key.
+            events.append(
+                {
+                    "type": "training.attempt_evaluated",
+                    "payload": {
+                        "label": "WRONG_CONTEXT",
+                        "answer": answer,
+                        "variable": snapshot["variable"],
+                        "stage": snapshot["stage"],
+                    },
+                }
+            )
     elif action == "CONTINUE_TO_TRANSFER":
         if snapshot["stage"] != "CORE" or not snapshot["transfer_ready"]:
             raise ValueError("TRANSFER_NOT_READY")

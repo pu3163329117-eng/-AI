@@ -118,6 +118,17 @@ export type ReviewSession = {
   updated_at: string | null
 }
 
+export type Mistake = {
+  lesson_id: string
+  title: string
+  source: string
+  variable: string
+  passage: string
+  wrong_attempts: number
+  latest_attempt_at: string | null
+  review_hint: string
+}
+
 export type TrainingSession = {
   stage: TrainingStage
   state: TrainingState

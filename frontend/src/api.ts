@@ -1,4 +1,4 @@
-import type { Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -12,6 +12,7 @@ type CommandResponse = {
 
 type ProfileResponse = { profile: LearnerProfile }
 type ReviewSessionsResponse = { sessions: ReviewSession[] }
+type MistakesResponse = { mistakes: Mistake[] }
 type LearningSummaryResponse = { summary: LearningSummary }
 type AchievementsResponse = Achievements
 type LessonsResponse = { lessons: Lesson[] }
@@ -61,6 +62,7 @@ export const profileApi = {
     }),
   get: (profileId: string) => request<ProfileResponse>(`/api/v1/profiles/${profileId}`),
   listSessions: (profileId: string) => request<ReviewSessionsResponse>(`/api/v1/profiles/${profileId}/sessions`),
+  listMistakes: (profileId: string) => request<MistakesResponse>(`/api/v1/profiles/${profileId}/mistakes`),
   getLearningSummary: (profileId: string) => request<LearningSummaryResponse>(`/api/v1/profiles/${profileId}/learning-summary`),
   getAchievements: (profileId: string) => request<AchievementsResponse>(`/api/v1/profiles/${profileId}/achievements`),
 }

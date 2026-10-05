@@ -233,6 +233,115 @@ def _achievements_payload(profile: LearnerProfile, records: list[TrainingSession
     return {"achievements": achievements, "review_recommendation": recommendation}
 
 
+def _snapshot_text(snapshot: dict, key: str) -> str | None:
+    """Read a non-empty string from a frozen session snapshot safely."""
+    value = snapshot.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _mistake_review_hint(variable: str, evidence: str | None) -> str:
+    """Keep review copy deterministic so it can be trusted across clients."""
+    if evidence:
+        return f"回到证据“{evidence}”，先判断人物和动作关系，再解释“{variable}”在句中的意思。"
+    return f"先回到文中的关键证据，判断人物和动作关系，再解释“{variable}”在句中的意思。"
+
+
+def _mistakes_payload(db: Session, records: list[TrainingSession], events: list[TrainingEvent]) -> dict:
+    """Project WRONG_CONTEXT events into a deduplicated targeted-review list.
+
+    New events record their variable directly. Earlier records did not, so frozen
+    session snapshots remain the backwards-compatible source of truth. The snapshot
+    also keeps review data available if an editorial lesson is later removed.
+    """
+    records_by_id = {record.id: record for record in records}
+    lesson_ids = {
+        record.lesson_id
+        for record in records
+        if isinstance(record.lesson_id, str) and record.lesson_id
+    }
+    lessons = {
+        lesson.id: lesson
+        for lesson in db.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
+    } if lesson_ids else {}
+
+    grouped: dict[tuple[str, str], dict] = {}
+    for event in events:
+        if event.type != "training.attempt_evaluated" or not isinstance(event.payload, dict):
+            continue
+        if event.payload.get("label") != "WRONG_CONTEXT":
+            continue
+        record = records_by_id.get(event.session_id)
+        if record is None or not isinstance(record.snapshot, dict):
+            continue
+        snapshot = record.snapshot
+        lesson_meta = snapshot.get("lesson") if isinstance(snapshot.get("lesson"), dict) else {}
+        lesson_id = record.lesson_id or lesson_meta.get("id")
+        if not isinstance(lesson_id, str) or not lesson_id:
+            # A malformed legacy session cannot form the documented lesson key.
+            continue
+        variable = event.payload.get("variable")
+        if not isinstance(variable, str) or not variable.strip():
+            variable = _snapshot_text(snapshot, "variable")
+        if not isinstance(variable, str) or not variable:
+            continue
+
+        lesson = lessons.get(lesson_id)
+        title = _snapshot_text(lesson_meta, "title") or (lesson.title if lesson else None) or "未命名课程"
+        source = _snapshot_text(snapshot, "source") or (lesson.source if lesson else None) or ""
+        passage = _snapshot_text(snapshot, "passage") or ""
+        evidence = _snapshot_text(snapshot, "evidence")
+        key = (lesson_id, variable)
+        latest_at = event.created_at
+        current = grouped.get(key)
+        if current is None:
+            grouped[key] = {
+                "lesson_id": lesson_id,
+                "title": title,
+                "source": source,
+                "variable": variable,
+                "passage": passage,
+                "wrong_attempts": 1,
+                "latest_attempt_at": latest_at,
+                "review_hint": _mistake_review_hint(variable, evidence),
+            }
+            continue
+
+        current["wrong_attempts"] += 1
+        if latest_at and (current["latest_attempt_at"] is None or latest_at > current["latest_attempt_at"]):
+            current.update(
+                title=title,
+                source=source,
+                passage=passage,
+                latest_attempt_at=latest_at,
+                review_hint=_mistake_review_hint(variable, evidence),
+            )
+
+    mistakes = sorted(
+        grouped.values(),
+        key=lambda item: (
+            -item["wrong_attempts"],
+            -(item["latest_attempt_at"].timestamp() if item["latest_attempt_at"] else 0),
+            item["lesson_id"],
+            item["variable"],
+        ),
+    )
+    return {
+        "mistakes": [
+            {
+                "lesson_id": item["lesson_id"],
+                "title": item["title"],
+                "source": item["source"],
+                "variable": item["variable"],
+                "passage": item["passage"],
+                "wrong_attempts": item["wrong_attempts"],
+                "latest_attempt_at": item["latest_attempt_at"].isoformat() if item["latest_attempt_at"] else None,
+                "review_hint": item["review_hint"],
+            }
+            for item in mistakes
+        ]
+    }
+
+
 def _lesson_payload(lesson: Lesson) -> dict:
     """Public catalogue shape: content bodies remain private until a learner starts the lesson."""
     return {
@@ -485,6 +594,22 @@ def get_achievements(profile_id: str, db: DbSession) -> dict:
         else []
     )
     return _achievements_payload(profile, records, events)
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/mistakes")
+def get_mistakes(profile_id: str, db: DbSession) -> dict:
+    """Return a compact, evidence-led mistake bank for targeted review."""
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    records = db.scalars(select(TrainingSession).where(TrainingSession.profile_id == profile_id)).all()
+    session_ids = [record.id for record in records]
+    events = (
+        db.scalars(select(TrainingEvent).where(TrainingEvent.session_id.in_(session_ids))).all()
+        if session_ids
+        else []
+    )
+    return _mistakes_payload(db, records, events)
 
 
 @app.get(f"{API_PREFIX}/profiles/{{profile_id}}/sessions")

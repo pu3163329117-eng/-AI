@@ -154,3 +154,28 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 @media (max-width: 760px) {
   .learning-report-page { padding: 55px 24px 65px; }.report-heading { grid-template-columns: 1fr; gap: 27px; padding-bottom: 29px; }.report-heading h1, .report-state h1 { margin: 14px 0; font-size: clamp(40px, 12vw, 54px); line-height: 1.08; }.report-streak { width: 100%; max-width: 210px; min-height: 72px; padding-left: 18px; }.report-streak b { font-size: 43px; }.report-totals { grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 22px 0 38px; }.report-totals strong { font-size: 31px; }.report-totals small { max-width: 74px; line-height: 1.4; }.report-grid { grid-template-columns: 1fr; gap: 35px; }.weak-skill-row { grid-template-columns: minmax(105px, 1fr) minmax(72px, 1fr) 42px; gap: 12px; }.activity-list li { grid-template-columns: 63px minmax(0, 1fr) auto; gap: 9px; }.activity-list span { line-height: 1.4; }.report-achievements { margin-top: 40px; }.achievement-list { grid-template-columns: 1fr; }.achievement-row, .achievement-row:nth-child(odd), .achievement-row:nth-child(even) { grid-template-columns: minmax(0, 1fr) 90px; min-height: 0; padding: 20px 0; border-right: 0; }.review-recommendation { display: grid; align-items: start; margin-top: 40px; }.review-recommendation .button { justify-self: start; }.report-state { min-height: calc(100vh - 106px); padding-top: 68px; }
 }
+
+/* Mistake bank: a ledger of specific language contexts, kept separate from session history. */
+.mistake-bank { margin-top: 54px; border-top: 1px solid #aaa; }
+.review-history { margin-top: 62px; border-top: 1px solid #aaa; }
+.review-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid #deded9; }
+.review-section-heading h2 { margin: 6px 0 0; font-size: 21px; letter-spacing: -.04em; }
+.review-section-heading > span { color: #71716c; font-size: 11px; white-space: nowrap; }
+.review-state { padding: 29px 0 32px; border-bottom: 1px solid #deded9; }
+.review-state b { font-size: 14px; }.review-state p { max-width: 460px; margin: 8px 0 0; color: #5d5d59; font-size: 13px; line-height: 1.65; }.review-state .text-button { margin-top: 15px; }
+.mistake-list { display: grid; }
+.mistake-row { display: grid; grid-template-columns: 67px minmax(0, 1fr) auto; align-items: start; gap: 23px; padding: 25px 0; border-bottom: 1px solid #deded9; }
+.mistake-index { display: grid; align-content: start; gap: 1px; min-height: 52px; padding-top: 2px; border-right: 1px solid #deded9; }
+.mistake-index span { font-family: Georgia, serif; font-size: 31px; line-height: .95; letter-spacing: -.06em; }.mistake-index small { color: #71716c; font-size: 10px; }
+.mistake-content { min-width: 0; }.mistake-meta { margin: 0; color: #71716c; font-size: 11px; }.mistake-content h3 { margin: 8px 0 0; font-size: 17px; letter-spacing: -.03em; }
+.mistake-passage { max-width: 620px; margin: 11px 0 0; font-family: "Songti SC", STSong, SimSun, serif; font-size: 17px; line-height: 1.75; }
+.mistake-variable, .mistake-hint { margin: 9px 0 0; color: #5d5d59; font-size: 12px; line-height: 1.6; }.mistake-variable b { color: #111; }.mistake-hint { max-width: 620px; }
+.mistake-action { align-self: center; min-width: 116px; padding: 10px 14px; font-size: 13px; white-space: nowrap; }
+.review-history .review-list { margin-top: 0; }.review-history .review-empty, .review-history .review-status { margin-top: 0; }.review-action-error { margin: 14px 0 0; }
+
+@media (max-width: 760px) {
+  .mistake-bank { margin-top: 40px; }.review-history { margin-top: 45px; }
+  .review-section-heading { display: grid; align-items: start; gap: 9px; padding: 17px 0; }.review-section-heading h2 { font-size: 19px; }.review-section-heading > span { white-space: normal; }
+  .mistake-row { grid-template-columns: 43px minmax(0, 1fr); gap: 14px; padding: 21px 0; }.mistake-index { min-height: 46px; }.mistake-index span { font-size: 25px; }
+  .mistake-passage { font-size: 16px; }.mistake-action { grid-column: 2; justify-self: start; margin-top: 3px; }.review-state { padding: 25px 0; }
+}

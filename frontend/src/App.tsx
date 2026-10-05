@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
@@ -258,24 +258,74 @@ function LearningReportPage({
   )
 }
 
-function ReviewPage({ sessions, loading, error, onOpen }: { sessions: ReviewSession[]; loading: boolean; error: string | null; onOpen: (sessionId: string) => void }) {
+function formatReviewDate(value: string | null) {
+  if (!value) return '最近一次作答时间待同步'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${date.getMonth() + 1} 月 ${date.getDate()} 日复习过`
+}
+
+function ReviewPage({
+  sessions,
+  loading,
+  error,
+  mistakes,
+  mistakesLoading,
+  mistakesError,
+  startingLesson,
+  startError,
+  onOpen,
+  onRetryMistakes,
+  onStartLesson,
+}: {
+  sessions: ReviewSession[];
+  loading: boolean;
+  error: string | null;
+  mistakes: Mistake[];
+  mistakesLoading: boolean;
+  mistakesError: string | null;
+  startingLesson: boolean;
+  startError: string | null;
+  onOpen: (sessionId: string) => void;
+  onRetryMistakes: () => void;
+  onStartLesson: (lessonId: string) => void;
+}) {
   return (
     <main className="review-page">
       <p className="eyebrow">复习</p>
       <h1>把走过的推理，<br />再走一遍。</h1>
-      <p className="intro">这里显示当前设备档案下的最近训练；未完成的关卡可以从原处继续。</p>
-      {loading ? <p className="review-status">正在读取训练记录…</p> : error ? <p className="request-error" role="alert">无法读取训练记录：{error}</p> : sessions.length === 0 ? (
-        <section className="review-empty"><b>还没有可回看的训练。</b><p>完成第一关后，它会出现在这里。</p></section>
-      ) : (
-        <section className="review-list" aria-label="最近训练记录">
+      <p className="intro">错过的判断会留在错题本里；未完成的关卡也能从原处继续。每一次重练，都回到具体的语境和证据。</p>
+
+      <section className="mistake-bank" aria-labelledby="mistake-bank-title">
+        <header className="review-section-heading"><div><p className="eyebrow">错题本</p><h2 id="mistake-bank-title">回到当时没说清的地方。</h2></div>{!mistakesLoading && !mistakesError && <span>{mistakes.length} 个待回看</span>}</header>
+        {mistakesLoading ? <div className="review-state" aria-live="polite"><b>正在整理错题本…</b><p>把每次尚未答对的语境和线索汇总到这里。</p></div>
+          : mistakesError ? <div className="review-state" role="alert"><b>错题本暂时无法读取。</b><p>请确认本地服务仍在运行。错误代码：{mistakesError}</p><button className="text-button" onClick={onRetryMistakes}>重新读取 →</button></div>
+            : mistakes.length === 0 ? <div className="review-state"><b>错题本还是空的。</b><p>继续认真作答；遇到需要回看的地方，会在这里留下清晰的复习入口。</p></div>
+              : <div className="mistake-list">
+                {mistakes.map((item) => <article className="mistake-row" key={item.lesson_id}>
+                  <div className="mistake-index" aria-hidden="true"><span>{String(item.wrong_attempts).padStart(2, '0')}</span><small>次</small></div>
+                  <div className="mistake-content"><p className="mistake-meta">{item.source} · {formatReviewDate(item.latest_attempt_at)}</p><h3>{item.title}</h3><p className="mistake-passage">“{item.passage}”</p><p className="mistake-variable"><b>回看词：</b>{item.variable}</p><p className="mistake-hint">{item.review_hint}</p></div>
+                  <button className="button button-secondary mistake-action" onClick={() => onStartLesson(item.lesson_id)} disabled={startingLesson}>{startingLesson ? '正在进入…' : '重新练习'} <span aria-hidden="true">→</span></button>
+                </article>)}
+              </div>}
+        {startError && <p className="request-error review-action-error" role="alert">无法开始复习：{startError}</p>}
+      </section>
+
+      <section className="review-history" aria-labelledby="review-history-title">
+        <header className="review-section-heading"><div><p className="eyebrow">最近训练</p><h2 id="review-history-title">继续未走完的路径。</h2></div></header>
+        {loading ? <p className="review-status">正在读取训练记录…</p> : error ? <p className="request-error" role="alert">无法读取训练记录：{error}</p> : sessions.length === 0 ? (
+          <div className="review-empty"><b>还没有可回看的训练。</b><p>完成第一关后，它会出现在这里。</p></div>
+        ) : (
+          <div className="review-list" aria-label="最近训练记录">
           {sessions.map((item) => (
             <article key={item.session_id}>
               <div><span>{item.completed ? '已完成' : '进行中'}</span><strong>{item.source}</strong><p>{item.feedback}</p></div>
               <button className="text-button" onClick={() => onOpen(item.session_id)}>{item.completed ? '查看总结' : '继续练习'} →</button>
             </article>
           ))}
-        </section>
-      )}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
@@ -587,6 +637,9 @@ export function App() {
   const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [mistakes, setMistakes] = useState<Mistake[]>([])
+  const [mistakesLoading, setMistakesLoading] = useState(false)
+  const [mistakesError, setMistakesError] = useState<string | null>(null)
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
@@ -629,6 +682,17 @@ export function App() {
     } finally { setBusy(false) }
   }, [])
 
+  const loadMistakes = useCallback(async (profileId: string) => {
+    setMistakesLoading(true); setMistakesError(null)
+    try {
+      const response = await profileApi.listMistakes(profileId)
+      setMistakes(response.mistakes)
+    } catch (reason) {
+      setMistakes([])
+      setMistakesError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setMistakesLoading(false) }
+  }, [])
+
   useEffect(() => {
     if (page !== 'review' || !profile) return
     setReviewsLoading(true); setReviewError(null)
@@ -636,7 +700,8 @@ export function App() {
       .then(({ sessions }) => setReviewSessions(sessions))
       .catch((reason) => setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED'))
       .finally(() => setReviewsLoading(false))
-  }, [page, profile])
+    void loadMistakes(profile.id)
+  }, [page, profile, loadMistakes])
 
   const loadLearningSummary = useCallback(async (profileId: string) => {
     setSummaryLoading(true); setSummaryError(null)
@@ -731,7 +796,7 @@ export function App() {
     {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} />}
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
+    {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
     {page === 'admin' && <ContentAdminPage />}
