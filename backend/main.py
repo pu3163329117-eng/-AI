@@ -10,12 +10,22 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.config import API_PREFIX
-from backend.db.init import init_db
-from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
-from backend.db.session import get_db
-from backend.domain.training import apply_command, initial_snapshot
-from backend.schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
+try:
+    # Local development imports the backend package from the repository root.
+    from backend.config import API_PREFIX
+    from backend.db.init import init_db
+    from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
+    from backend.db.session import get_db
+    from backend.domain.training import apply_command, initial_snapshot
+    from backend.schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
+except ModuleNotFoundError:
+    # Vercel packages this service with backend/ as its working root.
+    from config import API_PREFIX
+    from db.init import init_db
+    from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
+    from db.session import get_db
+    from domain.training import apply_command, initial_snapshot
+    from schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
 

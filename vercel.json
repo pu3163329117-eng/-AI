@@ -1,12 +1,37 @@
 {
-  "experimentalServices": {
+  "services": {
     "frontend": {
-      "entrypoint": "frontend",
-      "routePrefix": "/"
+      "root": "frontend",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "backend": {
-      "entrypoint": "backend/main.py",
-      "routePrefix": "/server"
+      "root": "backend",
+      "entrypoint": "main.py",
+      "rewrites": [
+        {
+          "source": "/server/:path(.*)?",
+          "destination": "/:path"
+        }
+      ]
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/server(/.*)?",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ]
 }

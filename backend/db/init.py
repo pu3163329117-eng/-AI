@@ -1,9 +1,7 @@
-from backend.db import models  # noqa: F401 - imports model metadata
-
-from backend.db.migrations import apply_migrations
-from backend.db.seed import seed_lessons
-from backend.db.session import Base, engine
-from backend.db.session import SessionLocal
+from . import models  # noqa: F401 - imports model metadata
+from .migrations import apply_migrations
+from .seed import seed_lessons
+from .session import Base, SessionLocal, engine
 
 
 def init_db() -> None:

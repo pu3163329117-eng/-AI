@@ -6,7 +6,10 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from backend.config import DATABASE_URL
+try:
+    from backend.config import DATABASE_URL
+except ModuleNotFoundError:
+    from config import DATABASE_URL
 
 
 class Base(DeclarativeBase):

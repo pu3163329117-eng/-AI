@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.db.models import Lesson, LessonContent
+from .models import Lesson, LessonContent
 
 
 JUNIOR_CORE = {
