@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { AdminLesson, AdminLessonInput, CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
-type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'admin' | 'onboarding'
+type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
 
@@ -21,6 +21,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
         </button>
         <button className={page === 'review' ? 'is-active' : ''} onClick={() => onNavigate('review')} disabled={!profile}>复习</button>
         <button className={page === 'profile' ? 'is-active' : ''} onClick={() => onNavigate('profile')} disabled={!profile}>我的</button>
+        <button className={page === 'report' ? 'is-active' : ''} onClick={() => onNavigate('report')} disabled={!profile}>学习报告</button>
         <button className={page === 'admin' ? 'is-active' : ''} onClick={() => onNavigate('admin')}>内容管理</button>
       </nav>
       <button className="account" aria-label="查看学习档案" onClick={() => profile && onNavigate('profile')} disabled={!profile}>{profile?.display_name.slice(0, 1) ?? '—'}</button>
@@ -139,6 +140,80 @@ function ProfilePage({ profile, onStart }: { profile: LearnerProfile; onStart: (
         <article><span>累计知行</span><strong>{profile.total_points}</strong></article>
       </section>
       <button className="button button-primary" onClick={onStart}>继续训练 <span aria-hidden="true">→</span></button>
+    </main>
+  )
+}
+
+function displayActivityDate(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  return `${date.getMonth() + 1} 月 ${date.getDate()} 日`
+}
+
+function normalizedAccuracy(value: number) {
+  const percentage = value <= 1 ? value * 100 : value
+  return Math.max(0, Math.min(100, Math.round(percentage)))
+}
+
+function LearningReportPage({
+  summary,
+  loading,
+  error,
+  onRetry,
+  onStart,
+}: {
+  summary: LearningSummary | null
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+  onStart: () => void
+}) {
+  if (loading) {
+    return <main className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习报告</p><h1>正在整理<br />你的学习轨迹。</h1><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></main>
+  }
+  if (error) {
+    return <main className="learning-report-page report-state" role="alert"><p className="eyebrow">学习报告</p><h1>报告暂时<br />还没准备好。</h1><p className="intro">请确认本地服务仍在运行后再试一次。错误代码：{error}</p><button className="button button-primary" onClick={onRetry}>重新读取 <span aria-hidden="true">→</span></button></main>
+  }
+  if (!summary || (summary.completed_sessions === 0 && summary.completed_lessons === 0 && summary.total_points === 0)) {
+    return <main className="learning-report-page report-state"><p className="eyebrow">学习报告</p><h1>先完成一关，<br />再看见你的路径。</h1><p className="intro">每次完成训练后，这里会记录知行、连续学习天数，以及下一步值得回看的推理能力。</p><button className="button button-primary" onClick={onStart}>开始第一关 <span aria-hidden="true">→</span></button></main>
+  }
+
+  return (
+    <main className="learning-report-page">
+      <header className="report-heading">
+        <div><p className="eyebrow">学习报告</p><h1>把每一次判断，<br />看成一条路径。</h1><p>这不是排名，而是你在文言语境中留下的证据、回溯与迁移记录。</p></div>
+        <aside className="report-streak" aria-label={`已连续学习 ${summary.current_streak_days} 天`}><b>{summary.current_streak_days}</b><span>连续学习<br />天</span></aside>
+      </header>
+
+      <section className="report-totals" aria-label="学习总览">
+        <article><span>累计知行</span><strong>{summary.total_points}</strong><small>来自完成训练</small></article>
+        <article><span>完成关卡</span><strong>{summary.completed_lessons}</strong><small>已经走完的课程</small></article>
+        <article><span>完成训练</span><strong>{summary.completed_sessions}</strong><small>包含重复复习</small></article>
+      </section>
+
+      <div className="report-grid">
+        <section className="report-section weak-skills" aria-labelledby="weak-skills-title">
+          <div className="report-section-heading"><div><p className="eyebrow">下一步回看</p><h2 id="weak-skills-title">需要多一点证据的地方</h2></div><span>按当前正确率排序</span></div>
+          {summary.weak_skills.length === 0 ? <div className="report-empty"><b>还在收集你的推理样本。</b><p>再完成几次训练后，这里会标出值得优先复习的能力。</p></div> : <div className="weak-skill-list">
+            {summary.weak_skills.map((skill) => {
+              const accuracy = normalizedAccuracy(skill.accuracy)
+              return <article key={skill.label} className="weak-skill-row">
+                <div><strong>{skill.label}</strong><p>已练习 {skill.attempts} 次</p></div>
+                <div className="report-meter" aria-label={`${skill.label} 当前正确率 ${accuracy}%`}><i style={{ width: `${accuracy}%` }} /></div>
+                <b>{accuracy}%</b>
+              </article>
+            })}
+          </div>}
+        </section>
+
+        <section className="report-section report-activity" aria-labelledby="activity-title">
+          <div className="report-section-heading"><div><p className="eyebrow">最近 7 天</p><h2 id="activity-title">训练足迹</h2></div></div>
+          {summary.recent_activity.length === 0 ? <div className="report-empty"><b>今天还没有训练记录。</b><p>完成一关后，知行和训练次数会按日期记在这里。</p></div> : <ol className="activity-list">
+            {summary.recent_activity.map((activity) => <li key={activity.date}><time dateTime={activity.date}>{displayActivityDate(activity.date)}</time><span>{activity.completed_sessions > 0 ? `完成 ${activity.completed_sessions} 次训练` : '记录学习状态'}</span><b>{activity.points > 0 ? `+${activity.points}` : '—'} <small>知行</small></b></li>)}
+          </ol>}
+        </section>
+      </div>
+      <button className="button button-primary report-action" onClick={onStart}>继续今日训练 <span aria-hidden="true">→</span></button>
     </main>
   )
 }
@@ -472,6 +547,9 @@ export function App() {
   const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [lessonsLoading, setLessonsLoading] = useState(false)
   const [lessonsError, setLessonsError] = useState<string | null>(null)
@@ -516,6 +594,21 @@ export function App() {
       .catch((reason) => setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED'))
       .finally(() => setReviewsLoading(false))
   }, [page, profile])
+
+  const loadLearningSummary = useCallback(async (profileId: string) => {
+    setSummaryLoading(true); setSummaryError(null)
+    try {
+      const response = await profileApi.getLearningSummary(profileId)
+      setLearningSummary(response.summary)
+    } catch (reason) {
+      setLearningSummary(null)
+      setSummaryError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setSummaryLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (page === 'report' && profile) void loadLearningSummary(profile.id)
+  }, [page, profile, loadLearningSummary])
 
   const loadLessons = useCallback(async (schoolStage: SchoolStage) => {
     setLessonsLoading(true); setLessonsError(null)
@@ -570,6 +663,7 @@ export function App() {
     else if (next === 'skills') setPage('skills')
     else if (next === 'review' && profile) setPage('review')
     else if (next === 'profile' && profile) setPage('profile')
+    else if (next === 'report' && profile) setPage('report')
     else if (next === 'admin') setPage('admin')
   }
 
@@ -582,6 +676,7 @@ export function App() {
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
+    {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'admin' && <ContentAdminPage />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}

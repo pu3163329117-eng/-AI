@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from contextlib import asynccontextmanager
+from datetime import date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -74,6 +75,103 @@ def _review_session_payload(record: TrainingSession) -> dict:
         "completed": snapshot["completed"],
         "feedback": snapshot["feedback"],
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+def _local_calendar_date(value: datetime | None) -> date | None:
+    """Return the application's local calendar date for a database timestamp.
+
+    SQLite returns naive timestamps in local application time, while a production
+    database can return timezone-aware values.  Converting aware values with
+    ``astimezone()`` deliberately uses the app host's local timezone; that keeps
+    the streak rule aligned with what a learner sees as "today".
+    """
+    if value is None:
+        return None
+    return value.astimezone().date() if value.tzinfo is not None else value.date()
+
+
+def _earned_points(snapshot: dict) -> int:
+    """Read session points defensively so imported/older snapshots remain safe."""
+    summary = snapshot.get("summary") or snapshot.get("lesson_summary") or {}
+    points = summary.get("earned_points", 0) if isinstance(summary, dict) else 0
+    return points if isinstance(points, int) and not isinstance(points, bool) else 0
+
+
+def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], events: list[TrainingEvent]) -> dict:
+    """Build a learner-facing aggregate without mutating the source learning record."""
+    completed = [record for record in records if record.snapshot.get("completed")]
+    completed_session_ids = {record.id for record in completed}
+    completion_events = {
+        event.session_id: event
+        for event in events
+        if event.session_id in completed_session_ids and event.type == "training.session_completed"
+    }
+
+    # A pre-event historical completed session still contributes via its last update.
+    activity: dict[date, dict[str, int]] = {}
+    completion_days: set[date] = set()
+    for record in completed:
+        event = completion_events.get(record.id)
+        completed_on = _local_calendar_date(event.created_at if event else record.updated_at)
+        if completed_on is None:
+            continue
+        completion_days.add(completed_on)
+        bucket = activity.setdefault(completed_on, {"points": 0, "completed_sessions": 0})
+        bucket["points"] += _earned_points(record.snapshot)
+        bucket["completed_sessions"] += 1
+
+    streak = 0
+    current_day = date.today()
+    while current_day in completion_days:
+        streak += 1
+        current_day -= timedelta(days=1)
+
+    attempts_by_skill: dict[str, dict[str, int]] = {}
+    records_by_id = {record.id: record for record in records}
+    for event in events:
+        record = records_by_id.get(event.session_id)
+        if record is None:
+            continue
+        snapshot = record.snapshot
+        variable = snapshot.get("variable")
+        label = f"词义判断·{variable}" if isinstance(variable, str) and variable.strip() else "语境推理"
+        stats = attempts_by_skill.setdefault(label, {"attempts": 0, "correct": 0})
+        if event.type == "training.attempt_evaluated":
+            stats["attempts"] += 1
+            if event.payload.get("label") == "CORRECT_BUT_GUESSING":
+                stats["correct"] += 1
+        elif event.type in {"training.answer_validated", "training.transfer_validated"}:
+            stats["attempts"] += 1
+            stats["correct"] += 1
+
+    weak_skills = [
+        {
+            "label": label,
+            "attempts": stats["attempts"],
+            "accuracy": round(stats["correct"] / stats["attempts"], 3),
+        }
+        for label, stats in attempts_by_skill.items()
+        if stats["attempts"] and stats["correct"] < stats["attempts"]
+    ]
+    weak_skills.sort(key=lambda item: (item["accuracy"], -item["attempts"], item["label"]))
+
+    completed_lessons = {
+        record.snapshot.get("lesson", {}).get("id") or record.lesson_id
+        for record in completed
+        if record.snapshot.get("lesson", {}).get("id") or record.lesson_id
+    }
+    recent_activity = [
+        {"date": completed_on.isoformat(), **activity[completed_on]}
+        for completed_on in sorted(activity, reverse=True)
+    ]
+    return {
+        "total_points": profile.total_points,
+        "completed_lessons": len(completed_lessons),
+        "completed_sessions": len(completed),
+        "current_streak_days": streak,
+        "weak_skills": weak_skills,
+        "recent_activity": recent_activity,
     }
 
 
@@ -297,6 +395,22 @@ def get_profile(profile_id: str, db: DbSession) -> dict:
     if not profile:
         raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
     return {"profile": _profile_payload(profile)}
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/learning-summary")
+def get_learning_summary(profile_id: str, db: DbSession) -> dict:
+    """Return the P1 dashboard aggregate for one learner profile."""
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    records = db.scalars(select(TrainingSession).where(TrainingSession.profile_id == profile_id)).all()
+    session_ids = [record.id for record in records]
+    events = (
+        db.scalars(select(TrainingEvent).where(TrainingEvent.session_id.in_(session_ids))).all()
+        if session_ids
+        else []
+    )
+    return {"summary": _learning_summary(profile, records, events)}
 
 
 @app.get(f"{API_PREFIX}/profiles/{{profile_id}}/sessions")

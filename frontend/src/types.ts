@@ -28,6 +28,28 @@ export type LearnerProfile = {
   completed_levels: number
 }
 
+export type WeakSkill = {
+  label: string
+  attempts: number
+  /** The service may return either 0–1 or 0–100; the UI normalizes both. */
+  accuracy: number
+}
+
+export type RecentActivity = {
+  date: string
+  points: number
+  completed_sessions: number
+}
+
+export type LearningSummary = {
+  total_points: number
+  completed_lessons: number
+  completed_sessions: number
+  current_streak_days: number
+  weak_skills: WeakSkill[]
+  recent_activity: RecentActivity[]
+}
+
 export type Lesson = {
   id: string
   title: string
