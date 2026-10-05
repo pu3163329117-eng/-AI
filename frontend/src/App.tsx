@@ -127,6 +127,17 @@ function ReviewPage({ sessions, loading, error, onOpen }: { sessions: ReviewSess
   )
 }
 
+function EmptyPage({ onHome }: { onHome: () => void }) {
+  return (
+    <main className="empty-page" aria-labelledby="empty-title">
+      <p className="eyebrow">训练状态未加载</p>
+      <h1 id="empty-title">这一页暂时没有<br />可显示的训练。</h1>
+      <p className="intro">返回今日训练后，可以重新开始或从“复习”中继续此前的记录。</p>
+      <button className="button button-primary" onClick={onHome}>返回今日训练 <span aria-hidden="true">→</span></button>
+    </main>
+  )
+}
+
 function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
   session: TrainingSession
   busy: boolean
@@ -342,5 +353,6 @@ export function App() {
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={start} />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
+    {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}
   </div>
 }
