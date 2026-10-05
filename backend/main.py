@@ -354,6 +354,38 @@ def _lesson_payload(lesson: Lesson) -> dict:
     }
 
 
+def _daily_mission_payload(
+    db: Session,
+    profile: LearnerProfile,
+    records: list[TrainingSession],
+    events: list[TrainingEvent],
+) -> dict:
+    """Build a one-session daily mission entirely from completed learning records."""
+    completion_events = {
+        event.session_id: event
+        for event in events
+        if event.type == "training.session_completed"
+    }
+    today = date.today()
+    completed_today = sum(
+        1
+        for record in records
+        if record.snapshot.get("completed")
+        and _local_calendar_date(
+            completion_events.get(record.id).created_at if record.id in completion_events else record.updated_at
+        ) == today
+    )
+    target = 1
+    recommended = _next_lesson(db, profile.school_stage, profile.id)
+    return {
+        "mission_date": today.isoformat(),
+        "target_completed_sessions": target,
+        "completed_sessions_today": completed_today,
+        "completed": completed_today >= target,
+        "recommended_lesson": _lesson_payload(recommended) if recommended else None,
+    }
+
+
 def _editorial_lesson_payload(db: Session, lesson: Lesson) -> dict:
     """Management-only representation. It may include drafts and content bodies."""
     rows = db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()
@@ -578,6 +610,22 @@ def get_learning_summary(profile_id: str, db: DbSession) -> dict:
         else []
     )
     return {"summary": _learning_summary(profile, records, events)}
+
+
+@app.get(f"{API_PREFIX}/profiles/{{profile_id}}/daily-mission")
+def get_daily_mission(profile_id: str, db: DbSession) -> dict:
+    """Return today's real progress and the next unfinished lesson, if one remains."""
+    profile = db.get(LearnerProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+    records = db.scalars(select(TrainingSession).where(TrainingSession.profile_id == profile_id)).all()
+    session_ids = [record.id for record in records]
+    events = (
+        db.scalars(select(TrainingEvent).where(TrainingEvent.session_id.in_(session_ids))).all()
+        if session_ids
+        else []
+    )
+    return {"mission": _daily_mission_payload(db, profile, records, events)}
 
 
 @app.get(f"{API_PREFIX}/profiles/{{profile_id}}/achievements")

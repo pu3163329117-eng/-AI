@@ -80,6 +80,14 @@ export type Lesson = {
   summary: string
 }
 
+export type DailyMission = {
+  mission_date: string
+  target_completed_sessions: number
+  completed_sessions_today: number
+  completed: boolean
+  recommended_lesson: Lesson | null
+}
+
 export type LessonStatus = 'DRAFT' | 'PUBLISHED'
 
 /** Editorial metadata is intentionally separate from the learner catalogue shape. */

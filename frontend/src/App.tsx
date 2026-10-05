@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
@@ -29,7 +29,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
   )
 }
 
-function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, isStarting, error }: {
+function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, isStarting, error, mission, missionLoading, missionError }: {
   profile: LearnerProfile
   lessons: Lesson[]
   loading: boolean
@@ -38,8 +38,11 @@ function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, i
   onStart: (lessonId: string) => void
   isStarting: boolean
   error: string | null
+  mission: DailyMission | null
+  missionLoading: boolean
+  missionError: string | null
 }) {
-  const todayLesson = lessons[0]
+  const todayLesson = mission?.recommended_lesson ?? lessons[0]
   const stageLabel = profile.school_stage === 'JUNIOR' ? '初中' : '高中'
   return (
     <main className="home-page">
@@ -56,10 +59,14 @@ function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, i
           </> : <CatalogEmpty stageLabel={stageLabel} />}
           {error && <p className="request-error" role="alert">无法开始训练：{error}</p>}
         </div>
-        <aside className="streak" aria-label="连续学习进度">
-          <div className="progress-ring" aria-label={`已完成 ${profile.completed_levels} 关`}><b>{profile.completed_levels}</b><small>关</small></div>
-          <strong>{profile.display_name}的学习档案</strong>
-          <small>已完成 {profile.completed_levels} 关<br />累计 {profile.total_points} 知行。</small>
+        <aside className="streak daily-mission" aria-label="今日任务进度">
+          {missionLoading ? <><span>今日任务</span><strong>正在整理进度…</strong><small>读取今天的训练记录。</small></> : missionError ? <><span>今日任务</span><strong>进度暂不可用</strong><small>本次训练仍可正常开始。</small></> : mission ? <>
+            <span>今日任务 · {mission.mission_date.slice(5).replace('-', ' 月 ')} 日</span>
+            <div className="mission-progress"><b>{mission.completed_sessions_today}</b><small> / {mission.target_completed_sessions} 次</small></div>
+            <strong>{mission.completed ? '今天的任务已完成。' : '完成一节完整训练。'}</strong>
+            <progress value={Math.min(mission.completed_sessions_today, mission.target_completed_sessions)} max={mission.target_completed_sessions} aria-label={`今日已完成 ${mission.completed_sessions_today} / ${mission.target_completed_sessions} 次训练`} />
+            <small>{mission.completed ? '可以复习错题，或继续探索下一关。' : '从证据出发，完成核心判断与迁移。'}</small>
+          </> : <><span>今日任务</span><strong>完成一节完整训练。</strong><small>从证据出发，完成核心判断与迁移。</small></>}
         </aside>
       </section>
       <section className="lesson-catalog" aria-labelledby="catalog-title">
@@ -646,6 +653,9 @@ export function App() {
   const [achievements, setAchievements] = useState<Achievements | null>(null)
   const [achievementsLoading, setAchievementsLoading] = useState(false)
   const [achievementsError, setAchievementsError] = useState<string | null>(null)
+  const [dailyMission, setDailyMission] = useState<DailyMission | null>(null)
+  const [missionLoading, setMissionLoading] = useState(false)
+  const [missionError, setMissionError] = useState<string | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [lessonsLoading, setLessonsLoading] = useState(false)
   const [lessonsError, setLessonsError] = useState<string | null>(null)
@@ -725,6 +735,21 @@ export function App() {
     } finally { setAchievementsLoading(false) }
   }, [])
 
+  const loadDailyMission = useCallback(async (profileId: string) => {
+    setMissionLoading(true); setMissionError(null)
+    try {
+      const response = await profileApi.getDailyMission(profileId)
+      setDailyMission(response.mission)
+    } catch (reason) {
+      setDailyMission(null)
+      setMissionError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setMissionLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (page === 'home' && profile) void loadDailyMission(profile.id)
+  }, [page, profile, loadDailyMission])
+
   useEffect(() => {
     if (page === 'report' && profile) {
       void loadLearningSummary(profile.id)
@@ -794,7 +819,7 @@ export function App() {
   return <div className="app-shell">
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
     {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
-    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} />}
+    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
