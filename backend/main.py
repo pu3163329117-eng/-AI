@@ -4,7 +4,7 @@ import hashlib
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import API_PREFIX
 from backend.db.init import init_db
-from backend.db.models import CommandReceipt, LearnerProfile, TrainingEvent, TrainingSession
+from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
 from backend.db.session import get_db
 from backend.domain.training import apply_command, initial_snapshot
 from backend.schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
@@ -66,9 +66,74 @@ def _review_session_payload(record: TrainingSession) -> dict:
     }
 
 
+def _lesson_payload(lesson: Lesson) -> dict:
+    """Public catalogue shape: content bodies remain private until a learner starts the lesson."""
+    return {
+        "id": lesson.id,
+        "title": lesson.title,
+        "source": lesson.source,
+        "difficulty": lesson.difficulty,
+        "estimated_minutes": lesson.estimated_minutes,
+        "summary": lesson.summary,
+    }
+
+
+def _lesson_snapshot_meta(lesson: Lesson) -> dict:
+    return {"id": lesson.id, "title": lesson.title, "school_stage": lesson.school_stage, "difficulty": lesson.difficulty}
+
+
+def _lesson_content(db: Session, lesson: Lesson) -> dict:
+    rows = db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()
+    contents = {row.stage: row.payload for row in rows}
+    if "CORE" not in contents or "TRANSFER" not in contents:
+        raise HTTPException(status_code=409, detail={"code": "LESSON_CONTENT_INCOMPLETE"})
+    content = dict(contents["CORE"])
+    content["transfer"] = contents["TRANSFER"]
+    content["summary"] = {
+        "accumulation": lesson.summary,
+        "reasoning": "先找人物关系和行为线索，再回到目标词判断。",
+        "earned_points": 20,
+    }
+    return content
+
+
+def _next_lesson(db: Session, school_stage: str, profile_id: str | None = None) -> Lesson | None:
+    lessons = db.scalars(
+        select(Lesson).where(Lesson.school_stage == school_stage, Lesson.status == "PUBLISHED").order_by(Lesson.level_order.asc())
+    ).all()
+    if not profile_id:
+        return lessons[0] if lessons else None
+    completed = {
+        record.snapshot.get("lesson", {}).get("id")
+        for record in db.scalars(select(TrainingSession).where(TrainingSession.profile_id == profile_id)).all()
+        if record.snapshot.get("completed")
+    }
+    return next((lesson for lesson in lessons if lesson.id not in completed), None)
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "service": "wenyan-api", "database": "sqlite"}
+
+
+@app.get(f"{API_PREFIX}/lessons")
+def list_lessons(db: DbSession, school_stage: str | None = Query(default=None, pattern="^(JUNIOR|SENIOR)$")) -> dict:
+    statement = select(Lesson).where(Lesson.status == "PUBLISHED").order_by(Lesson.school_stage.asc(), Lesson.level_order.asc())
+    if school_stage:
+        statement = statement.where(Lesson.school_stage == school_stage)
+    return {"lessons": [_lesson_payload(lesson) for lesson in db.scalars(statement).all()]}
+
+
+@app.get(f"{API_PREFIX}/lessons/next")
+def next_lesson(db: DbSession, school_stage: str = Query(pattern="^(JUNIOR|SENIOR)$"), profile_id: str | None = None) -> dict:
+    if profile_id:
+        profile = db.get(LearnerProfile, profile_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
+        if profile.school_stage != school_stage:
+            raise HTTPException(status_code=409, detail={"code": "PROFILE_STAGE_MISMATCH"})
+    lesson = _next_lesson(db, school_stage, profile_id)
+    return {"lesson": _lesson_payload(lesson) if lesson else None}
 
 
 @app.post(f"{API_PREFIX}/profiles", status_code=status.HTTP_201_CREATED)
@@ -107,9 +172,19 @@ def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
     profile = db.get(LearnerProfile, request.profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail={"code": "PROFILE_NOT_FOUND"})
-    snapshot = initial_snapshot()
+    if request.lesson_id:
+        lesson = db.get(Lesson, request.lesson_id)
+        if not lesson or lesson.status != "PUBLISHED":
+            raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    else:
+        lesson = _next_lesson(db, profile.school_stage, profile.id)
+        if not lesson:
+            raise HTTPException(status_code=404, detail={"code": "NEXT_LESSON_NOT_FOUND"})
+    if lesson.school_stage != profile.school_stage:
+        raise HTTPException(status_code=409, detail={"code": "LESSON_STAGE_MISMATCH"})
+    snapshot = initial_snapshot(_lesson_content(db, lesson), _lesson_snapshot_meta(lesson))
     snapshot["profile_id"] = profile.id
-    record = TrainingSession(profile_id=profile.id, state_version=snapshot["state_version"], snapshot=snapshot)
+    record = TrainingSession(profile_id=profile.id, lesson_id=lesson.id, state_version=snapshot["state_version"], snapshot=snapshot)
     db.add(record)
     db.commit()
     return _session_payload(record)

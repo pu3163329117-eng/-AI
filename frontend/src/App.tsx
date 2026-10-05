@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { profileApi, trainingApi } from './api'
-import type { CommandType, LearnerProfile, ReviewSession, SchoolStage, TrainingSession } from './types'
+import { lessonApi, profileApi, trainingApi } from './api'
+import type { CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'onboarding'
 
@@ -27,17 +27,31 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
   )
 }
 
-function HomePage({ profile, onStart, isStarting, error }: { profile: LearnerProfile; onStart: () => void; isStarting: boolean; error: string | null }) {
+function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, isStarting, error }: {
+  profile: LearnerProfile
+  lessons: Lesson[]
+  loading: boolean
+  catalogError: string | null
+  onRetry: () => void
+  onStart: (lessonId: string) => void
+  isStarting: boolean
+  error: string | null
+}) {
+  const todayLesson = lessons[0]
+  const stageLabel = profile.school_stage === 'JUNIOR' ? '初中' : '高中'
   return (
     <main className="home-page">
       <section className="hero" aria-labelledby="home-title">
         <div>
-          <p className="eyebrow">{profile.school_stage === 'JUNIOR' ? '初中' : '高中'} · 今日约 8 分钟</p>
-          <h1 id="home-title">读懂，<br />不是记住。</h1>
-          <p className="intro">从一个字开始，读见整篇文章。今天练习“暂放与回溯”。</p>
-          <button className="button button-primary" onClick={onStart} disabled={isStarting}>
-            {isStarting ? '正在准备训练…' : '开始今日训练'} <span aria-hidden="true">→</span>
-          </button>
+          <p className="eyebrow">{stageLabel} · 分级关卡</p>
+          {loading ? <CatalogLoading /> : catalogError ? <CatalogError error={catalogError} onRetry={onRetry} /> : todayLesson ? <>
+            <h1 id="home-title">{todayLesson.title}</h1>
+            <p className="intro">{todayLesson.summary}</p>
+            <p className="lesson-meta-line">{todayLesson.source} · {todayLesson.difficulty} · 约 {todayLesson.estimated_minutes} 分钟</p>
+            <button className="button button-primary" onClick={() => onStart(todayLesson.id)} disabled={isStarting}>
+              {isStarting ? '正在准备训练…' : '开始今日关卡'} <span aria-hidden="true">→</span>
+            </button>
+          </> : <CatalogEmpty stageLabel={stageLabel} />}
           {error && <p className="request-error" role="alert">无法开始训练：{error}</p>}
         </div>
         <aside className="streak" aria-label="连续学习进度">
@@ -46,17 +60,40 @@ function HomePage({ profile, onStart, isStarting, error }: { profile: LearnerPro
           <small>已完成 {profile.completed_levels} 关<br />累计 {profile.total_points} 知行。</small>
         </aside>
       </section>
-      <section className="task-cards" aria-label="训练任务">
-        <TaskCard number="01" title="今日主任务" description="人物关系反推实词义" />
-        <TaskCard number="02" title="待回溯变量" description="“从” · 新证据已出现" />
-        <TaskCard number="03" title="陌生文挑战" description="检验你是否真的会用" />
+      <section className="lesson-catalog" aria-labelledby="catalog-title">
+        <div className="catalog-heading">
+          <div><p className="eyebrow">当前分级</p><h2 id="catalog-title">{stageLabel}关卡</h2></div>
+          {!loading && !catalogError && lessons.length > 0 && <span>{lessons.length} 个可选关卡</span>}
+        </div>
+        {loading ? <CatalogLoading compact /> : catalogError ? <CatalogError error={catalogError} onRetry={onRetry} compact /> : lessons.length === 0 ? <CatalogEmpty stageLabel={stageLabel} compact /> : (
+          <div className="lesson-grid">
+            {lessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} index={index} onStart={onStart} busy={isStarting} />)}
+          </div>
+        )}
       </section>
     </main>
   )
 }
 
-function TaskCard({ number, title, description }: { number: string; title: string; description: string }) {
-  return <article className="task-card"><em>{number}</em><b>{title}</b><p>{description}</p></article>
+function CatalogLoading({ compact = false }: { compact?: boolean }) {
+  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} aria-live="polite"><b>正在读取分级关卡…</b><p>正在为当前学习阶段整理可训练的文章。</p></div>
+}
+
+function CatalogError({ error, onRetry, compact = false }: { error: string; onRetry: () => void; compact?: boolean }) {
+  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} role="alert"><b>暂时无法读取关卡目录。</b><p>请检查本地服务后重试。错误代码：{error}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
+}
+
+function CatalogEmpty({ stageLabel, compact = false }: { stageLabel: string; compact?: boolean }) {
+  return <div className={compact ? 'catalog-state compact' : 'catalog-state'}><b>{stageLabel}分级暂未开放关卡。</b><p>关卡由教研内容发布后显示在这里，请稍后再来。</p></div>
+}
+
+function LessonCard({ lesson, index, onStart, busy }: { lesson: Lesson; index: number; onStart: (lessonId: string) => void; busy: boolean }) {
+  return <article className="lesson-card">
+    <div className="lesson-card-top"><em>{String(index + 1).padStart(2, '0')}</em><span>{index === 0 ? '今日推荐' : lesson.difficulty}</span></div>
+    <h3>{lesson.title}</h3>
+    <p>{lesson.summary}</p>
+    <footer><small>{lesson.source} · 约 {lesson.estimated_minutes} 分钟</small><button className="text-button" onClick={() => onStart(lesson.id)} disabled={busy}>{index === 0 ? '开始' : '选择'} →</button></footer>
+  </article>
 }
 
 function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: string | null; onCreate: (name: string, stage: SchoolStage) => void }) {
@@ -261,6 +298,9 @@ export function App() {
   const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [lessonsLoading, setLessonsLoading] = useState(false)
+  const [lessonsError, setLessonsError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [busy, setBusy] = useState(false)
@@ -303,11 +343,26 @@ export function App() {
       .finally(() => setReviewsLoading(false))
   }, [page, profile])
 
-  const start = useCallback(async () => {
+  const loadLessons = useCallback(async (schoolStage: SchoolStage) => {
+    setLessonsLoading(true); setLessonsError(null)
+    try {
+      const response = await lessonApi.list(schoolStage)
+      setLessons(response.lessons)
+    } catch (reason) {
+      setLessons([])
+      setLessonsError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setLessonsLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (profile) void loadLessons(profile.school_stage)
+  }, [profile, loadLessons])
+
+  const start = useCallback(async (lessonId: string) => {
     if (!profile) { setPage('onboarding'); return }
     setBusy(true); setError(null)
     try {
-      const response = await trainingApi.createSession(profile.id)
+      const response = await trainingApi.createSession(profile.id, lessonId)
       setSessionId(response.session_id); setSession(response.session); setPage('training')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
@@ -348,10 +403,10 @@ export function App() {
   return <div className="app-shell">
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
     {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
-    {page === 'home' && profile && <HomePage profile={profile} onStart={start} isStarting={busy} error={error} />}
-    {page === 'skills' && profile && <SkillsPage profile={profile} onStart={start} />}
+    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} />}
+    {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
-    {page === 'profile' && profile && <ProfilePage profile={profile} onStart={start} />}
+    {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}
   </div>

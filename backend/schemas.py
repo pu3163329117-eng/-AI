@@ -20,6 +20,7 @@ class CreateProfileRequest(BaseModel):
 class CreateSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     profile_id: str = Field(min_length=1, max_length=36)
+    lesson_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class CommandRequest(BaseModel):

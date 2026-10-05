@@ -28,6 +28,15 @@ export type LearnerProfile = {
   completed_levels: number
 }
 
+export type Lesson = {
+  id: string
+  title: string
+  source: string
+  difficulty: string
+  estimated_minutes: number
+  summary: string
+}
+
 export type ReviewSession = {
   session_id: string
   source: string

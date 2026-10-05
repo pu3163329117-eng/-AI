@@ -1,4 +1,4 @@
-import type { CommandType, LearnerProfile, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -12,6 +12,7 @@ type CommandResponse = {
 
 type ProfileResponse = { profile: LearnerProfile }
 type ReviewSessionsResponse = { sessions: ReviewSession[] }
+type LessonsResponse = { lessons: Lesson[] }
 
 type ErrorResponse = { error?: { code?: string } }
 
@@ -25,11 +26,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const trainingApi = {
-  createSession: (profileId: string) =>
+  createSession: (profileId: string, lessonId: string) =>
     request<SessionResponse>('/api/v1/training/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_id: profileId }),
+      body: JSON.stringify({ profile_id: profileId, lesson_id: lessonId }),
     }),
   command: (sessionId: string, expectedStateVersion: number, type: CommandType, payload = {}) =>
     request<CommandResponse>(`/api/v1/training/sessions/${sessionId}/commands`, {
@@ -56,4 +57,9 @@ export const profileApi = {
     }),
   get: (profileId: string) => request<ProfileResponse>(`/api/v1/profiles/${profileId}`),
   listSessions: (profileId: string) => request<ReviewSessionsResponse>(`/api/v1/profiles/${profileId}/sessions`),
+}
+
+export const lessonApi = {
+  list: (schoolStage: SchoolStage) =>
+    request<LessonsResponse>(`/api/v1/lessons?school_stage=${encodeURIComponent(schoolStage)}`),
 }
