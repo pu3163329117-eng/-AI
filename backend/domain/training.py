@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
+from random import SystemRandom
 from typing import Any
 
 
@@ -44,15 +46,40 @@ def _presentation(content: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def initial_snapshot(content: dict[str, Any] | None = None, lesson: dict[str, Any] | None = None) -> dict[str, Any]:
+def _frozen_content_with_shuffled_choices(
+    content: dict[str, Any],
+    randomizer: Any | None = None,
+) -> dict[str, Any]:
+    """Copy editorial content and give this session its own answer ordering.
+
+    ``SystemRandom`` draws from the operating system's secure random source.  An
+    optional sampler is accepted only to make domain tests deterministic; it must
+    provide the same ``sample(population, k)`` method as ``random.SystemRandom``.
+    """
+    frozen_content = deepcopy(content)
+    sampler = randomizer if randomizer is not None else SystemRandom()
+    frozen_content["choices"] = sampler.sample(
+        frozen_content["choices"],
+        k=len(frozen_content["choices"]),
+    )
+    return frozen_content
+
+
+def initial_snapshot(
+    content: dict[str, Any] | None = None,
+    lesson: dict[str, Any] | None = None,
+    randomizer: Any | None = None,
+) -> dict[str, Any]:
     """Freeze a selected lesson into the session; editorial changes never rewrite work in progress."""
     content = content or DEFAULT_LESSON_CONTENT
+    core_content = _frozen_content_with_shuffled_choices(content, randomizer)
+    transfer_content = _frozen_content_with_shuffled_choices(content["transfer"], randomizer)
     snapshot = {
-        "stage": "CORE", "state": "AWAITING_INITIAL_ATTEMPT", "state_version": 1, **_presentation(content),
+        "stage": "CORE", "state": "AWAITING_INITIAL_ATTEMPT", "state_version": 1, **_presentation(core_content),
         "selected_answer": None, "evidence_selected": False, "deferred": False, "hint_level": 0, "hint": None,
-        "feedback": f"先读完整句话，再判断“{content['variable']}”的意思。", "transfer_ready": False,
-        "summary_ready": False, "summary": None, "completed": False, "transfer_content": content["transfer"],
-        "lesson_summary": content.get("summary", DEFAULT_LESSON_CONTENT["summary"]),
+        "feedback": f"先读完整句话，再判断“{core_content['variable']}”的意思。", "transfer_ready": False,
+        "summary_ready": False, "summary": None, "completed": False, "transfer_content": transfer_content,
+        "lesson_summary": deepcopy(content.get("summary", DEFAULT_LESSON_CONTENT["summary"])),
     }
     if lesson:
         snapshot["lesson"] = lesson
