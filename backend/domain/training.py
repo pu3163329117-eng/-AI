@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from random import SystemRandom
 from typing import Any
 
+from .reading_context import reading_context_for
+
 
 DEFAULT_LESSON_CONTENT: dict[str, Any] = {
     "source": "《宋史·范仲淹传》",
@@ -43,6 +45,7 @@ def _presentation(content: dict[str, Any]) -> dict[str, Any]:
         "source": content["source"], "passage": content["passage"], "variable": content["variable"], "question": content["question"],
         "choices": content["choices"], "evidence": content["evidence"], "correct_answer": content["correct_answer"],
         "hint_ladder": content["hints"], "validated_feedback": content["validated_feedback"],
+        "reading_context": reading_context_for(content),
     }
 
 

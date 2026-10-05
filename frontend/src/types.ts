@@ -18,6 +18,14 @@ export type TrainingSummary = {
   earned_points: number
 }
 
+export type ReadingContext = {
+  paragraphs: string[]
+  full_text: string
+  author: string
+  era: string
+  work_note: string
+}
+
 export type SchoolStage = 'JUNIOR' | 'SENIOR'
 
 export type LearnerProfile = {
@@ -172,6 +180,7 @@ export type TrainingSession = {
   summary_ready: boolean
   summary: TrainingSummary | null
   completed: boolean
+  reading_context?: ReadingContext
   profile_id?: string
 }
 

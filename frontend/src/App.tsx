@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReadingContext, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
@@ -614,6 +614,83 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
   )
 }
 
+type TextSelection = { token: string; paragraphIndex: number; characterIndex: number }
+
+function sessionReadingContext(session: TrainingSession): ReadingContext {
+  const supplied = session.reading_context
+  const paragraphs = supplied?.paragraphs?.filter((paragraph) => paragraph.trim()) ?? []
+  return {
+    paragraphs: paragraphs.length ? paragraphs : [session.passage],
+    full_text: supplied?.full_text ?? session.passage,
+    author: supplied?.author ?? '作者信息待教研补充',
+    era: supplied?.era ?? '时代信息待教研补充',
+    work_note: supplied?.work_note ?? '当前课内原文',
+  }
+}
+
+function defaultTextSelection(context: ReadingContext, variable: string): TextSelection {
+  const paragraphIndex = Math.max(0, context.paragraphs.findIndex((paragraph) => paragraph.includes(variable)))
+  const characterIndex = Math.max(0, context.paragraphs[paragraphIndex].indexOf(variable))
+  return { token: variable, paragraphIndex, characterIndex }
+}
+
+function sentenceAt(paragraph: string, index: number) {
+  const separators = '。！？；\n'
+  let start = index
+  let end = index + 1
+  while (start > 0 && !separators.includes(paragraph[start - 1])) start -= 1
+  while (end < paragraph.length && !separators.includes(paragraph[end - 1])) end += 1
+  return paragraph.slice(start, end).trim()
+}
+
+function isClassicalTextToken(character: string) {
+  return /[\p{Script=Han}]/u.test(character)
+}
+
+function FullTextContextReader({ session }: { session: TrainingSession }) {
+  const context = sessionReadingContext(session)
+  const [selection, setSelection] = useState<TextSelection>(() => defaultTextSelection(context, session.variable))
+
+  useEffect(() => setSelection(defaultTextSelection(context, session.variable)), [session.stage, session.passage, session.variable])
+
+  const selectedParagraph = context.paragraphs[selection.paragraphIndex] ?? context.paragraphs[0]
+  const selectedSentence = sentenceAt(selectedParagraph, selection.characterIndex)
+
+  return (
+    <section className="fulltext-reader" aria-labelledby="fulltext-title">
+      <header className="fulltext-heading">
+        <div><p className="stage-label">全文点读</p><h2 id="fulltext-title">先在篇中读，再回到词上。</h2></div>
+        <p>点击任一字词，查看它所处的五层语境。</p>
+      </header>
+      <div className="fulltext-layout">
+        <div className="fulltext-canvas" aria-label={`${session.source}全文`}>
+          <p className="fulltext-source">{session.source} · {context.work_note}</p>
+          {context.paragraphs.map((paragraph, paragraphIndex) => <p className="fulltext-paragraph" key={`${paragraphIndex}-${paragraph.slice(0, 8)}`}>
+            {Array.from(paragraph).map((character, characterIndex) => isClassicalTextToken(character) ? <button
+              type="button"
+              key={`${paragraphIndex}-${characterIndex}`}
+              className={selection.paragraphIndex === paragraphIndex && selection.characterIndex === characterIndex ? 'text-token is-selected' : 'text-token'}
+              aria-pressed={selection.paragraphIndex === paragraphIndex && selection.characterIndex === characterIndex}
+              aria-label={`查看“${character}”的语境`}
+              onClick={() => setSelection({ token: character, paragraphIndex, characterIndex })}
+            >{character}</button> : <span key={`${paragraphIndex}-${characterIndex}`}>{character}</span>)}
+          </p>)}
+        </div>
+        <aside className="context-layers" aria-live="polite" aria-label="当前字词的五层语境">
+          <p className="stage-label">语境标尺</p>
+          <ol>
+            <li><span>词</span><strong>“{selection.token}”</strong></li>
+            <li><span>句</span><p>{selectedSentence}</p></li>
+            <li><span>段</span><p>{selectedParagraph}</p></li>
+            <li><span>篇</span><p>{session.source} · {context.work_note}</p></li>
+            <li><span>时代</span><p>{context.author}<br />{context.era}</p></li>
+          </ol>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
 function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
   session: TrainingSession
   busy: boolean
@@ -643,6 +720,7 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
             <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
           ) : (
             <>
+              <FullTextContextReader session={session} />
               <p className="passage">{beforeVariable}<span>{session.variable}</span>{afterVariable}</p>
               <div className="question-area">
                 <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
