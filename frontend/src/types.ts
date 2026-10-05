@@ -37,6 +37,35 @@ export type Lesson = {
   summary: string
 }
 
+export type LessonStatus = 'DRAFT' | 'PUBLISHED'
+
+/** Editorial metadata is intentionally separate from the learner catalogue shape. */
+export type AdminLesson = Lesson & {
+  school_stage: SchoolStage
+  status: LessonStatus
+  textbook_tags: string[]
+  theme: string
+  accumulation_points: string[]
+  reasoning_points: string[]
+  reasoning_level: string
+  content?: Record<string, unknown>
+}
+
+export type AdminLessonInput = {
+  school_stage: SchoolStage
+  title: string
+  source: string
+  difficulty: string
+  estimated_minutes: number
+  summary: string
+  textbook_tags: string[]
+  theme: string
+  accumulation_points: string[]
+  reasoning_points: string[]
+  reasoning_level: string
+  content?: Record<string, unknown>
+}
+
 export type ReviewSession = {
   session_id: string
   source: string

@@ -34,6 +34,13 @@ class Lesson(Base):
     estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     summary: Mapped[str] = mapped_column(String(300), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PUBLISHED", index=True)
+    # Editorial fields deliberately live on the lesson, while the learner only receives
+    # a frozen copy of the content when a training session is created.
+    textbook_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    theme: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    reasoning_level: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    accumulation_points: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    reasoning_points: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { lessonApi, profileApi, trainingApi } from './api'
-import type { CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
+import type { AdminLesson, AdminLessonInput, CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
-type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'onboarding'
+type Page = 'home' | 'training' | 'skills' | 'review' | 'profile' | 'admin' | 'onboarding'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
 
@@ -21,6 +21,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
         </button>
         <button className={page === 'review' ? 'is-active' : ''} onClick={() => onNavigate('review')} disabled={!profile}>复习</button>
         <button className={page === 'profile' ? 'is-active' : ''} onClick={() => onNavigate('profile')} disabled={!profile}>我的</button>
+        <button className={page === 'admin' ? 'is-active' : ''} onClick={() => onNavigate('admin')}>内容管理</button>
       </nav>
       <button className="account" aria-label="查看学习档案" onClick={() => profile && onNavigate('profile')} disabled={!profile}>{profile?.display_name.slice(0, 1) ?? '—'}</button>
     </header>
@@ -160,6 +161,179 @@ function ReviewPage({ sessions, loading, error, onOpen }: { sessions: ReviewSess
           ))}
         </section>
       )}
+    </main>
+  )
+}
+
+type ContentForm = {
+  school_stage: SchoolStage
+  title: string
+  source: string
+  difficulty: string
+  estimated_minutes: string
+  summary: string
+  textbook_tags: string
+  theme: string
+  accumulation_points: string
+  reasoning_points: string
+  reasoning_level: string
+  core_content: string
+  transfer_content: string
+}
+
+const emptyContentForm = (): ContentForm => ({
+  school_stage: 'JUNIOR', title: '', source: '', difficulty: '', estimated_minutes: '', summary: '',
+  textbook_tags: '', theme: '', accumulation_points: '', reasoning_points: '', reasoning_level: '',
+  core_content: '', transfer_content: '',
+})
+
+const lines = (value: string) => value.split(/\n|,/).map((item) => item.trim()).filter(Boolean)
+
+function contentFormFromLesson(lesson: AdminLesson): ContentForm {
+  const content = lesson.content ?? {}
+  return {
+    school_stage: lesson.school_stage,
+    title: lesson.title,
+    source: lesson.source,
+    difficulty: lesson.difficulty,
+    estimated_minutes: String(lesson.estimated_minutes),
+    summary: lesson.summary,
+    textbook_tags: (lesson.textbook_tags ?? []).join(', '),
+    theme: lesson.theme ?? '',
+    accumulation_points: (lesson.accumulation_points ?? []).join('\n'),
+    reasoning_points: (lesson.reasoning_points ?? []).join('\n'),
+    reasoning_level: lesson.reasoning_level ?? '',
+    core_content: content.CORE ? JSON.stringify(content.CORE, null, 2) : '',
+    transfer_content: content.TRANSFER ? JSON.stringify(content.TRANSFER, null, 2) : '',
+  }
+}
+
+function parseEditorialContent(form: ContentForm): Record<string, unknown> | undefined {
+  const result: Record<string, unknown> = {}
+  if (form.core_content.trim()) result.CORE = JSON.parse(form.core_content)
+  if (form.transfer_content.trim()) result.TRANSFER = JSON.parse(form.transfer_content)
+  return Object.keys(result).length ? result : undefined
+}
+
+function ContentAdminPage() {
+  const [lessons, setLessons] = useState<AdminLesson[]>([])
+  const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | 'new' | null>(null)
+  const [form, setForm] = useState<ContentForm>(emptyContentForm)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const loadLessons = useCallback(async () => {
+    setLoading(true); setListError(null)
+    try {
+      const response = await adminLessonApi.list()
+      setLessons(response.lessons)
+    } catch (reason) {
+      setLessons([])
+      setListError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { void loadLessons() }, [loadLessons])
+
+  const openNew = () => {
+    setActiveId('new'); setForm(emptyContentForm()); setFormError(null); setSuccess(null)
+  }
+
+  const openLesson = async (lessonId: string) => {
+    setActiveId(lessonId); setDetailLoading(true); setFormError(null); setSuccess(null)
+    try {
+      const response = await adminLessonApi.get(lessonId)
+      setForm(contentFormFromLesson(response.lesson))
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setDetailLoading(false) }
+  }
+
+  const setField = <Key extends keyof ContentForm>(key: Key, value: ContentForm[Key]) => setForm((current) => ({ ...current, [key]: value }))
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setFormError(null); setSuccess(null)
+    let content: Record<string, unknown> | undefined
+    try {
+      content = parseEditorialContent(form)
+    } catch {
+      setFormError('CONTENT_JSON_INVALID')
+      return
+    }
+    const estimatedMinutes = Number(form.estimated_minutes)
+    if (!Number.isInteger(estimatedMinutes) || estimatedMinutes < 1) {
+      setFormError('ESTIMATED_MINUTES_INVALID')
+      return
+    }
+    const payload: AdminLessonInput = {
+      school_stage: form.school_stage,
+      title: form.title.trim(), source: form.source.trim(), difficulty: form.difficulty.trim(),
+      estimated_minutes: estimatedMinutes, summary: form.summary.trim(),
+      textbook_tags: lines(form.textbook_tags), theme: form.theme.trim(),
+      accumulation_points: lines(form.accumulation_points), reasoning_points: lines(form.reasoning_points),
+      reasoning_level: form.reasoning_level.trim(), content,
+    }
+    setSaving(true)
+    try {
+      const response = activeId === 'new'
+        ? await adminLessonApi.create(payload)
+        : await adminLessonApi.update(activeId!, payload)
+      setLessons((current) => {
+        const withoutSaved = current.filter((lesson) => lesson.id !== response.lesson.id)
+        return [...withoutSaved, response.lesson]
+      })
+      setActiveId(response.lesson.id)
+      setForm(contentFormFromLesson(response.lesson))
+      setSuccess(activeId === 'new' ? '草稿已创建，补全训练内容后即可发布。' : '修改已保存。')
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setSaving(false) }
+  }
+
+  const publish = async () => {
+    if (!activeId || activeId === 'new') return
+    setPublishing(true); setFormError(null); setSuccess(null)
+    try {
+      const response = await adminLessonApi.publish(activeId)
+      setLessons((current) => current.map((lesson) => lesson.id === response.lesson.id ? response.lesson : lesson))
+      setForm(contentFormFromLesson(response.lesson))
+      setSuccess('关卡已发布，现在会出现在对应学段的学习目录中。')
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    } finally { setPublishing(false) }
+  }
+
+  const selectedLesson = activeId && activeId !== 'new' ? lessons.find((lesson) => lesson.id === activeId) : null
+  return (
+    <main className="content-admin-page">
+      <header className="admin-heading">
+        <div><p className="eyebrow">教研工作台</p><h1>把关卡做成<br />可发布的课程。</h1><p>草稿不会进入学习目录；发布前请完成两段训练内容和教研标注。</p></div>
+        <button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">+</span></button>
+      </header>
+      <div className="admin-workspace">
+        <aside className="admin-list" aria-label="关卡列表">
+          <div className="admin-list-title"><b>全部关卡</b><button className="text-button" onClick={() => void loadLessons()} disabled={loading}>刷新</button></div>
+          {loading ? <p className="admin-state">正在读取关卡…</p> : listError ? <div className="admin-state" role="alert"><b>无法读取关卡。</b><p>错误代码：{listError}</p><button className="text-button" onClick={() => void loadLessons()}>重新读取 →</button></div> : lessons.length === 0 ? <p className="admin-state">还没有教研关卡。创建第一份草稿开始编辑。</p> : <div className="admin-lesson-list">
+            {lessons.map((lesson) => <button key={lesson.id} className={activeId === lesson.id ? 'selected' : ''} onClick={() => void openLesson(lesson.id)}><span className={`status-badge ${lesson.status === 'PUBLISHED' ? 'published' : ''}`}>{lesson.status === 'PUBLISHED' ? '已发布' : '草稿'}</span><strong>{lesson.title}</strong><small>{lesson.school_stage === 'JUNIOR' ? '初中' : '高中'} · {lesson.source}</small></button>)}
+          </div>}
+        </aside>
+        <section className="admin-editor" aria-live="polite">
+          {!activeId ? <div className="admin-placeholder"><p className="eyebrow">内容管理</p><h2>选择一份关卡，<br />或新建草稿。</h2><p>这里记录课程的学习对象、教材位置、关键积累与推理路径。</p><button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">→</span></button></div> : detailLoading ? <p className="admin-state">正在读取关卡详情…</p> : <form className="lesson-editor-form" onSubmit={submit}>
+            <div className="editor-topline"><div><p className="eyebrow">{activeId === 'new' ? '新建草稿' : selectedLesson?.status === 'PUBLISHED' ? '已发布关卡' : '草稿关卡'}</p><h2>{activeId === 'new' ? '建立课程骨架' : form.title || '未命名关卡'}</h2></div>{activeId !== 'new' && <button type="button" className="button button-secondary" onClick={publish} disabled={publishing || selectedLesson?.status === 'PUBLISHED'}>{selectedLesson?.status === 'PUBLISHED' ? '已发布' : publishing ? '正在发布…' : '发布关卡'}</button>}</div>
+            <fieldset className="editor-section"><legend>课程定位</legend><div className="field-grid"><label>学段<select value={form.school_stage} onChange={(event) => setField('school_stage', event.target.value as SchoolStage)}><option value="JUNIOR">初中</option><option value="SENIOR">高中</option></select></label><label>教材标签（用逗号分隔）<input value={form.textbook_tags} onChange={(event) => setField('textbook_tags', event.target.value)} placeholder="部编版, 七年级上册" /></label><label>主题<input value={form.theme} onChange={(event) => setField('theme', event.target.value)} placeholder="语境推断" /></label></div></fieldset>
+            <fieldset className="editor-section"><legend>关卡信息</legend><div className="field-grid"><label className="span-two">题目<input required value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="例如：从人物关系推断词义" /></label><label>出处<input required value={form.source} onChange={(event) => setField('source', event.target.value)} placeholder="《陈涉世家》" /></label><label>难度<input required value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} placeholder="进阶" /></label><label>预计时长（分钟）<input required min="1" type="number" inputMode="numeric" value={form.estimated_minutes} onChange={(event) => setField('estimated_minutes', event.target.value)} /></label><label className="span-two">学习摘要<textarea required value={form.summary} onChange={(event) => setField('summary', event.target.value)} placeholder="说明本关要完成的理解与推断任务。" /></label></div></fieldset>
+            <fieldset className="editor-section"><legend>教研标注</legend><div className="field-grid"><label>积累点（每行一项）<textarea value={form.accumulation_points} onChange={(event) => setField('accumulation_points', event.target.value)} placeholder="实词义项\n人物关系" /></label><label>推理点（每行一项）<textarea value={form.reasoning_points} onChange={(event) => setField('reasoning_points', event.target.value)} placeholder="从人物动作寻找依据\n排除不合语境的义项" /></label><label className="span-two">推理层级<input value={form.reasoning_level} onChange={(event) => setField('reasoning_level', event.target.value)} placeholder="如：语境定位 → 关系推断 → 回溯验证" /></label></div></fieldset>
+            <fieldset className="editor-section"><legend>训练内容</legend><p className="field-note">发布前需提供 CORE 与 TRANSFER 的完整 JSON 内容；系统会在发布时验证结构。</p><div className="field-grid"><label>CORE（核心训练 JSON）<textarea className="code-input" value={form.core_content} onChange={(event) => setField('core_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label><label>TRANSFER（迁移训练 JSON）<textarea className="code-input" value={form.transfer_content} onChange={(event) => setField('transfer_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label></div></fieldset>
+            <div className="editor-actions"><button className="button button-primary" disabled={saving}>{saving ? '正在保存…' : activeId === 'new' ? '保存草稿' : '保存修改'} <span aria-hidden="true">→</span></button>{formError && <p className="request-error" role="alert">操作未完成：{formError}</p>}{success && <p className="request-success" role="status">{success}</p>}</div>
+          </form>}
+        </section>
+      </div>
     </main>
   )
 }
@@ -396,6 +570,7 @@ export function App() {
     else if (next === 'skills') setPage('skills')
     else if (next === 'review' && profile) setPage('review')
     else if (next === 'profile' && profile) setPage('profile')
+    else if (next === 'admin') setPage('admin')
   }
 
   if (profileLoading) return <main className="loading-page" aria-live="polite">正在读取学习档案…</main>
@@ -407,6 +582,7 @@ export function App() {
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} onOpen={openReviewSession} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
+    {page === 'admin' && <ContentAdminPage />}
     {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}
   </div>

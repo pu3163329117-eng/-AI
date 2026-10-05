@@ -21,6 +21,6 @@ def test_migration_registry_is_replay_safe_for_a_legacy_sqlite_database():
     assert {"profile_id", "lesson_id"}.issubset(columns)
     with engine.connect() as connection:
         versions = [row[0] for row in connection.execute(text("SELECT version FROM schema_migrations ORDER BY version"))]
-    assert versions == [1, 2]
+    assert versions == [1, 2, 3]
     engine.dispose()
     database_path.unlink(missing_ok=True)

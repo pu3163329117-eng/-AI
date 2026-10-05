@@ -37,11 +37,15 @@ SEEDS = (
     {
         "id": "lesson-junior-cong-01", "slug": "junior-cong-01", "title": "从：从人物关系推断词义", "school_stage": "JUNIOR", "level_order": 10,
         "source": "《宋史·范仲淹传》", "difficulty": "基础", "estimated_minutes": 8, "summary": "用人物关系与行为证据理解“从”的词义。",
+        "textbook_tags": ["初中文言文", "实词"], "theme": "人物关系", "reasoning_level": "L1·语境取证",
+        "accumulation_points": ["从：跟从求教"], "reasoning_points": ["人物关系", "行为证据"],
         "contents": {"CORE": JUNIOR_CORE, "TRANSFER": JUNIOR_TRANSFER},
     },
     {
         "id": "lesson-senior-gui-01", "slug": "senior-gui-01", "title": "归：从语境辨析抽象趋向", "school_stage": "SENIOR", "level_order": 10,
         "source": "《岳阳楼记》", "difficulty": "进阶", "estimated_minutes": 10, "summary": "通过上下文辨析“归”的抽象义，并完成迁移判断。",
+        "textbook_tags": ["高中文言文", "实词"], "theme": "抽象义辨析", "reasoning_level": "L2·语境迁移",
+        "accumulation_points": ["归：归依、归向"], "reasoning_points": ["抽象趋向", "迁移判断"],
         "contents": {"CORE": SENIOR_CORE, "TRANSFER": SENIOR_TRANSFER},
     },
 )

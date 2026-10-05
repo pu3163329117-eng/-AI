@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -17,7 +18,7 @@ try:
     from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
     from backend.db.session import get_db
     from backend.domain.training import apply_command, initial_snapshot
-    from backend.schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
+    from backend.schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
 except ModuleNotFoundError:
     # Vercel packages this service with backend/ as its working root.
     from config import API_PREFIX
@@ -25,7 +26,7 @@ except ModuleNotFoundError:
     from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
     from db.session import get_db
     from domain.training import apply_command, initial_snapshot
-    from schemas import CommandRequest, CreateProfileRequest, CreateSessionRequest
+    from schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -88,6 +89,69 @@ def _lesson_payload(lesson: Lesson) -> dict:
     }
 
 
+def _editorial_lesson_payload(db: Session, lesson: Lesson) -> dict:
+    """Management-only representation. It may include drafts and content bodies."""
+    rows = db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()
+    return {
+        "id": lesson.id,
+        "slug": lesson.slug,
+        "title": lesson.title,
+        "school_stage": lesson.school_stage,
+        "level_order": lesson.level_order,
+        "source": lesson.source,
+        "difficulty": lesson.difficulty,
+        "estimated_minutes": lesson.estimated_minutes,
+        "summary": lesson.summary,
+        "status": lesson.status,
+        "textbook_tags": lesson.textbook_tags,
+        "theme": lesson.theme,
+        "reasoning_level": lesson.reasoning_level,
+        "accumulation_points": lesson.accumulation_points,
+        "reasoning_points": lesson.reasoning_points,
+        "content": {row.stage: row.payload for row in rows},
+        "updated_at": lesson.updated_at.isoformat() if lesson.updated_at else None,
+    }
+
+
+_CONTENT_REQUIRED_FIELDS = frozenset(
+    {"source", "passage", "variable", "question", "choices", "evidence", "correct_answer", "hints", "validated_feedback"}
+)
+
+
+def _validate_editorial_content(content: LessonContentRequest) -> dict[str, dict]:
+    """Reject malformed drafts before they can become learner-visible."""
+    normalized = {"CORE": content.CORE, "TRANSFER": content.TRANSFER}
+    for stage, payload in normalized.items():
+        missing = sorted(_CONTENT_REQUIRED_FIELDS - set(payload))
+        if missing:
+            raise HTTPException(status_code=422, detail={"code": "LESSON_CONTENT_INVALID", "stage": stage, "missing": missing})
+        strings = _CONTENT_REQUIRED_FIELDS - {"choices", "hints"}
+        invalid = sorted(key for key in strings if not isinstance(payload.get(key), str) or not payload[key].strip())
+        choices, hints = payload.get("choices"), payload.get("hints")
+        if invalid or not isinstance(choices, list) or len(choices) < 2 or not all(isinstance(item, str) and item.strip() for item in choices) or payload["correct_answer"] not in choices or not isinstance(hints, list) or not hints or not all(isinstance(item, str) and item.strip() for item in hints):
+            raise HTTPException(status_code=422, detail={"code": "LESSON_CONTENT_INVALID", "stage": stage})
+    return normalized
+
+
+def _replace_editorial_content(db: Session, lesson: Lesson, content: LessonContentRequest) -> None:
+    """Replace both authored stages atomically. Existing sessions hold their own copy."""
+    payloads = _validate_editorial_content(content)
+    existing = {row.stage: row for row in db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()}
+    for stage, payload in payloads.items():
+        if stage in existing:
+            existing[stage].payload = payload
+        else:
+            db.add(LessonContent(lesson_id=lesson.id, stage=stage, payload=payload))
+
+
+def _assert_publishable(db: Session, lesson: Lesson) -> None:
+    content = {row.stage: row.payload for row in db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()}
+    if set(content) < {"CORE", "TRANSFER"}:
+        raise HTTPException(status_code=409, detail={"code": "LESSON_CONTENT_INCOMPLETE"})
+    # Reuse the same validation at publication as at editing, guarding old/imported rows too.
+    _validate_editorial_content(LessonContentRequest(CORE=content["CORE"], TRANSFER=content["TRANSFER"]))
+
+
 def _lesson_snapshot_meta(lesson: Lesson) -> dict:
     return {"id": lesson.id, "title": lesson.title, "school_stage": lesson.school_stage, "difficulty": lesson.difficulty}
 
@@ -144,6 +208,77 @@ def next_lesson(db: DbSession, school_stage: str = Query(pattern="^(JUNIOR|SENIO
             raise HTTPException(status_code=409, detail={"code": "PROFILE_STAGE_MISMATCH"})
     lesson = _next_lesson(db, school_stage, profile_id)
     return {"lesson": _lesson_payload(lesson) if lesson else None}
+
+
+@app.get(f"{API_PREFIX}/admin/lessons")
+def list_editorial_lessons(
+    db: DbSession,
+    school_stage: str | None = Query(default=None, pattern="^(JUNIOR|SENIOR)$"),
+    status_filter: str | None = Query(default=None, alias="status", pattern="^(DRAFT|PUBLISHED)$"),
+) -> dict:
+    """Local P0 editorial catalogue. Authentication is intentionally deferred for local development."""
+    statement = select(Lesson).order_by(Lesson.school_stage.asc(), Lesson.level_order.asc(), Lesson.created_at.asc())
+    if school_stage:
+        statement = statement.where(Lesson.school_stage == school_stage)
+    if status_filter:
+        statement = statement.where(Lesson.status == status_filter)
+    return {"lessons": [_editorial_lesson_payload(db, lesson) for lesson in db.scalars(statement).all()]}
+
+
+@app.post(f"{API_PREFIX}/admin/lessons", status_code=status.HTTP_201_CREATED)
+def create_editorial_lesson(request: CreateAdminLessonRequest, db: DbSession) -> dict:
+    """Create a non-public draft. Publishing is a separate, deliberate state transition."""
+    slug = request.slug or f"draft-{uuid.uuid4().hex[:12]}"
+    if db.scalar(select(Lesson.id).where(Lesson.slug == slug)):
+        raise HTTPException(status_code=409, detail={"code": "LESSON_SLUG_CONFLICT"})
+    values = request.model_dump(exclude={"content", "slug"})
+    lesson = Lesson(id=str(uuid.uuid4()), slug=slug, status="DRAFT", **values)
+    db.add(lesson)
+    db.flush()
+    if request.content:
+        _replace_editorial_content(db, lesson, request.content)
+    db.commit()
+    db.refresh(lesson)
+    return {"lesson": _editorial_lesson_payload(db, lesson)}
+
+
+@app.get(f"{API_PREFIX}/admin/lessons/{{lesson_id}}")
+def get_editorial_lesson(lesson_id: str, db: DbSession) -> dict:
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    return {"lesson": _editorial_lesson_payload(db, lesson)}
+
+
+@app.patch(f"{API_PREFIX}/admin/lessons/{{lesson_id}}")
+def update_editorial_lesson(lesson_id: str, request: UpdateAdminLessonRequest, db: DbSession) -> dict:
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    values = request.model_dump(exclude_unset=True, exclude={"content"})
+    if "slug" in values and values["slug"] != lesson.slug:
+        duplicate = db.scalar(select(Lesson.id).where(Lesson.slug == values["slug"], Lesson.id != lesson.id))
+        if duplicate:
+            raise HTTPException(status_code=409, detail={"code": "LESSON_SLUG_CONFLICT"})
+    for field, value in values.items():
+        setattr(lesson, field, value)
+    if request.content is not None:
+        _replace_editorial_content(db, lesson, request.content)
+    db.commit()
+    db.refresh(lesson)
+    return {"lesson": _editorial_lesson_payload(db, lesson)}
+
+
+@app.post(f"{API_PREFIX}/admin/lessons/{{lesson_id}}/publish")
+def publish_editorial_lesson(lesson_id: str, db: DbSession) -> dict:
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    _assert_publishable(db, lesson)
+    lesson.status = "PUBLISHED"
+    db.commit()
+    db.refresh(lesson)
+    return {"lesson": _editorial_lesson_payload(db, lesson)}
 
 
 @app.post(f"{API_PREFIX}/profiles", status_code=status.HTTP_201_CREATED)

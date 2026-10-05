@@ -27,9 +27,27 @@ def _v2_lesson_session(engine: Engine) -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_training_sessions_lesson_id ON training_sessions (lesson_id)"))
 
 
+def _has_table(engine: Engine, table: str) -> bool:
+    return table in inspect(engine).get_table_names()
+
+
+def _v3_lesson_editorial_metadata(engine: Engine) -> None:
+    """Add editorial columns without changing historical session snapshots."""
+    if not _has_table(engine, "lessons"):
+        return
+    _ensure_column(engine, "lessons", "textbook_tags", "JSON NOT NULL DEFAULT '[]'")
+    _ensure_column(engine, "lessons", "theme", "VARCHAR(120) NOT NULL DEFAULT ''")
+    _ensure_column(engine, "lessons", "reasoning_level", "VARCHAR(80) NOT NULL DEFAULT ''")
+    _ensure_column(engine, "lessons", "accumulation_points", "JSON NOT NULL DEFAULT '[]'")
+    _ensure_column(engine, "lessons", "reasoning_points", "JSON NOT NULL DEFAULT '[]'")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_lessons_status ON lessons (status)"))
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "profile-session-link", _v1_profile_session),
     (2, "lesson-session-link", _v2_lesson_session),
+    (3, "lesson-editorial-metadata", _v3_lesson_editorial_metadata),
 )
 
 

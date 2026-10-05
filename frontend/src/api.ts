@@ -1,4 +1,4 @@
-import type { CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { AdminLesson, AdminLessonInput, CommandType, LearnerProfile, Lesson, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -13,6 +13,8 @@ type CommandResponse = {
 type ProfileResponse = { profile: LearnerProfile }
 type ReviewSessionsResponse = { sessions: ReviewSession[] }
 type LessonsResponse = { lessons: Lesson[] }
+type AdminLessonsResponse = { lessons: AdminLesson[] }
+type AdminLessonResponse = { lesson: AdminLesson }
 
 type ErrorResponse = { error?: { code?: string } }
 
@@ -62,4 +64,22 @@ export const profileApi = {
 export const lessonApi = {
   list: (schoolStage: SchoolStage) =>
     request<LessonsResponse>(`/api/v1/lessons?school_stage=${encodeURIComponent(schoolStage)}`),
+}
+
+export const adminLessonApi = {
+  list: () => request<AdminLessonsResponse>('/api/v1/admin/lessons'),
+  get: (lessonId: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}`),
+  create: (payload: AdminLessonInput) => request<AdminLessonResponse>('/api/v1/admin/lessons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  update: (lessonId: string, payload: AdminLessonInput) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  publish: (lessonId: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}/publish`, {
+    method: 'POST',
+  }),
 }
