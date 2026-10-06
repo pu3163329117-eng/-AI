@@ -26,15 +26,20 @@ _READING_CONTEXTS: dict[str, dict[str, Any]] = {
         "paragraphs": ["子曰：三人行，必有我师焉；择其善者而从之，其不善者而改之。"],
     },
     "《岳阳楼记》": {
+        "extent": "FULL",
+        "source_url": "https://zh.wikisource.org/zh-hans/岳陽樓記",
+        "text_version": "2026-10-06 · 简体教学标点；淫、曜、乎异文",
+        "terms": ["滕子京", "岳阳楼", "巴陵郡", "政通人和", "迁客骚人", "春和景明", "心旷神怡", "古仁人"],
         "author": "范仲淹",
         "era": "北宋 · 散文",
         "work_note": "庆历六年为岳阳楼作记",
         "paragraphs": [
             "庆历四年春，滕子京谪守巴陵郡。越明年，政通人和，百废具兴。乃重修岳阳楼，增其旧制，刻唐贤今人诗赋于其上。属予作文以记之。",
-            "予观夫巴陵胜状，在洞庭一湖。衔远山，吞长江，浩浩汤汤，横无际涯；朝晖夕阴，气象万千。此则岳阳楼之大观也，前人之述备矣。",
+            "予观夫巴陵胜状，在洞庭一湖。衔远山，吞长江，浩浩汤汤，横无际涯；朝晖夕阴，气象万千。此则岳阳楼之大观也，前人之述备矣。然则北通巫峡，南极潇湘，迁客骚人，多会于此，览物之情，得无异乎？",
             "若夫淫雨霏霏，连月不开，阴风怒号，浊浪排空；日星隐曜，山岳潜形；商旅不行，樯倾楫摧；薄暮冥冥，虎啸猿啼。登斯楼也，则有去国怀乡，忧谗畏讥，满目萧然，感极而悲者矣。",
-            "至若春和景明，波澜不惊，上下天光，一碧万顷；沙鸥翔集，锦鳞游泳；岸芷汀兰，郁郁青青。登斯楼也，则有心旷神怡，宠辱偕忘，把酒临风，其喜洋洋者矣。",
+            "至若春和景明，波澜不惊，上下天光，一碧万顷；沙鸥翔集，锦鳞游泳；岸芷汀兰，郁郁青青。而或长烟一空，皓月千里，浮光跃金，静影沉璧，渔歌互答，此乐何极。登斯楼也，则有心旷神怡，宠辱偕忘，把酒临风，其喜洋洋者矣。",
             "嗟夫！予尝求古仁人之心，或异二者之为，何哉？不以物喜，不以己悲；居庙堂之高则忧其民；处江湖之远则忧其君。是进亦忧，退亦忧。然则何时而乐耶？其必曰“先天下之忧而忧，后天下之乐而乐”乎。噫！微斯人，吾谁与归？",
+            "时六年九月十五日。",
         ],
     },
     "《论语·颜渊》": {
@@ -55,6 +60,8 @@ _READING_CONTEXTS: dict[str, dict[str, Any]] = {
         ],
     },
     "《山行》": {
+        "extent": "FULL",
+        "terms": ["寒山", "石径", "白云", "枫林", "霜叶"],
         "author": "杜牧",
         "era": "晚唐 · 七言绝句",
         "work_note": "秋山行旅中的所见所感",
@@ -122,6 +129,27 @@ _READING_CONTEXTS: dict[str, dict[str, Any]] = {
 }
 
 
+def validate_reading_context(context: Any) -> bool:
+    """Validate editorial reading data without trusting arbitrary JSON shapes."""
+    if not isinstance(context, dict):
+        return False
+    paragraphs = context.get("paragraphs")
+    if not isinstance(paragraphs, list) or not paragraphs or len(paragraphs) > 200:
+        return False
+    if not all(isinstance(item, str) and item.strip() and len(item) <= 20000 for item in paragraphs):
+        return False
+    if context.get("extent", "EXCERPT") not in ("FULL", "CHAPTER", "EXCERPT", "PROMPT"):
+        return False
+    for key in ("author", "era", "work_note", "text_version", "source_url"):
+        if key in context and (not isinstance(context[key], str) or len(context[key]) > 2000):
+            return False
+    terms = context.get("terms", [])
+    return isinstance(terms, list) and len(terms) <= 500 and all(
+        isinstance(term, str) and 0 < len(term) <= 80 and term.strip() == term
+        for term in terms
+    )
+
+
 def reading_context_for(content: dict[str, Any]) -> dict[str, Any]:
     """Return a snapshot-safe full-text context for an authored content payload."""
     source = content["source"]
@@ -129,7 +157,8 @@ def reading_context_for(content: dict[str, Any]) -> dict[str, Any]:
     base = _READING_CONTEXTS.get(source, {})
     context = supplied if isinstance(supplied, dict) else base
     paragraphs = context.get("paragraphs") if isinstance(context, dict) else None
-    valid_paragraphs = [item.strip() for item in paragraphs or [] if isinstance(item, str) and item.strip()]
+    valid_paragraphs = [item for item in paragraphs if isinstance(item, str) and item.strip()] if isinstance(paragraphs, list) else []
+    extent = context.get("extent", "EXCERPT") if valid_paragraphs else "PROMPT"
     if not valid_paragraphs:
         valid_paragraphs = [content["passage"]]
     return {
@@ -138,4 +167,8 @@ def reading_context_for(content: dict[str, Any]) -> dict[str, Any]:
         "author": str(context.get("author") or "作者信息待教研补充"),
         "era": str(context.get("era") or "时代信息待教研补充"),
         "work_note": str(context.get("work_note") or "当前课内原文"),
+        "extent": extent if extent in ("FULL", "CHAPTER", "EXCERPT", "PROMPT") else "EXCERPT",
+        "text_version": str(context.get("text_version") or "课内资料 · 待教研逐篇校订"),
+        "source_url": str(context.get("source_url") or ""),
+        "terms": [term for term in context.get("terms", []) if isinstance(term, str) and term.strip()] if isinstance(context.get("terms", []), list) else [],
     }

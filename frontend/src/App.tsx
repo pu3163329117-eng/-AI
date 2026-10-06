@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
-import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReadingContext, ReviewSession, SchoolStage, TrainingSession } from './types'
+import { ContextReader } from './components/ContextReader'
+import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 
@@ -614,88 +615,12 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
   )
 }
 
-type TextSelection = { token: string; paragraphIndex: number; characterIndex: number }
-
-function sessionReadingContext(session: TrainingSession): ReadingContext {
-  const supplied = session.reading_context
-  const paragraphs = supplied?.paragraphs?.filter((paragraph) => paragraph.trim()) ?? []
-  return {
-    paragraphs: paragraphs.length ? paragraphs : [session.passage],
-    full_text: supplied?.full_text ?? session.passage,
-    author: supplied?.author ?? '作者信息待教研补充',
-    era: supplied?.era ?? '时代信息待教研补充',
-    work_note: supplied?.work_note ?? '当前课内原文',
-  }
-}
-
-function defaultTextSelection(context: ReadingContext, variable: string): TextSelection {
-  const paragraphIndex = Math.max(0, context.paragraphs.findIndex((paragraph) => paragraph.includes(variable)))
-  const characterIndex = Math.max(0, context.paragraphs[paragraphIndex].indexOf(variable))
-  return { token: variable, paragraphIndex, characterIndex }
-}
-
-function sentenceAt(paragraph: string, index: number) {
-  const separators = '。！？；\n'
-  let start = index
-  let end = index + 1
-  while (start > 0 && !separators.includes(paragraph[start - 1])) start -= 1
-  while (end < paragraph.length && !separators.includes(paragraph[end - 1])) end += 1
-  return paragraph.slice(start, end).trim()
-}
-
-function isClassicalTextToken(character: string) {
-  return /[\p{Script=Han}]/u.test(character)
-}
-
-function FullTextContextReader({ session }: { session: TrainingSession }) {
-  const context = sessionReadingContext(session)
-  const [selection, setSelection] = useState<TextSelection>(() => defaultTextSelection(context, session.variable))
-
-  useEffect(() => setSelection(defaultTextSelection(context, session.variable)), [session.stage, session.passage, session.variable])
-
-  const selectedParagraph = context.paragraphs[selection.paragraphIndex] ?? context.paragraphs[0]
-  const selectedSentence = sentenceAt(selectedParagraph, selection.characterIndex)
-
-  return (
-    <section className="fulltext-reader" aria-labelledby="fulltext-title">
-      <header className="fulltext-heading">
-        <div><p className="stage-label">全文点读</p><h2 id="fulltext-title">先在篇中读，再回到词上。</h2></div>
-        <p>点击任一字词，查看它所处的五层语境。</p>
-      </header>
-      <div className="fulltext-layout">
-        <div className="fulltext-canvas" aria-label={`${session.source}全文`}>
-          <p className="fulltext-source">{session.source} · {context.work_note}</p>
-          {context.paragraphs.map((paragraph, paragraphIndex) => <p className="fulltext-paragraph" key={`${paragraphIndex}-${paragraph.slice(0, 8)}`}>
-            {Array.from(paragraph).map((character, characterIndex) => isClassicalTextToken(character) ? <button
-              type="button"
-              key={`${paragraphIndex}-${characterIndex}`}
-              className={selection.paragraphIndex === paragraphIndex && selection.characterIndex === characterIndex ? 'text-token is-selected' : 'text-token'}
-              aria-pressed={selection.paragraphIndex === paragraphIndex && selection.characterIndex === characterIndex}
-              aria-label={`查看“${character}”的语境`}
-              onClick={() => setSelection({ token: character, paragraphIndex, characterIndex })}
-            >{character}</button> : <span key={`${paragraphIndex}-${characterIndex}`}>{character}</span>)}
-          </p>)}
-        </div>
-        <aside className="context-layers" aria-live="polite" aria-label="当前字词的五层语境">
-          <p className="stage-label">语境标尺</p>
-          <ol>
-            <li><span>词</span><strong>“{selection.token}”</strong></li>
-            <li><span>句</span><p>{selectedSentence}</p></li>
-            <li><span>段</span><p>{selectedParagraph}</p></li>
-            <li><span>篇</span><p>{session.source} · {context.work_note}</p></li>
-            <li><span>时代</span><p>{context.author}<br />{context.era}</p></li>
-          </ol>
-        </aside>
-      </div>
-    </section>
-  )
-}
 
 function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
   session: TrainingSession
   busy: boolean
   error: string | null
-  onCommand: (type: CommandType, payload?: Record<string, string>) => void
+  onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
   onReturnHome: () => void
 }) {
   const [answer, setAnswer] = useState<string | null>(session.selected_answer)
@@ -705,7 +630,9 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
   const isTransferReady = session.transfer_ready && !session.completed
   const isSummaryReady = session.summary_ready && !session.completed
   const currentStep = session.completed ? 4 : session.stage === 'TRANSFER' ? 3 : 1
-  const [beforeVariable, afterVariable = ''] = session.passage.split(session.variable)
+  const variableIndex = session.passage.indexOf(session.variable)
+  const beforeVariable = variableIndex < 0 ? session.passage : session.passage.slice(0, variableIndex)
+  const afterVariable = variableIndex < 0 ? '' : session.passage.slice(variableIndex + session.variable.length)
 
   return (
     <main className="training-page">
@@ -720,8 +647,8 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
             <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
           ) : (
             <>
-              <FullTextContextReader session={session} />
-              <p className="passage">{beforeVariable}<span>{session.variable}</span>{afterVariable}</p>
+              <ContextReader key={session.stage} session={session} busy={busy} onCommand={onCommand} />
+              <p className="passage">{beforeVariable}{variableIndex >= 0 && <span>{session.variable}</span>}{afterVariable}</p>
               <div className="question-area">
                 <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
                 <h1 id="question-title">{session.question}</h1>
@@ -758,7 +685,8 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
             <span aria-hidden="true">“</span>{session.evidence}<span aria-hidden="true">”</span>
           </button>
           <hr />
-          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={busy || session.completed}>先暂放这个字</button>
+          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={busy || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
+          {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={busy || session.completed}>回看这个字，继续判断</button>}
           <button className="quiet-action" onClick={() => onCommand('REQUEST_HINT')} disabled={busy || session.completed}>需要一点提示</button>
           {session.hint && <p className="hint">第 {session.hint_level} 条提示：{session.hint}</p>}
         </aside>
@@ -812,6 +740,8 @@ export function App() {
   const [page, setPage] = useState<Page>('home')
   const [profile, setProfile] = useState<LearnerProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  const [profileLoadAttempt, setProfileLoadAttempt] = useState(0)
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null)
   const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
@@ -840,20 +770,47 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+    setProfileLoading(true); setProfileLoadError(null)
     const storedProfileId = window.localStorage.getItem('wenyan.profile-id')
     if (!storedProfileId) {
-      setProfileLoading(false)
-      setPage('onboarding')
-      return
+      setProfileLoading(false); setPage('onboarding')
+      return () => { cancelled = true }
     }
-    profileApi.get(storedProfileId)
-      .then(({ profile: nextProfile }) => setProfile(nextProfile))
-      .catch(() => {
-        window.localStorage.removeItem('wenyan.profile-id')
-        setPage('onboarding')
-      })
-      .finally(() => setProfileLoading(false))
-  }, [])
+    void (async () => {
+      try {
+        const { profile: nextProfile } = await profileApi.get(storedProfileId)
+        if (cancelled) return
+        setProfile(nextProfile)
+        const raw = window.localStorage.getItem('wenyan.active-session')
+        if (!raw) return
+        try {
+          const saved = JSON.parse(raw) as { profileId?: string; sessionId?: string }
+          if (saved.profileId !== nextProfile.id || !saved.sessionId) {
+            window.localStorage.removeItem('wenyan.active-session'); return
+          }
+          const response = await trainingApi.getSession(saved.sessionId)
+          if (cancelled) return
+          if (response.session.profile_id !== nextProfile.id) {
+            window.localStorage.removeItem('wenyan.active-session'); return
+          }
+          setSessionId(saved.sessionId); setSession(response.session); setPage('training')
+        } catch (reason) {
+          if (cancelled) return
+          if (reason instanceof SyntaxError || (reason instanceof Error && reason.message === 'SESSION_NOT_FOUND')) window.localStorage.removeItem('wenyan.active-session')
+          setError('上次训练暂未恢复，可在复习页重新打开；学习记录未被清除。')
+        }
+      } catch (reason) {
+        if (cancelled) return
+        if (reason instanceof Error && reason.message === 'PROFILE_NOT_FOUND') {
+          window.localStorage.removeItem('wenyan.profile-id')
+          window.localStorage.removeItem('wenyan.active-session')
+          setPage('onboarding')
+        } else setProfileLoadError('暂时无法连接学习服务，档案和训练入口已保留。请检查后端是否启动后重试。')
+      } finally { if (!cancelled) setProfileLoading(false) }
+    })()
+    return () => { cancelled = true }
+  }, [profileLoadAttempt])
 
   const createProfile = useCallback(async (displayName: string, schoolStage: SchoolStage) => {
     setBusy(true); setError(null)
@@ -967,28 +924,34 @@ export function App() {
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.createSession(profile.id, lessonId)
+      window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId: profile.id, sessionId: response.session_id }))
       setSessionId(response.session_id); setSession(response.session); setPage('training')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setBusy(false) }
   }, [profile])
 
-  const command = useCallback(async (type: CommandType, payload: Record<string, string> = {}) => {
-    if (!sessionId || !session) return
+  const command = useCallback(async (type: CommandType, payload: Record<string, unknown> = {}) => {
+    if (!sessionId || !session || busy) return
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.command(sessionId, session.state_version, type, payload)
       setSession(response.session)
       if (response.profile) setProfile(response.profile)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+      const code = reason instanceof Error ? reason.message : 'REQUEST_FAILED'
+      if (code === 'VERSION_CONFLICT') {
+        try { setSession((await trainingApi.getSession(sessionId)).session) } catch { /* Keep local state until retry. */ }
+        setError('训练已在其他页面更新，已尝试同步。请确认当前内容后重试。')
+      } else setError(code === 'INVALID_CONTEXT_SELECTION' ? '所选词组超出原文范围，请重新点选。' : code)
     } finally { setBusy(false) }
-  }, [session, sessionId])
+  }, [session, sessionId, busy])
 
   const openReviewSession = useCallback(async (nextSessionId: string) => {
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.getSession(nextSessionId)
+      if (response.session.profile_id) window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId: response.session.profile_id, sessionId: nextSessionId }))
       setSessionId(nextSessionId); setSession(response.session); setPage('training')
     } catch (reason) {
       setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
@@ -1006,6 +969,7 @@ export function App() {
   }
 
   if (profileLoading) return <main className="loading-page" aria-live="polite">正在读取学习档案…</main>
+  if (profileLoadError) return <main className="loading-page" aria-live="polite"><div><p>{profileLoadError}</p><button className="button button-primary" onClick={() => setProfileLoadAttempt(attempt => attempt + 1)}>重试读取档案</button></div></main>
 
   return <div className="app-shell">
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
@@ -1017,7 +981,7 @@ export function App() {
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
     {page === 'admin' && <ContentAdminPage />}
-    {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => setPage('home')} />}
+    {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}
   </div>
 }

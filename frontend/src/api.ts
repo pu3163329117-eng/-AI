@@ -25,6 +25,13 @@ type ErrorResponse = { error?: { code?: string } }
 
 const apiRoot = import.meta.env.VITE_API_ROOT ?? ''
 
+// randomUUID requires a secure origin; LAN HTTP previews still have getRandomValues.
+function requestId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiRoot}${path}`, init)
   const body = (await response.json().catch(() => null)) as T & ErrorResponse
@@ -44,7 +51,7 @@ export const trainingApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Idempotency-Key': crypto.randomUUID(),
+        'Idempotency-Key': requestId(),
       },
       body: JSON.stringify({
         type,

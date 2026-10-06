@@ -19,6 +19,7 @@ try:
     from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
     from backend.db.session import get_db
     from backend.domain.training import apply_command, initial_snapshot
+    from backend.domain.reading_context import validate_reading_context
     from backend.schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
 except ModuleNotFoundError:
     # Vercel packages this service with backend/ as its working root.
@@ -27,6 +28,7 @@ except ModuleNotFoundError:
     from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
     from db.session import get_db
     from domain.training import apply_command, initial_snapshot
+    from domain.reading_context import validate_reading_context
     from schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -463,6 +465,8 @@ def _validate_editorial_content(content: LessonContentRequest) -> dict[str, dict
     """Reject malformed drafts before they can become learner-visible."""
     normalized = {"CORE": content.CORE, "TRANSFER": content.TRANSFER}
     for stage, payload in normalized.items():
+        if "reading_context" in payload and not validate_reading_context(payload["reading_context"]):
+            raise HTTPException(status_code=422, detail={"code": "LESSON_READING_CONTEXT_INVALID", "stage": stage})
         missing = sorted(_CONTENT_REQUIRED_FIELDS - set(payload))
         if missing:
             raise HTTPException(status_code=422, detail={"code": "LESSON_CONTENT_INVALID", "stage": stage, "missing": missing})

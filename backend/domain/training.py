@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from random import SystemRandom
 from typing import Any
+from unicodedata import category
 
 from .reading_context import reading_context_for
 
@@ -60,6 +61,7 @@ def _frozen_content_with_shuffled_choices(
     provide the same ``sample(population, k)`` method as ``random.SystemRandom``.
     """
     frozen_content = deepcopy(content)
+    frozen_content["reading_context"] = reading_context_for(frozen_content)
     sampler = randomizer if randomizer is not None else SystemRandom()
     frozen_content["choices"] = sampler.sample(
         frozen_content["choices"],
@@ -80,6 +82,7 @@ def initial_snapshot(
     snapshot = {
         "stage": "CORE", "state": "AWAITING_INITIAL_ATTEMPT", "state_version": 1, **_presentation(core_content),
         "selected_answer": None, "evidence_selected": False, "deferred": False, "hint_level": 0, "hint": None,
+        "context_selection": None,
         "feedback": f"先读完整句话，再判断“{core_content['variable']}”的意思。", "transfer_ready": False,
         "summary_ready": False, "summary": None, "completed": False, "transfer_content": transfer_content,
         "lesson_summary": deepcopy(content.get("summary", DEFAULT_LESSON_CONTENT["summary"])),
@@ -92,6 +95,44 @@ def initial_snapshot(
 def _hint(snapshot: dict[str, Any], level: int) -> str:
     hints = snapshot["hint_ladder"]
     return hints[min(level, len(hints)) - 1]
+
+
+def _context_selection(snapshot: dict[str, Any], payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve codepoint offsets against this session's frozen reading text."""
+    scope = payload.get("scope")
+    if scope not in ("WORD", "SENTENCE", "PARAGRAPH", "WORK", "ERA"):
+        raise ValueError("INVALID_CONTEXT_SCOPE")
+    paragraph_index, start, end = (payload.get(key) for key in ("paragraph_index", "start", "end"))
+    if any(type(value) is not int for value in (paragraph_index, start, end)):
+        raise ValueError("INVALID_CONTEXT_SELECTION")
+    context = snapshot.get("reading_context")
+    if context is None:
+        # Legacy sessions freeze their own snapshot content, never the live lesson.
+        context = reading_context_for(snapshot)
+    paragraphs = context.get("paragraphs") if isinstance(context, dict) else None
+    if not isinstance(paragraphs, list) or not 0 <= paragraph_index < len(paragraphs):
+        raise ValueError("INVALID_CONTEXT_SELECTION")
+    paragraph = paragraphs[paragraph_index]
+    if not isinstance(paragraph, str) or not 0 <= start < end <= len(paragraph) or end - start > 80:
+        raise ValueError("INVALID_CONTEXT_SELECTION")
+    token = paragraph[start:end]
+    if not any(not char.isspace() and not category(char).startswith("P") for char in token):
+        raise ValueError("INVALID_CONTEXT_SELECTION")
+    sentence_start = start
+    while sentence_start > 0 and paragraph[sentence_start - 1] not in "。！？":
+        sentence_start -= 1
+    sentence_end = end
+    if paragraph[end - 1] not in "。！？":
+        while sentence_end < len(paragraph):
+            char = paragraph[sentence_end]
+            sentence_end += 1
+            if char in "。！？":
+                break
+    return context, {
+        "paragraph_index": paragraph_index, "start": start, "end": end,
+        "token": token, "sentence": paragraph[sentence_start:sentence_end],
+        "paragraph": paragraph, "scope": scope,
+    }
 
 
 def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> TransitionResult:
@@ -111,8 +152,18 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
     elif action == "REVISIT_VARIABLE":
         if not snapshot["deferred"]:
             raise ValueError("VARIABLE_NOT_DEFERRED")
-        next_snapshot.update(state="VARIABLE_REVISITED", feedback=f"新证据已经出现：{snapshot['evidence']}。请重新判断。")
+        next_snapshot.update(deferred=False, state="VARIABLE_REVISITED", feedback=f"回到“{snapshot['variable']}”：结合已读语境和“{snapshot['evidence']}”，重新检查你的判断。")
         events.append({"type": "training.variable_revisited", "payload": {"variable": snapshot["variable"]}})
+    elif action == "REQUEST_MORE_CONTEXT":
+        context, selection = _context_selection(snapshot, payload)
+        next_snapshot.update(reading_context=context, context_selection=selection)
+        if snapshot["deferred"]:
+            next_snapshot["feedback"] = f"已展开“{selection['token']}”的语境。继续寻找线索，准备好后再回看“{snapshot['variable']}”。"
+        events.append({"type": "training.context_expanded", "payload": {
+            "stage": snapshot["stage"], "scope": selection["scope"],
+            "paragraph_index": selection["paragraph_index"], "start": selection["start"],
+            "end": selection["end"], "token": selection["token"],
+        }})
     elif action == "REQUEST_HINT":
         level = min(snapshot["hint_level"] + 1, len(snapshot["hint_ladder"]))
         next_snapshot.update(hint_level=level, hint=_hint(snapshot, level), state="HINT_PRESENTED", feedback="提示只增加一条必要信息；答案仍要由你自己作出。")
@@ -154,7 +205,7 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         if snapshot["stage"] != "CORE" or not snapshot["transfer_ready"]:
             raise ValueError("TRANSFER_NOT_READY")
         next_snapshot.update(stage="TRANSFER", state="AWAITING_TRANSFER_ATTEMPT", **_presentation(snapshot["transfer_content"]))
-        next_snapshot.update(selected_answer=None, evidence_selected=False, deferred=False, hint_level=0, hint=None, transfer_ready=False)
+        next_snapshot.update(selected_answer=None, evidence_selected=False, deferred=False, hint_level=0, hint=None, transfer_ready=False, context_selection=None)
         next_snapshot["feedback"] = f"迁移挑战：换到陌生句子，仍然先用前后关系判断“{next_snapshot['variable']}”。"
         events.append({"type": "training.transfer_started", "payload": {"source": next_snapshot["source"]}})
     elif action == "COMPLETE_SESSION":

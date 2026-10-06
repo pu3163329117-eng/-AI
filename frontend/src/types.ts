@@ -24,6 +24,21 @@ export type ReadingContext = {
   author: string
   era: string
   work_note: string
+  extent?: 'FULL' | 'CHAPTER' | 'EXCERPT' | 'PROMPT'
+  text_version?: string
+  source_url?: string
+  terms?: string[]
+}
+
+export type ContextScope = 'WORD' | 'SENTENCE' | 'PARAGRAPH' | 'WORK' | 'ERA'
+export type ContextSelection = {
+  paragraph_index: number
+  start: number
+  end: number
+  token: string
+  sentence: string
+  paragraph: string
+  scope: ContextScope
 }
 
 export type SchoolStage = 'JUNIOR' | 'SENIOR'
@@ -181,12 +196,15 @@ export type TrainingSession = {
   summary: TrainingSummary | null
   completed: boolean
   reading_context?: ReadingContext
+  context_selection?: ContextSelection | null
   profile_id?: string
 }
 
 export type CommandType =
   | 'SELECT_EVIDENCE'
   | 'DEFER_VARIABLE'
+  | 'REVISIT_VARIABLE'
+  | 'REQUEST_MORE_CONTEXT'
   | 'REQUEST_HINT'
   | 'SUBMIT_ATTEMPT'
   | 'CONTINUE_TO_TRANSFER'

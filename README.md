@@ -1,43 +1,37 @@
 # 文言·推理
 
-可本地运行的全栈 Demo：以“证据—判断—回溯—迁移”完成一条文言实词推理训练闭环。
-
-## 技术栈
-
-- `frontend/`：React、Vite、TypeScript，开发预览运行在 `http://127.0.0.1:5173`
-- `backend/`：FastAPI、SQLAlchemy、SQLite，API 运行在 `http://127.0.0.1:8000`
-
-SQLite 是当前 Demo 的零配置开发数据库；启动服务时会自动创建 `data/wenyan.db`，该运行数据不会提交到 Git。
+真实全栈 Demo，通过证据、判断、回溯和迁移进行文言实词训练。
 
 ## 本地启动
 
-在两个 PowerShell 终端分别执行：
+React / Vite / TypeScript 前端使用 5173；FastAPI / SQLAlchemy 后端使用 8000。SQLite 是本地开发数据库，运行数据不会提交到 Git。
+
+在两个 PowerShell 终端分别启动：
 
 ```powershell
-# 终端 1：安装后端依赖并启动 API
 python -m pip install -r backend/requirements.txt
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
 ```powershell
-# 终端 2：安装前端依赖并启动开发预览
 Set-Location frontend
 npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5173`。Vite 已将 `/api` 请求代理到 FastAPI 的 8000 端口。
+打开 [本地预览](http://127.0.0.1:5173/)。Vite 通过 `/api` 代理访问后端；局域网同事使用本机实际内网 IP 的 5173 端口。后端保持回环监听。
 
 ## 验证
 
 ```powershell
-# API 单元测试
-python -m pytest backend/tests/test_api.py -q
-
-# 前端生产构建
+python -m pytest backend/tests -q -p no:cacheprovider
 Set-Location frontend
 npm run build
-
-# 健康检查
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/health
 ```
+
+## 执行计划与当前迭代
+
+见 [合并开发计划](docs/development-plan.md)。本轮接入原文五层语境、精确词组点读、暂放回看、服务端定位保存和刷新恢复；扩大语境不自动代答或加分。
+
+原文明确区分全文 / 章节 / 节选范围，内容仍须逐篇教研校勘。当前是规则式全栈 Demo，不等同于完整 AI 智能体。模型 Provider、生产鉴权、持久云数据库及 Source / Review / Version 内容审核为后续任务。本地无鉴权内容管理接口不得直接暴露公网。
