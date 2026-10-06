@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 CommandType = Literal[
@@ -55,6 +55,7 @@ class CreateAdminLessonRequest(BaseModel):
 
 class UpdateAdminLessonRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    expected_content_version: str | None = Field(default=None, pattern=r"^[0-9a-f]{12}$")
     slug: str | None = Field(default=None, min_length=1, max_length=80, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     school_stage: SchoolStage | None = None
     title: str | None = Field(default=None, min_length=1, max_length=120)
@@ -69,6 +70,27 @@ class UpdateAdminLessonRequest(BaseModel):
     reasoning_points: list[str] | None = Field(default=None, min_length=1, max_length=20)
     reasoning_level: str | None = Field(default=None, min_length=1, max_length=80)
     content: LessonContentRequest | None = None
+
+
+class ContentVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_content_version: str = Field(pattern=r"^[0-9a-f]{12}$")
+
+
+class ReviewAdminLessonRequest(ContentVersionRequest):
+    """Local editorial attribution, not an authenticated user identity."""
+
+    model_config = ConfigDict(extra="forbid")
+    reviewer: str = Field(min_length=1, max_length=80)
+    note: str = Field(default="", max_length=2000)
+
+    @field_validator("reviewer")
+    @classmethod
+    def trim_reviewer(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reviewer must not be blank")
+        return value
 
 
 class CommandRequest(BaseModel):

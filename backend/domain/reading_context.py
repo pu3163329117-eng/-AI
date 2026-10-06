@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .reading_materials import REFERENCE_MATERIALS
+
 
 _READING_CONTEXTS: dict[str, dict[str, Any]] = {
     "《宋史·范仲淹传》": {
@@ -154,7 +156,7 @@ def reading_context_for(content: dict[str, Any]) -> dict[str, Any]:
     """Return a snapshot-safe full-text context for an authored content payload."""
     source = content["source"]
     supplied = content.get("reading_context")
-    base = _READING_CONTEXTS.get(source, {})
+    base = REFERENCE_MATERIALS.get(source, _READING_CONTEXTS.get(source, {}))
     context = supplied if isinstance(supplied, dict) else base
     paragraphs = context.get("paragraphs") if isinstance(context, dict) else None
     valid_paragraphs = [item for item in paragraphs if isinstance(item, str) and item.strip()] if isinstance(paragraphs, list) else []

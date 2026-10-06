@@ -230,6 +230,16 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .context-layers p { margin: 0; color: #4e4e49; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
 .context-layers .stage-label { font-size: 11px; }.context-layers .reader-version { margin-top: 14px; font-size: 11px; }
 .revisit-action { font-weight: 700; }
+.editor-review { margin: 0 0 28px; padding: 22px 0; border-top: 1px solid #aaa; border-bottom: 1px solid #aaa; }
+.review-version-line { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; flex-wrap: wrap; }.review-version-line strong { font-size: 16px; }.review-version-line span { color: #666; font-family: monospace; font-size: 12px; }
+.editor-review > p { max-width: 700px; color: #555; font-size: 12px; line-height: 1.8; }.review-issues { margin: 18px 0; font-size: 13px; line-height: 1.8; }.review-issues ul { margin: 8px 0; padding-left: 22px; overflow-wrap: anywhere; }
+.review-signoff { display: grid; grid-template-columns: minmax(130px, .6fr) minmax(0, 1fr); gap: 16px; margin: 18px 0; }.review-signoff label { display: grid; align-content: start; gap: 8px; color: #444; font-size: 12px; }.review-signoff input, .review-signoff textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #aaa; border-radius: 5px; background: #fff; color: #111; font: inherit; font-size: 14px; }.review-signoff textarea { min-height: 82px; resize: vertical; }
+.editor-review button { min-height: 44px; margin-top: 0; }.status-badge { line-height: 1.6; white-space: normal; }.editor-review input:focus-visible, .editor-review textarea:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+@media (max-width: 760px) { .review-signoff { grid-template-columns: 1fr; }.review-signoff input, .review-signoff textarea { font-size: 16px; } }
+.editor-sources { margin: 26px 0; padding-top: 18px; border-top: 1px solid #aaa; }.editor-sources h3 { margin: 0; font-size: 18px; }.source-stage-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }.source-stage-list article { min-width: 0; padding: 18px 0; border-top: 1px solid #ddd; }.source-stage-list h4 { margin: 8px 0; font-size: 15px; }.source-stage-list p { color: #555; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }.source-stage-list a { display: inline-block; min-height: 44px; padding: 12px 0; color: #111; font-size: 13px; text-underline-offset: 4px; }.source-stage-list .source-version { font-size: 11px; }
+@media (max-width: 760px) { .source-stage-list { grid-template-columns: 1fr; gap: 10px; } }
+.lesson-editor-form .request-success { color: #111; }
+@media (max-width: 760px) { .lesson-editor-form input, .lesson-editor-form textarea, .lesson-editor-form select { font-size: 16px; min-height: 44px; } }
 @container (max-width: 720px) { .fulltext-layout { grid-template-columns: 1fr; gap: 22px; }.context-layers { padding-left: 15px; }.fulltext-canvas { max-height: 450px; } }
 @media (max-width: 1100px) { .training-shell { grid-template-columns: minmax(0, 1fr); }.evidence-panel { grid-column: 1; }.training-page { padding: 16px; } }
 @media (max-width: 760px) {

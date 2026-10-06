@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -16,20 +16,22 @@ try:
     # Local development imports the backend package from the repository root.
     from backend.config import API_PREFIX
     from backend.db.init import init_db
-    from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
+    from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from backend.db.session import get_db
     from backend.domain.training import apply_command, initial_snapshot
-    from backend.domain.reading_context import validate_reading_context
-    from backend.schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
+    from backend.domain.reading_context import reading_context_for, validate_reading_context
+    from backend.domain.editorial import content_fingerprint, review_readiness
+    from backend.schemas import ContentVersionRequest, CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, ReviewAdminLessonRequest, UpdateAdminLessonRequest
 except ModuleNotFoundError:
     # Vercel packages this service with backend/ as its working root.
     from config import API_PREFIX
     from db.init import init_db
-    from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, TrainingEvent, TrainingSession
+    from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from db.session import get_db
     from domain.training import apply_command, initial_snapshot
-    from domain.reading_context import validate_reading_context
-    from schemas import CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, UpdateAdminLessonRequest
+    from domain.reading_context import reading_context_for, validate_reading_context
+    from domain.editorial import content_fingerprint, review_readiness
+    from schemas import ContentVersionRequest, CreateAdminLessonRequest, CommandRequest, CreateProfileRequest, CreateSessionRequest, LessonContentRequest, ReviewAdminLessonRequest, UpdateAdminLessonRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -432,9 +434,49 @@ def _daily_mission_payload(
     }
 
 
+def _editorial_metadata(lesson: Lesson) -> dict:
+    """Only teaching fields determine review validity, not publish/timestamps."""
+    return {key: getattr(lesson, key) for key in (
+        "slug", "title", "school_stage", "level_order", "source", "difficulty",
+        "estimated_minutes", "summary", "textbook_tags", "theme", "reasoning_level",
+        "accumulation_points", "reasoning_points",
+    )}
+
+
+def _editorial_content_rows(db: Session, lesson: Lesson) -> dict[str, dict]:
+    return {row.stage: row.payload for row in db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()}
+
+
+def _editorial_hash(db: Session, lesson: Lesson, content: dict | None = None) -> str:
+    return content_fingerprint(_editorial_metadata(lesson), content if content is not None else _editorial_content_rows(db, lesson))
+
+
+def _assert_editorial_version(expected: str | None, fingerprint: str, code: str) -> None:
+    if expected is not None and expected != fingerprint[:12]:
+        raise HTTPException(status_code=409, detail={"code": code, "current_content_version": fingerprint[:12]})
+
+
+def _editorial_review_payload(db: Session, lesson: Lesson, content: dict | None = None) -> dict:
+    content = content if content is not None else _editorial_content_rows(db, lesson)
+    fingerprint = _editorial_hash(db, lesson, content)
+    latest = db.scalar(select(LessonReview).where(LessonReview.lesson_id == lesson.id).order_by(LessonReview.created_at.desc(), LessonReview.id.desc()).limit(1))
+    reviewed_at = latest.created_at if latest else None
+    if reviewed_at is not None:
+        reviewed_at = reviewed_at.replace(tzinfo=timezone.utc) if reviewed_at.tzinfo is None else reviewed_at.astimezone(timezone.utc)
+    return {
+        "status": "UNREVIEWED" if latest is None else "APPROVED" if latest.content_hash == fingerprint else "STALE",
+        "content_version": fingerprint[:12],
+        "reviewer": latest.reviewer if latest else None,
+        "note": latest.note if latest else None,
+        # SQLite strips tzinfo; review timestamps are nevertheless stored UTC.
+        "reviewed_at": reviewed_at.isoformat() if reviewed_at else None,
+        "issues": review_readiness(content),
+    }
+
+
 def _editorial_lesson_payload(db: Session, lesson: Lesson) -> dict:
     """Management-only representation. It may include drafts and content bodies."""
-    rows = db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()
+    content = _editorial_content_rows(db, lesson)
     return {
         "id": lesson.id,
         "slug": lesson.slug,
@@ -451,7 +493,12 @@ def _editorial_lesson_payload(db: Session, lesson: Lesson) -> dict:
         "reasoning_level": lesson.reasoning_level,
         "accumulation_points": lesson.accumulation_points,
         "reasoning_points": lesson.reasoning_points,
-        "content": {row.stage: row.payload for row in rows},
+        # Show resolved canonical sources in the local editor without modifying
+        # seeded rows or any existing learner snapshot.
+        "content": {stage: {**payload, "reading_context": reading_context_for(payload)}
+                    if isinstance(payload, dict) and isinstance(payload.get("source"), str) and isinstance(payload.get("passage"), str)
+                    else payload for stage, payload in content.items()},
+        "review": _editorial_review_payload(db, lesson, content),
         "updated_at": lesson.updated_at.isoformat() if lesson.updated_at else None,
     }
 
@@ -490,20 +537,30 @@ def _replace_editorial_content(db: Session, lesson: Lesson, content: LessonConte
 
 
 def _assert_publishable(db: Session, lesson: Lesson) -> None:
-    content = {row.stage: row.payload for row in db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()}
-    if set(content) < {"CORE", "TRANSFER"}:
+    content = _editorial_content_rows(db, lesson)
+    if not {"CORE", "TRANSFER"} <= set(content):
         raise HTTPException(status_code=409, detail={"code": "LESSON_CONTENT_INCOMPLETE"})
     # Reuse the same validation at publication as at editing, guarding old/imported rows too.
     _validate_editorial_content(LessonContentRequest(CORE=content["CORE"], TRANSFER=content["TRANSFER"]))
+    review = _editorial_review_payload(db, lesson, content)
+    if review["status"] != "APPROVED" or review["issues"]:
+        raise HTTPException(status_code=409, detail={"code": "LESSON_REVIEW_REQUIRED", "review": review})
 
 
-def _lesson_snapshot_meta(lesson: Lesson) -> dict:
-    return {"id": lesson.id, "title": lesson.title, "school_stage": lesson.school_stage, "difficulty": lesson.difficulty}
+def _lesson_snapshot_meta(db: Session, lesson: Lesson, content: dict[str, dict]) -> dict:
+    review = _editorial_review_payload(db, lesson, content)
+    approved = review["status"] == "APPROVED" and not review["issues"]
+    return {
+        "id": lesson.id, "title": lesson.title, "school_stage": lesson.school_stage, "difficulty": lesson.difficulty,
+        "content_version": review["content_version"],
+        "review_status": review["status"],
+        "reviewer": review["reviewer"] if approved else None,
+        "reviewed_at": review["reviewed_at"] if approved else None,
+    }
 
 
-def _lesson_content(db: Session, lesson: Lesson) -> dict:
-    rows = db.scalars(select(LessonContent).where(LessonContent.lesson_id == lesson.id)).all()
-    contents = {row.stage: row.payload for row in rows}
+def _lesson_content(db: Session, lesson: Lesson, contents: dict[str, dict] | None = None) -> dict:
+    contents = contents if contents is not None else _editorial_content_rows(db, lesson)
     if "CORE" not in contents or "TRANSFER" not in contents:
         raise HTTPException(status_code=409, detail={"code": "LESSON_CONTENT_INCOMPLETE"})
     content = dict(contents["CORE"])
@@ -600,7 +657,9 @@ def update_editorial_lesson(lesson_id: str, request: UpdateAdminLessonRequest, d
     lesson = db.get(Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
-    values = request.model_dump(exclude_unset=True, exclude={"content"})
+    previous_hash = _editorial_hash(db, lesson)
+    _assert_editorial_version(request.expected_content_version, previous_hash, "LESSON_EDIT_VERSION_CONFLICT")
+    values = request.model_dump(exclude_unset=True, exclude={"content", "expected_content_version"})
     if "slug" in values and values["slug"] != lesson.slug:
         duplicate = db.scalar(select(Lesson.id).where(Lesson.slug == values["slug"], Lesson.id != lesson.id))
         if duplicate:
@@ -609,16 +668,40 @@ def update_editorial_lesson(lesson_id: str, request: UpdateAdminLessonRequest, d
         setattr(lesson, field, value)
     if request.content is not None:
         _replace_editorial_content(db, lesson, request.content)
+    db.flush()
+    # A no-op save preserves publication. Real edits require another human
+    # review, while learner sessions keep their frozen content unchanged.
+    if lesson.status == "PUBLISHED" and _editorial_hash(db, lesson) != previous_hash:
+        lesson.status = "DRAFT"
     db.commit()
     db.refresh(lesson)
     return {"lesson": _editorial_lesson_payload(db, lesson)}
 
 
-@app.post(f"{API_PREFIX}/admin/lessons/{{lesson_id}}/publish")
-def publish_editorial_lesson(lesson_id: str, db: DbSession) -> dict:
+@app.post(f"{API_PREFIX}/admin/lessons/{{lesson_id}}/review")
+def review_editorial_lesson(lesson_id: str, request: ReviewAdminLessonRequest, db: DbSession) -> dict:
+    """Record local human approval of this exact version, not login identity."""
     lesson = db.get(Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    content = _editorial_content_rows(db, lesson)
+    fingerprint = _editorial_hash(db, lesson, content)
+    _assert_editorial_version(request.expected_content_version, fingerprint, "LESSON_REVIEW_VERSION_CONFLICT")
+    issues = review_readiness(content)
+    if issues:
+        raise HTTPException(status_code=422, detail={"code": "LESSON_REVIEW_NOT_READY", "issues": issues})
+    _validate_editorial_content(LessonContentRequest(CORE=content["CORE"], TRANSFER=content["TRANSFER"]))
+    db.add(LessonReview(lesson_id=lesson.id, content_hash=fingerprint, reviewer=request.reviewer, note=request.note, created_at=datetime.now(timezone.utc)))
+    db.commit()
+    return {"lesson": _editorial_lesson_payload(db, lesson)}
+
+
+@app.post(f"{API_PREFIX}/admin/lessons/{{lesson_id}}/publish")
+def publish_editorial_lesson(lesson_id: str, request: ContentVersionRequest, db: DbSession) -> dict:
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail={"code": "LESSON_NOT_FOUND"})
+    _assert_editorial_version(request.expected_content_version, _editorial_hash(db, lesson), "LESSON_PUBLISH_VERSION_CONFLICT")
     _assert_publishable(db, lesson)
     lesson.status = "PUBLISHED"
     db.commit()
@@ -751,7 +834,11 @@ def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
             raise HTTPException(status_code=404, detail={"code": "NEXT_LESSON_NOT_FOUND"})
     if lesson.school_stage != profile.school_stage:
         raise HTTPException(status_code=409, detail={"code": "LESSON_STAGE_MISMATCH"})
-    snapshot = initial_snapshot(_lesson_content(db, lesson), _lesson_snapshot_meta(lesson))
+    # Resolve sources once so the new training snapshot and its version refer
+    # to exactly the same material, even if editorial defaults later change.
+    authored = _editorial_content_rows(db, lesson)
+    frozen = {stage: {**payload, "reading_context": reading_context_for(payload)} for stage, payload in authored.items()}
+    snapshot = initial_snapshot(_lesson_content(db, lesson, frozen), _lesson_snapshot_meta(db, lesson, frozen))
     snapshot["profile_id"] = profile.id
     record = TrainingSession(profile_id=profile.id, lesson_id=lesson.id, state_version=snapshot["state_version"], snapshot=snapshot)
     db.add(record)

@@ -1,6 +1,7 @@
 """Curated development seed data. Existing editorial records are never overwritten."""
 from __future__ import annotations
 
+from copy import deepcopy
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -109,6 +110,33 @@ SENIOR_YI_TRANSFER = {
 }
 
 
+# Known errors from the original demo. Match the whole legacy payload before
+# applying a correction; this must never overwrite an editor's authored variant.
+LEGACY_CONTENT_FIXES = {
+    ("lesson-junior-zuo-01", "TRANSFER"): deepcopy(JUNIOR_ZUO_TRANSFER),
+    ("lesson-senior-jia-01", "TRANSFER"): deepcopy(SENIOR_JIA_TRANSFER),
+    ("lesson-senior-gui-01", "TRANSFER"): deepcopy(SENIOR_TRANSFER),
+}
+JUNIOR_ZUO_TRANSFER = {
+    **JUNIOR_ZUO_TRANSFER,
+    "source": "《晏子春秋·内篇杂下》",
+    "correct_answer": "犯罪",
+    "hints": ["先看楚王问的“何坐”，以及回答中的“盗”。", "“盗”是在说明所犯的罪，不是在说明坐在哪里。", "不要把《山行》中“坐”的原因义直接套到刑事对话。", "哪个选项能解释“因偷盗而获罪”？"],
+    "validated_feedback": "迁移成功：这段对话是在问所犯何罪；“坐盗”是因偷盗而获罪，这里的“坐”指犯罪、获罪。与《山行》的原因义不同。",
+}
+SENIOR_JIA_TRANSFER = {
+    **SENIOR_JIA_TRANSFER,
+    "passage": "录毕，走送之，不敢稍逾约。以是人多以书假余，余因得遍观群书。",
+}
+SENIOR_TRANSFER = {
+    **SENIOR_TRANSFER,
+    "choices": ["赞许、认可", "返回家乡", "归还物品"],
+    "evidence": "克己复礼、为仁由己",
+    "correct_answer": "赞许、认可",
+    "hints": ["把这句话放回颜渊问“仁”的整段对话。", "后文“为仁由己”强调实行仁德在自己。", "朱熹《论语集注》解释“归”为“与”，即认许。", "这里是天下人认可其仁，不是回家或归还物品。"],
+    "validated_feedback": "迁移成功：本课采用朱熹《论语集注》“归，犹与也”的解释，指天下人赞许、认可其仁。不要机械套用核心句中的归依义。",
+}
+
 SEEDS = (
     {
         "id": "lesson-junior-cong-01", "slug": "junior-cong-01", "title": "从：从人物关系推断词义", "school_stage": "JUNIOR", "level_order": 10,
@@ -169,7 +197,56 @@ SEEDS = (
 )
 
 
+LEGACY_SEED_METADATA = {
+    seed["id"]: deepcopy({key: value for key, value in seed.items() if key != "contents"})
+    for seed in SEEDS
+}
+for _seed in SEEDS:
+    if _seed["id"] == "lesson-junior-zuo-01":
+        _seed.update(
+            title="坐：比较原因义与获罪义",
+            summary="比较诗歌中的原因义与对话中的获罪义，不机械套用同一解释。",
+            theme="一词多义辨析",
+            accumulation_points=["坐：因为；犯罪、获罪"],
+            reasoning_points=["因果关系", "异义迁移"],
+        )
+    elif _seed["id"] == "lesson-senior-gui-01":
+        _seed.update(
+            summary="比较“吾谁与归”的归依义与“天下归仁”的认许义，并结合完整对话辨析。",
+            accumulation_points=["归：归依；赞许、认可（朱熹集注释义）"],
+        )
+
+
+def apply_seed_corrections(db: Session) -> None:
+    """Correct only untouched legacy seeds; retain all historical snapshots."""
+    seeds_by_id = {seed["id"]: seed for seed in SEEDS}
+    for lesson_id in {key[0] for key in LEGACY_CONTENT_FIXES}:
+        lesson = db.get(Lesson, lesson_id)
+        if not lesson or lesson.status != "PUBLISHED":
+            continue
+        seed = seeds_by_id[lesson_id]
+        old_meta = LEGACY_SEED_METADATA[lesson_id]
+        new_meta = {key: value for key, value in seed.items() if key != "contents"}
+        matches_old = all(getattr(lesson, key) == value for key, value in old_meta.items())
+        matches_new = all(getattr(lesson, key) == value for key, value in new_meta.items())
+        if not (matches_old or matches_new):
+            continue
+        corrected = False
+        for (target_id, stage), legacy in LEGACY_CONTENT_FIXES.items():
+            if target_id != lesson_id:
+                continue
+            row = db.scalar(select(LessonContent).where(LessonContent.lesson_id == lesson_id, LessonContent.stage == stage))
+            if row and row.payload == legacy:
+                row.payload = deepcopy(seed["contents"][stage])
+                corrected = True
+        if corrected and matches_old:
+            for key, value in new_meta.items():
+                setattr(lesson, key, deepcopy(value))
+    db.flush()
+
+
 def seed_lessons(db: Session) -> None:
+    apply_seed_corrections(db)
     for seed in SEEDS:
         lesson = db.get(Lesson, seed["id"])
         if not lesson:

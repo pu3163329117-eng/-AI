@@ -8,12 +8,16 @@ from uuid import uuid4
 os.environ["WENYAN_DATABASE_URL"] = f"sqlite:///{Path(__file__).parent / 'test-wenyan.db'}"
 
 from fastapi.testclient import TestClient  # noqa: E402
+import pytest  # noqa: E402
 
 from backend.main import app  # noqa: E402
+from backend.tests.editorial_helpers import approve, cleanup_editorial_records, publish, verified_content  # noqa: E402, F401
+
+pytestmark = pytest.mark.usefixtures("cleanup_editorial_records")
 
 
 def _content(label: str = "初稿") -> dict:
-    return {
+    return verified_content({
         "CORE": {
             "source": "《测试篇》", "passage": f"{label}：甲从乙学。", "variable": "从",
             "question": "从是什么意思？", "choices": ["跟从学习", "归还"], "evidence": "从乙学",
@@ -24,7 +28,7 @@ def _content(label: str = "初稿") -> dict:
             "question": "从是什么意思？", "choices": ["跟从学习", "归还"], "evidence": "择善",
             "correct_answer": "跟从学习", "hints": ["看择善。"], "validated_feedback": "迁移成功。",
         },
-    }
+    })
 
 
 def _draft_payload(slug: str, content: dict | None = None) -> dict:
@@ -49,7 +53,7 @@ def test_editorial_draft_publish_catalogue_and_metadata_contract():
         public_before = client.get("/api/v1/lessons", params={"school_stage": "JUNIOR"})
         assert draft["id"] not in {item["id"] for item in public_before.json()["lessons"]}
 
-        incomplete = client.post(f"/api/v1/admin/lessons/{draft['id']}/publish")
+        incomplete = publish(client, draft["id"])
         assert incomplete.status_code == 409
         assert incomplete.json()["error"]["code"] == "LESSON_CONTENT_INCOMPLETE"
 
@@ -57,7 +61,8 @@ def test_editorial_draft_publish_catalogue_and_metadata_contract():
         assert edited.status_code == 200
         assert set(edited.json()["lesson"]["content"]) == {"CORE", "TRANSFER"}
 
-        published = client.post(f"/api/v1/admin/lessons/{draft['id']}/publish")
+        approve(client, draft["id"])
+        published = publish(client, draft["id"])
         assert published.status_code == 200
         assert published.json()["lesson"]["status"] == "PUBLISHED"
 
@@ -85,7 +90,8 @@ def test_editorial_updates_do_not_rewrite_an_existing_session_snapshot():
     with TestClient(app) as client:
         created = client.post("/api/v1/admin/lessons", json=_draft_payload(slug, _content("旧文本")))
         lesson_id = created.json()["lesson"]["id"]
-        assert client.post(f"/api/v1/admin/lessons/{lesson_id}/publish").status_code == 200
+        approve(client, lesson_id)
+        assert publish(client, lesson_id).status_code == 200
 
         profile = client.post("/api/v1/profiles", json={"display_name": "编辑测试学习者", "school_stage": "JUNIOR"}).json()["profile"]
         started = client.post("/api/v1/training/sessions", json={"profile_id": profile["id"], "lesson_id": lesson_id})

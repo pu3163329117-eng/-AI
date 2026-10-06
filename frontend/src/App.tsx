@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
 import { ContextReader } from './components/ContextReader'
+import { EditorialSources } from './components/EditorialSources'
 import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type Page = 'home' | 'training' | 'skills' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
@@ -475,10 +476,13 @@ function contentFormFromLesson(lesson: AdminLesson): ContentForm {
 }
 
 function parseEditorialContent(form: ContentForm): Record<string, unknown> | undefined {
+  if (!form.core_content.trim() && !form.transfer_content.trim()) return undefined
+  if (!form.core_content.trim() || !form.transfer_content.trim()) throw new Error('CONTENT_STAGES_REQUIRED')
   const result: Record<string, unknown> = {}
-  if (form.core_content.trim()) result.CORE = JSON.parse(form.core_content)
-  if (form.transfer_content.trim()) result.TRANSFER = JSON.parse(form.transfer_content)
-  return Object.keys(result).length ? result : undefined
+  result.CORE = JSON.parse(form.core_content)
+  result.TRANSFER = JSON.parse(form.transfer_content)
+  if (Object.values(result).some(value => !value || typeof value !== 'object' || Array.isArray(value))) throw new Error('CONTENT_OBJECT_REQUIRED')
+  return result
 }
 
 function ContentAdminPage() {
@@ -486,10 +490,15 @@ function ContentAdminPage() {
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | 'new' | null>(null)
+  const [editingLesson, setEditingLesson] = useState<AdminLesson | null>(null)
   const [form, setForm] = useState<ContentForm>(emptyContentForm)
   const [detailLoading, setDetailLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
+  const [reviewer, setReviewer] = useState('')
+  const [reviewNote, setReviewNote] = useState('')
+  const [savedForm, setSavedForm] = useState<ContentForm>(emptyContentForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -507,15 +516,23 @@ function ContentAdminPage() {
   useEffect(() => { void loadLessons() }, [loadLessons])
 
   const openNew = () => {
-    setActiveId('new'); setForm(emptyContentForm()); setFormError(null); setSuccess(null)
+    if (dirty && !window.confirm('当前有未保存修改，确定放弃并新建课程吗？')) return
+    setActiveId('new'); setEditingLesson(null); setForm(emptyContentForm()); setSavedForm(emptyContentForm()); setFormError(null); setSuccess(null); setReviewNote('')
   }
 
   const openLesson = async (lessonId: string) => {
-    setActiveId(lessonId); setDetailLoading(true); setFormError(null); setSuccess(null)
+    if (dirty && !window.confirm('当前有未保存修改，确定切换课程吗？')) return
+    setActiveId(lessonId); setEditingLesson(null); setDetailLoading(true); setFormError(null); setSuccess(null)
     try {
       const response = await adminLessonApi.get(lessonId)
+      setEditingLesson(response.lesson)
       setForm(contentFormFromLesson(response.lesson))
+      setSavedForm(contentFormFromLesson(response.lesson))
+      setLessons(current => current.map(lesson => lesson.id === lessonId ? response.lesson : lesson))
+      setReviewNote('')
     } catch (reason) {
+      // Never let a failed detail request reuse the previous lesson's form.
+      setActiveId(null); setEditingLesson(null); setForm(emptyContentForm()); setSavedForm(emptyContentForm())
       setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setDetailLoading(false) }
   }
@@ -524,12 +541,13 @@ function ContentAdminPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!activeId || (activeId !== 'new' && !selectedLesson?.review?.content_version)) return
     setFormError(null); setSuccess(null)
     let content: Record<string, unknown> | undefined
     try {
       content = parseEditorialContent(form)
-    } catch {
-      setFormError('CONTENT_JSON_INVALID')
+    } catch (reason) {
+      setFormError(reason instanceof Error && ['CONTENT_STAGES_REQUIRED', 'CONTENT_OBJECT_REQUIRED'].includes(reason.message) ? reason.message : 'CONTENT_JSON_INVALID')
       return
     }
     const estimatedMinutes = Number(form.estimated_minutes)
@@ -549,54 +567,90 @@ function ContentAdminPage() {
     try {
       const response = activeId === 'new'
         ? await adminLessonApi.create(payload)
-        : await adminLessonApi.update(activeId!, payload)
+        : await adminLessonApi.update(activeId, payload, selectedLesson!.review!.content_version)
       setLessons((current) => {
         const withoutSaved = current.filter((lesson) => lesson.id !== response.lesson.id)
         return [...withoutSaved, response.lesson]
       })
       setActiveId(response.lesson.id)
+      setEditingLesson(response.lesson)
       setForm(contentFormFromLesson(response.lesson))
-      setSuccess(activeId === 'new' ? '草稿已创建，补全训练内容后即可发布。' : '修改已保存。')
+      setSavedForm(contentFormFromLesson(response.lesson))
+      setSuccess(activeId === 'new' ? '草稿已创建。核对两阶段的原文与来源后，请审核当前版本。' : response.lesson.status === 'DRAFT' ? '修改已保存。草稿需重新审核后发布，学生已有训练不受影响。' : '修改已保存，资料版本未变化。')
     } catch (reason) {
       setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setSaving(false) }
   }
 
   const publish = async () => {
-    if (!activeId || activeId === 'new') return
+    if (!activeId || activeId === 'new' || dirty || selectedLesson?.review?.status !== 'APPROVED' || !selectedLesson.review.content_version) return
     setPublishing(true); setFormError(null); setSuccess(null)
     try {
-      const response = await adminLessonApi.publish(activeId)
+      const response = await adminLessonApi.publish(activeId, selectedLesson.review.content_version)
+      setEditingLesson(response.lesson)
       setLessons((current) => current.map((lesson) => lesson.id === response.lesson.id ? response.lesson : lesson))
       setForm(contentFormFromLesson(response.lesson))
+      setSavedForm(contentFormFromLesson(response.lesson))
       setSuccess('关卡已发布，现在会出现在对应学段的学习目录中。')
     } catch (reason) {
       setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
     } finally { setPublishing(false) }
   }
 
-  const selectedLesson = activeId && activeId !== 'new' ? lessons.find((lesson) => lesson.id === activeId) : null
+  // Keep the detail version bound to its visible form. Refreshing the list must
+  // not silently approve a different version that this editor has not loaded.
+  const selectedLesson = editingLesson?.id === activeId ? editingLesson : null
+  const dirty = activeId === 'new' ? JSON.stringify(form) !== JSON.stringify(emptyContentForm()) : JSON.stringify(form) !== JSON.stringify(savedForm)
+  const working = saving || reviewing || publishing || detailLoading
+  const reviewStatus = selectedLesson?.review?.status
+  const reviewLabel = dirty ? '有未保存修改，请先保存后审核' : reviewStatus === 'APPROVED' ? '当前版本已审核' : reviewStatus === 'STALE' ? '资料已变化，需重新审核' : '尚未审核'
+  const review = async () => {
+    if (!activeId || activeId === 'new' || dirty || !reviewer.trim() || !selectedLesson?.review?.content_version) return
+    setReviewing(true); setFormError(null); setSuccess(null)
+    try {
+      const response = await adminLessonApi.review(activeId, reviewer.trim(), reviewNote.trim(), selectedLesson.review.content_version)
+      setEditingLesson(response.lesson)
+      setLessons(current => current.map(lesson => lesson.id === response.lesson.id ? response.lesson : lesson))
+      setForm(contentFormFromLesson(response.lesson)); setSavedForm(contentFormFromLesson(response.lesson))
+      setSuccess('已记录本地教研审核。请确认当前版本后，再点击发布关卡。')
+    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED') }
+    finally { setReviewing(false) }
+  }
+  const errorLabels: Record<string, string> = { LESSON_REVIEW_REQUIRED: '当前版本尚未审核，请先核对来源并审核。', LESSON_REVIEW_NOT_READY: '来源或训练资料不完整，请按下方检查项补齐后保存。', CONTENT_JSON_INVALID: '训练 JSON 格式有误，请检查引号、括号和逗号。', CONTENT_STAGES_REQUIRED: '请同时填写 CORE 和 TRANSFER；仅建立课程骨架时可将两者都留空。', CONTENT_OBJECT_REQUIRED: '每个阶段的 JSON 必须是对象，不能是数组、文字或空值。', LESSON_CONTENT_INVALID: '题目字段不完整：请核对题文、目标词、证据、正确答案及选项。', LESSON_READING_CONTEXT_INVALID: '阅读资料格式有误，paragraphs 必须是非空段落数组。', ESTIMATED_MINUTES_INVALID: '预计时长必须是大于 0 的整数。', REQUEST_FAILED: '请求未完成，请检查必填字段或稍后重试。' }
+  Object.assign(errorLabels, { LESSON_REVIEW_VERSION_CONFLICT: '资料已在其他页面修改，不能审核未读的新版本。请重新读取并核对。', LESSON_PUBLISH_VERSION_CONFLICT: '资料版本已变化，不能发布旧页面所见版本。请重新读取并核对。', LESSON_EDIT_VERSION_CONFLICT: '其他页面已修改此课程；本次未覆盖新版本。请先复制自己的修改，再重新读取。' })
+  const versionConflict = ['LESSON_REVIEW_VERSION_CONFLICT', 'LESSON_PUBLISH_VERSION_CONFLICT', 'LESSON_EDIT_VERSION_CONFLICT'].includes(formError ?? '')
   return (
     <main className="content-admin-page">
       <header className="admin-heading">
-        <div><p className="eyebrow">教研工作台</p><h1>把关卡做成<br />可发布的课程。</h1><p>草稿不会进入学习目录；发布前请完成两段训练内容和教研标注。</p></div>
-        <button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">+</span></button>
+        <div><p className="eyebrow">教研工作台</p><h1>来源有据，<br />版本可追溯。</h1><p>保存草稿 → 核对来源并审核 → 发布当前版本。已发布课程修改后，需重新审核。</p></div>
+        <button className="button button-primary" onClick={openNew} disabled={working}>创建新关卡 <span aria-hidden="true">+</span></button>
       </header>
       <div className="admin-workspace">
         <aside className="admin-list" aria-label="关卡列表">
           <div className="admin-list-title"><b>全部关卡</b><button className="text-button" onClick={() => void loadLessons()} disabled={loading}>刷新</button></div>
           {loading ? <p className="admin-state">正在读取关卡…</p> : listError ? <div className="admin-state" role="alert"><b>无法读取关卡。</b><p>错误代码：{listError}</p><button className="text-button" onClick={() => void loadLessons()}>重新读取 →</button></div> : lessons.length === 0 ? <p className="admin-state">还没有教研关卡。创建第一份草稿开始编辑。</p> : <div className="admin-lesson-list">
-            {lessons.map((lesson) => <button key={lesson.id} className={activeId === lesson.id ? 'selected' : ''} onClick={() => void openLesson(lesson.id)}><span className={`status-badge ${lesson.status === 'PUBLISHED' ? 'published' : ''}`}>{lesson.status === 'PUBLISHED' ? '已发布' : '草稿'}</span><strong>{lesson.title}</strong><small>{lesson.school_stage === 'JUNIOR' ? '初中' : '高中'} · {lesson.source}</small></button>)}
+            {lessons.map((lesson) => <button key={lesson.id} disabled={working} className={activeId === lesson.id ? 'selected' : ''} onClick={() => void openLesson(lesson.id)}><span className={`status-badge ${lesson.status === 'PUBLISHED' ? 'published' : ''}`}>{lesson.status === 'PUBLISHED' ? '已发布' : '草稿'} · {lesson.review?.status === 'APPROVED' ? '已审核' : lesson.review?.status === 'STALE' ? '审核失效' : '待审核'}</span><strong>{lesson.title}</strong><small>{lesson.school_stage === 'JUNIOR' ? '初中' : '高中'} · {lesson.source}</small></button>)}
           </div>}
         </aside>
         <section className="admin-editor" aria-live="polite">
-          {!activeId ? <div className="admin-placeholder"><p className="eyebrow">内容管理</p><h2>选择一份关卡，<br />或新建草稿。</h2><p>这里记录课程的学习对象、教材位置、关键积累与推理路径。</p><button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">→</span></button></div> : detailLoading ? <p className="admin-state">正在读取关卡详情…</p> : <form className="lesson-editor-form" onSubmit={submit}>
-            <div className="editor-topline"><div><p className="eyebrow">{activeId === 'new' ? '新建草稿' : selectedLesson?.status === 'PUBLISHED' ? '已发布关卡' : '草稿关卡'}</p><h2>{activeId === 'new' ? '建立课程骨架' : form.title || '未命名关卡'}</h2></div>{activeId !== 'new' && <button type="button" className="button button-secondary" onClick={publish} disabled={publishing || selectedLesson?.status === 'PUBLISHED'}>{selectedLesson?.status === 'PUBLISHED' ? '已发布' : publishing ? '正在发布…' : '发布关卡'}</button>}</div>
-            <fieldset className="editor-section"><legend>课程定位</legend><div className="field-grid"><label>学段<select value={form.school_stage} onChange={(event) => setField('school_stage', event.target.value as SchoolStage)}><option value="JUNIOR">初中</option><option value="SENIOR">高中</option></select></label><label>教材标签（用逗号分隔）<input value={form.textbook_tags} onChange={(event) => setField('textbook_tags', event.target.value)} placeholder="部编版, 七年级上册" /></label><label>主题<input value={form.theme} onChange={(event) => setField('theme', event.target.value)} placeholder="语境推断" /></label></div></fieldset>
-            <fieldset className="editor-section"><legend>关卡信息</legend><div className="field-grid"><label className="span-two">题目<input required value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="例如：从人物关系推断词义" /></label><label>出处<input required value={form.source} onChange={(event) => setField('source', event.target.value)} placeholder="《陈涉世家》" /></label><label>难度<input required value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} placeholder="进阶" /></label><label>预计时长（分钟）<input required min="1" type="number" inputMode="numeric" value={form.estimated_minutes} onChange={(event) => setField('estimated_minutes', event.target.value)} /></label><label className="span-two">学习摘要<textarea required value={form.summary} onChange={(event) => setField('summary', event.target.value)} placeholder="说明本关要完成的理解与推断任务。" /></label></div></fieldset>
-            <fieldset className="editor-section"><legend>教研标注</legend><div className="field-grid"><label>积累点（每行一项）<textarea value={form.accumulation_points} onChange={(event) => setField('accumulation_points', event.target.value)} placeholder="实词义项\n人物关系" /></label><label>推理点（每行一项）<textarea value={form.reasoning_points} onChange={(event) => setField('reasoning_points', event.target.value)} placeholder="从人物动作寻找依据\n排除不合语境的义项" /></label><label className="span-two">推理层级<input value={form.reasoning_level} onChange={(event) => setField('reasoning_level', event.target.value)} placeholder="如：语境定位 → 关系推断 → 回溯验证" /></label></div></fieldset>
-            <fieldset className="editor-section"><legend>训练内容</legend><p className="field-note">发布前需提供 CORE 与 TRANSFER 的完整 JSON 内容；系统会在发布时验证结构。</p><div className="field-grid"><label>CORE（核心训练 JSON）<textarea className="code-input" value={form.core_content} onChange={(event) => setField('core_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label><label>TRANSFER（迁移训练 JSON）<textarea className="code-input" value={form.transfer_content} onChange={(event) => setField('transfer_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label></div></fieldset>
-            <div className="editor-actions"><button className="button button-primary" disabled={saving}>{saving ? '正在保存…' : activeId === 'new' ? '保存草稿' : '保存修改'} <span aria-hidden="true">→</span></button>{formError && <p className="request-error" role="alert">操作未完成：{formError}</p>}{success && <p className="request-success" role="status">{success}</p>}</div>
+          {!activeId ? <div className="admin-placeholder">{formError && <p role="alert" className="request-error">关卡详情读取失败，请重新选择课程。（{formError}）</p>}<p className="eyebrow">内容管理</p><h2>选择一份关卡，<br />或新建草稿。</h2><p>这里记录课程的学习对象、教材位置、关键积累与推理路径。</p><button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">→</span></button></div> : detailLoading ? <p className="admin-state">正在读取关卡详情…</p> : <form className="lesson-editor-form" onSubmit={submit}>
+            <div className="editor-topline"><div><p className="eyebrow">{activeId === 'new' ? '新建草稿' : selectedLesson?.status === 'PUBLISHED' ? '已发布关卡' : '草稿关卡'}{dirty && ' · 有未保存修改'}</p><h2>{activeId === 'new' ? '建立课程骨架' : form.title || '未命名关卡'}</h2></div>{activeId !== 'new' && <button type="button" className="button button-secondary" onClick={publish} disabled={working || dirty || reviewStatus !== 'APPROVED' || selectedLesson?.status === 'PUBLISHED'}>{selectedLesson?.status === 'PUBLISHED' ? '已发布' : publishing ? '正在发布…' : '发布关卡'}</button>}</div>
+            {activeId !== 'new' && <section className="editor-review" aria-label="资料版本与教研审核">
+              <div className="review-version-line"><strong>{reviewLabel}</strong><span>版本 {selectedLesson?.review?.content_version ?? '读取中'}</span></div>
+              <p>本地审核是署名记录，不代表已接入账号认证。请实际核对原文、题源、词义、选项与提示；系统只检查资料结构和版本一致性。</p>
+              {selectedLesson?.review?.reviewer && <p>最近审核：{selectedLesson.review.reviewer}{selectedLesson.review.reviewed_at && ` · ${new Date(selectedLesson.review.reviewed_at).toLocaleString('zh-CN')}`}。{selectedLesson.review.note}</p>}
+              {!!selectedLesson?.review?.issues?.length && <div className="review-issues"><b>发布前检查</b><ul>{selectedLesson.review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
+              <div className="review-signoff"><label>审核人<input maxLength={80} value={reviewer} disabled={working} onChange={event => setReviewer(event.target.value)} placeholder="填写实际审核人的署名" /></label><label>审核说明<textarea maxLength={2000} value={reviewNote} disabled={working} onChange={event => setReviewNote(event.target.value)} placeholder="例如：核对原文版本、题源和词义注释" /></label></div>
+              <button type="button" className="button button-secondary" disabled={working || dirty || !reviewer.trim() || !!selectedLesson?.review?.issues?.length} onClick={review}>{reviewing ? '正在记录审核…' : '确认审核当前版本'}</button>
+              {dirty && <p>请先保存修改，再审核和发布，避免审核到旧版本。</p>}
+            </section>}
+            <fieldset className="editor-section" disabled={working}><legend>课程定位</legend><div className="field-grid"><label>学段<select value={form.school_stage} onChange={(event) => setField('school_stage', event.target.value as SchoolStage)}><option value="JUNIOR">初中</option><option value="SENIOR">高中</option></select></label><label>教材标签（用逗号分隔）<input value={form.textbook_tags} onChange={(event) => setField('textbook_tags', event.target.value)} placeholder="部编版, 七年级上册" /></label><label>主题<input value={form.theme} onChange={(event) => setField('theme', event.target.value)} placeholder="语境推断" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working}><legend>关卡信息</legend><div className="field-grid"><label className="span-two">题目<input required value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="例如：从人物关系推断词义" /></label><label>出处<input required value={form.source} onChange={(event) => setField('source', event.target.value)} placeholder="《陈涉世家》" /></label><label>难度<input required value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} placeholder="进阶" /></label><label>预计时长（分钟）<input required min="1" type="number" inputMode="numeric" value={form.estimated_minutes} onChange={(event) => setField('estimated_minutes', event.target.value)} /></label><label className="span-two">学习摘要<textarea required value={form.summary} onChange={(event) => setField('summary', event.target.value)} placeholder="说明本关要完成的理解与推断任务。" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working}><legend>教研标注</legend><div className="field-grid"><label>积累点（每行一项）<textarea value={form.accumulation_points} onChange={(event) => setField('accumulation_points', event.target.value)} placeholder="实词义项\n人物关系" /></label><label>推理点（每行一项）<textarea value={form.reasoning_points} onChange={(event) => setField('reasoning_points', event.target.value)} placeholder="从人物动作寻找依据\n排除不合语境的义项" /></label><label className="span-two">推理层级<input value={form.reasoning_level} onChange={(event) => setField('reasoning_level', event.target.value)} placeholder="如：语境定位 → 关系推断 → 回溯验证" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working}><legend>训练内容</legend><p className="field-note">CORE 与 TRANSFER 均需提供原文、题目和 reading_context；其中填写 paragraphs、source_url、text_version、author、era 和材料范围 extent。全文与节选必须如实标注。</p><div className="field-grid"><label>CORE（核心训练 JSON）<textarea className="code-input" value={form.core_content} onChange={(event) => setField('core_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label><label>TRANSFER（迁移训练 JSON）<textarea className="code-input" value={form.transfer_content} onChange={(event) => setField('transfer_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label></div></fieldset>
+            <EditorialSources core={form.core_content} transfer={form.transfer_content} />
+            {versionConflict && activeId && activeId !== 'new' && <button type="button" className="button button-secondary" disabled={working} onClick={() => void openLesson(activeId)}>重新读取当前课程</button>}
+            <div className="editor-actions"><button className="button button-primary" disabled={working}>{saving ? '正在保存…' : activeId === 'new' ? '保存草稿' : '保存修改'} <span aria-hidden="true">→</span></button>{formError && <p className="request-error" role="alert">操作未完成：{errorLabels[formError] ?? formError}</p>}{success && <p className="request-success" role="status">{success}</p>}</div>
           </form>}
         </section>
       </div>
@@ -959,6 +1013,7 @@ export function App() {
   }, [])
 
   const navigate = (next: Page) => {
+    if (!profile && next !== 'admin') { setPage('onboarding'); return }
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
     else if (next === 'practice' && profile) setPage('practice')
@@ -973,7 +1028,7 @@ export function App() {
 
   return <div className="app-shell">
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
-    {page === 'onboarding' && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
+    {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'skills' && profile && <SkillsPage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}

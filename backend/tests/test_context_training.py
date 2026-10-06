@@ -16,6 +16,9 @@ from backend.db.session import SessionLocal  # noqa: E402
 from backend.domain import reading_context  # noqa: E402
 from backend.domain.training import DEFAULT_LESSON_CONTENT, apply_command, initial_snapshot  # noqa: E402
 from backend.main import app  # noqa: E402
+from backend.tests.editorial_helpers import approve, cleanup_editorial_records, publish, verified_content  # noqa: E402, F401
+
+pytestmark = pytest.mark.usefixtures("cleanup_editorial_records")
 
 
 def _content() -> dict:
@@ -189,7 +192,7 @@ def test_revisiting_a_deferred_word_clears_the_pause_flag():
 def test_editorial_context_changes_only_apply_to_new_sessions():
     authored = _content()
     core = {key: value for key, value in authored.items() if key not in ("transfer", "summary")}
-    content = {"CORE": core, "TRANSFER": authored["transfer"]}
+    content = verified_content({"CORE": core, "TRANSFER": authored["transfer"]})
     marker = uuid4().hex[:10]
     with TestClient(app) as client:
         created = client.post("/api/v1/admin/lessons", json={
@@ -200,12 +203,15 @@ def test_editorial_context_changes_only_apply_to_new_sessions():
         })
         assert created.status_code == 201, created.json()
         lesson_id = created.json()["lesson"]["id"]
-        assert client.post(f"/api/v1/admin/lessons/{lesson_id}/publish").status_code == 200
+        approve(client, lesson_id)
+        assert publish(client, lesson_id).status_code == 200
         started = _start(client, lesson_id)
         session_id, frozen = started["session_id"], started["session"]
         changed = deepcopy(content)
-        changed["CORE"]["reading_context"].update(author="新版作者", paragraphs=["新版正文从此处开始。"])
-        changed["TRANSFER"]["reading_context"]["paragraphs"] = ["新版迁移原文。"]
+        changed["CORE"]["passage"] = "新版正文从此处开始。"
+        changed["CORE"]["reading_context"].update(author="新版作者", paragraphs=["新版正文从此处开始。"], text_version="test-v2")
+        changed["TRANSFER"]["passage"] = "新版迁移原文从此处开始。"
+        changed["TRANSFER"]["reading_context"].update(paragraphs=["新版迁移原文从此处开始。"], text_version="test-v2")
         assert client.patch(f"/api/v1/admin/lessons/{lesson_id}", json={"content": changed}).status_code == 200
 
         expanded = _send(client, session_id, frozen, "REQUEST_MORE_CONTEXT", {
@@ -220,6 +226,8 @@ def test_editorial_context_changes_only_apply_to_new_sessions():
         current = _send(client, session_id, current, "SUBMIT_ATTEMPT", {"answer": current["correct_answer"]}).json()["session"]
         transferred = _send(client, session_id, current, "CONTINUE_TO_TRANSFER").json()["session"]
         assert transferred["reading_context"]["paragraphs"] == authored["transfer"]["reading_context"]["paragraphs"]
+        approve(client, lesson_id)
+        assert publish(client, lesson_id).status_code == 200
         fresh = _start(client, lesson_id)["session"]
         assert fresh["reading_context"]["author"] == "新版作者"
         assert fresh["reading_context"]["paragraphs"] == ["新版正文从此处开始。"]
@@ -234,7 +242,7 @@ def _editorial_payload(reading: dict) -> dict:
         "source": core["source"], "difficulty": "基础", "estimated_minutes": 5, "summary": "阅读资料校验。",
         "level_order": 9901, "textbook_tags": ["QA资料"], "theme": "QA资料",
         "accumulation_points": ["从"], "reasoning_points": ["语境定位"], "reasoning_level": "L1",
-        "content": {"CORE": core, "TRANSFER": content["transfer"]},
+        "content": {"CORE": core, "TRANSFER": verified_content({"TRANSFER": content["transfer"]})["TRANSFER"]},
     }
 
 
@@ -256,7 +264,7 @@ def test_editorial_rejects_malformed_reading_data_before_publication(malformed: 
 
 def test_complete_editorial_reading_metadata_is_published_frozen_and_keeps_offsets():
     reading = {
-        "paragraphs": [" 𠮷从师学；善者从之。 ", " 学成而归。 "],
+        "paragraphs": [" 𠮷从师学；善者从之。后有从军者。 ", " 学成而归。 "],
         "extent": "FULL", "author": "测试作者", "era": "测试时代", "work_note": "测试全篇",
         "text_version": "校订版本 2026-10", "source_url": "https://example.com/reading-source",
         "terms": ["从师", "善者"],
@@ -265,7 +273,8 @@ def test_complete_editorial_reading_metadata_is_published_frozen_and_keeps_offse
         response = client.post("/api/v1/admin/lessons", json=_editorial_payload(reading))
         assert response.status_code == 201, response.json()
         lesson_id = response.json()["lesson"]["id"]
-        assert client.post(f"/api/v1/admin/lessons/{lesson_id}/publish").status_code == 200
+        approve(client, lesson_id)
+        assert publish(client, lesson_id).status_code == 200
         started = _start(client, lesson_id)
         snapshot = started["session"]
         for key, value in reading.items():

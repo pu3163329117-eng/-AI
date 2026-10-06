@@ -128,6 +128,15 @@ export type PracticePlans = {
 
 export type LessonStatus = 'DRAFT' | 'PUBLISHED'
 
+export type EditorialReview = {
+  status: 'UNREVIEWED' | 'APPROVED' | 'STALE'
+  content_version: string
+  reviewer: string | null
+  note: string | null
+  reviewed_at: string | null
+  issues: string[]
+}
+
 /** Editorial metadata is intentionally separate from the learner catalogue shape. */
 export type AdminLesson = Lesson & {
   school_stage: SchoolStage
@@ -138,6 +147,7 @@ export type AdminLesson = Lesson & {
   reasoning_points: string[]
   reasoning_level: string
   content?: Record<string, unknown>
+  review?: EditorialReview
 }
 
 export type AdminLessonInput = {
@@ -176,6 +186,17 @@ export type Mistake = {
 }
 
 export type TrainingSession = {
+  /** Frozen teaching attribution; older stored sessions may not have these fields. */
+  lesson?: {
+    id: string
+    title: string
+    school_stage?: SchoolStage
+    difficulty?: string
+    content_version?: string
+    review_status?: EditorialReview['status']
+    reviewer?: string | null
+    reviewed_at?: string | null
+  }
   stage: TrainingStage
   state: TrainingState
   state_version: number

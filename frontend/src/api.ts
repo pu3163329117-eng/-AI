@@ -92,12 +92,19 @@ export const adminLessonApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
-  update: (lessonId: string, payload: AdminLessonInput) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}`, {
+  update: (lessonId: string, payload: AdminLessonInput, expectedContentVersion: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, expected_content_version: expectedContentVersion }),
   }),
-  publish: (lessonId: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}/publish`, {
+  publish: (lessonId: string, expectedContentVersion: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}/publish`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expected_content_version: expectedContentVersion }),
+  }),
+  review: (lessonId: string, reviewer: string, note: string, expectedContentVersion: string) => request<AdminLessonResponse>(`/api/v1/admin/lessons/${encodeURIComponent(lessonId)}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewer, note, expected_content_version: expectedContentVersion }),
   }),
 }
