@@ -63,6 +63,20 @@
 .polished .evidence-panel { grid-column: 2; grid-row: 2; position: sticky; top: 96px; align-self: start; }
 .polished .reading-shortcuts { display: flex; justify-content: flex-end; gap: 12px; padding-top: 12px; border-top: 1px solid #ddd; }
 .polished .reading-shortcuts button { min-height: 44px; padding: 10px 14px; border: 1px solid #aaa; border-radius: 6px; background: #fff; color: #111; cursor: pointer; }
+.polished .context-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; top: 0; z-index: 2; background: #fff; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
+.polished .context-panel-heading .stage-label { margin: 0; }
+.polished .context-panel-heading .knowledge-action { font-size: 12px; white-space: nowrap; }
+.polished .context-layers { scroll-margin-top: 105px; scroll-margin-bottom: 85px; }
+.polished .reader-keyboard-guide { margin: 0 0 14px; color: #555; font-size: 12px; line-height: 1.7; }
+.polished .knowledge-action { min-height: 44px; }
+.polished .related-load-state { min-height: 42px; margin: 12px 0; padding: 10px; border-left: 2px solid #111; background: #f6f6f3; font-size: 12px; }
+.polished .related-load-state p { margin: 0; }
+.polished .related-items { scroll-margin-top: 72px; }
+.polished .related-items:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+.polished .command-recovery { margin-top: 16px; padding: 16px; border: 1px solid #111; border-radius: 8px; background: #f6f6f3; }
+.polished .command-recovery p { margin: 10px 0; font-size: 13px; line-height: 1.8; }
+.polished .command-recovery h3 { margin: 0; font-size: 16px; scroll-margin-top: 135px; }
+.polished .connection-status { margin: 0; padding: 12px 24px; border-bottom: 1px solid #ccc; background: #f6f6f3; font-size: 13px; line-height: 1.7; }
 @keyframes page-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 1100px) {
   .polished .app-header { display: grid; grid-template-columns: 1fr auto; height: auto; min-height: 68px; gap: 0; padding-inline: 24px; }
@@ -79,6 +93,7 @@
   .polished .evidence-panel .hint { flex-basis: 100%; }
   .polished .lesson { grid-row: 3; }
   .polished .training-task, .polished #fulltext-title { scroll-margin-top: 135px; }
+  .polished .context-layers { scroll-margin-top: 135px; }
 }
 @container (max-width: 720px) {
   .polished .fulltext-layout { grid-template-columns: 1fr; gap: 20px; }

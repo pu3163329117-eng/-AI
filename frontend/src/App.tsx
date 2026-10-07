@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { adminLessonApi, lessonApi, profileApi, trainingApi } from './api'
+import { adminLessonApi, lessonApi, profileApi, requestId, trainingApi } from './api'
+import { errorMessage, uncertainWrite } from './http'
+import { ConnectionStatus } from './components/ConnectionStatus'
 import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
@@ -8,6 +10,7 @@ import './polish.css'
 import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
+type PendingTrainingCommand = { sessionId: string; version: number; type: CommandType; payload: Record<string, unknown>; key: string }
 
 function AppHeader({ page, profile, onNavigate }: { page: Page; profile: LearnerProfile | null; onNavigate: (page: Page) => void }) {
   return (
@@ -119,7 +122,7 @@ function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: strin
       <section className="onboarding-copy">
         <p className="eyebrow">开始之前</p>
         <h1>先留下<br />你的起点。</h1>
-        <p>这份档案只保存在当前设备，用来记录你的分级、完成关卡和知行积分。</p>
+        <p>档案保存在本机学习服务中，这个浏览器会记住你的入口。目前尚未接入账号登录和跨设备找回。</p>
       </section>
       <form className="profile-form" onSubmit={submit}>
         <label>怎么称呼你？<input value={name} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
@@ -629,6 +632,7 @@ function ContentAdminPage({ onExitRiskChange }: { onExitRiskChange: (risk: ExitR
   }
   const errorLabels: Record<string, string> = { LESSON_REVIEW_REQUIRED: '当前版本尚未审核，请先核对来源并审核。', LESSON_REVIEW_NOT_READY: '来源或训练资料不完整，请按下方检查项补齐后保存。', CONTENT_JSON_INVALID: '训练 JSON 格式有误，请检查引号、括号和逗号。', CONTENT_STAGES_REQUIRED: '请同时填写 CORE 和 TRANSFER；仅建立课程骨架时可将两者都留空。', CONTENT_OBJECT_REQUIRED: '每个阶段的 JSON 必须是对象，不能是数组、文字或空值。', LESSON_CONTENT_INVALID: '题目字段不完整：请核对题文、目标词、证据、正确答案及选项。', LESSON_READING_CONTEXT_INVALID: '阅读资料格式有误，paragraphs 必须是非空段落数组。', ESTIMATED_MINUTES_INVALID: '预计时长必须是大于 0 的整数。', REQUEST_FAILED: '请求未完成，请检查必填字段或稍后重试。' }
   Object.assign(errorLabels, { LESSON_REVIEW_VERSION_CONFLICT: '资料已在其他页面修改，不能审核未读的新版本。请重新读取并核对。', LESSON_PUBLISH_VERSION_CONFLICT: '资料版本已变化，不能发布旧页面所见版本。请重新读取并核对。', LESSON_EDIT_VERSION_CONFLICT: '其他页面已修改此课程；本次未覆盖新版本。请先复制自己的修改，再重新读取。' })
+  for (const code of ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'INVALID_RESPONSE', 'SERVER_UNAVAILABLE']) errorLabels[code] = errorMessage(code)
   const versionConflict = ['LESSON_REVIEW_VERSION_CONFLICT', 'LESSON_PUBLISH_VERSION_CONFLICT', 'LESSON_EDIT_VERSION_CONFLICT'].includes(formError ?? '')
   return (
     <main className="content-admin-page">
@@ -681,12 +685,14 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
 }
 
 
-function TrainingPage({ sessionId, session, busy, pendingCommand, error, onCommand, onReturnHome }: {
+function TrainingPage({ sessionId, session, busy, pendingCommand, error, recoveryNeeded, onRecover, onCommand, onReturnHome }: {
   sessionId: string
   session: TrainingSession
   busy: boolean
   pendingCommand: CommandType | null
   error: string | null
+  recoveryNeeded: boolean
+  onRecover: () => void
   onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
   onReturnHome: () => void
 }) {
@@ -700,6 +706,12 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, onComma
     return () => cancelAnimationFrame(frame)
   }, [session.stage, session.completed])
   const pendingLabels: Partial<Record<CommandType, string>> = { SUBMIT_ATTEMPT: '正在核验判断…', REQUEST_MORE_CONTEXT: '正在保存点读位置与语境…', SELECT_EVIDENCE: '正在记录证据…', DEFER_VARIABLE: '正在暂放变量…', REVISIT_VARIABLE: '正在恢复判断…', REQUEST_HINT: '正在读取提示…', CONTINUE_TO_TRANSFER: '正在准备迁移挑战…', COMPLETE_SESSION: '正在保存本关总结…' }
+  const locked = busy || recoveryNeeded
+  useEffect(() => {
+    if (!recoveryNeeded) return
+    const frame = requestAnimationFrame(() => jumpTo('command-recovery-title'))
+    return () => cancelAnimationFrame(frame)
+  }, [recoveryNeeded])
 
   const submit = () => answer && onCommand('SUBMIT_ATTEMPT', { answer })
   const isTransferReady = session.transfer_ready && !session.completed
@@ -718,13 +730,13 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, onComma
         </aside>
         <aside className="evidence-panel" aria-label="推理工具">
           <b>证据板</b>
-          <button className={session.evidence_selected ? 'selected' : ''} onClick={() => onCommand('SELECT_EVIDENCE')} disabled={busy || session.completed}>
+          <button className={session.evidence_selected ? 'selected' : ''} onClick={() => onCommand('SELECT_EVIDENCE')} disabled={locked || session.completed}>
             <span aria-hidden="true">“</span>{session.evidence}<span aria-hidden="true">”</span>
           </button>
           <hr />
-          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={busy || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
-          {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={busy || session.completed}>回看这个字，继续判断</button>}
-          <button className="quiet-action" onClick={() => onCommand('REQUEST_HINT')} disabled={busy || session.completed}>需要一点提示</button>
+          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={locked || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
+          {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={locked || session.completed}>回看这个字，继续判断</button>}
+          <button className="quiet-action" onClick={() => onCommand('REQUEST_HINT')} disabled={locked || session.completed}>需要一点提示</button>
           {session.hint && <p className="hint">第 {session.hint_level} 条提示：{session.hint}</p>}
         </aside>
         <section className="lesson" aria-labelledby="question-title">
@@ -741,21 +753,22 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, onComma
                 <h1 id="question-title">{session.question}</h1>
                 <div className="choice-list" role="radiogroup" aria-label="选择词义">
                   {session.choices.map(choice => <label key={choice} className={`choice-option${answer === choice ? ' selected' : ''}`}>
-                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={busy} onChange={() => setAnswer(choice)} />
+                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={locked} onChange={() => setAnswer(choice)} />
                     <span>{choice}</span>
                   </label>)}
                 </div>
-                <button className="button button-primary submit" onClick={submit} disabled={!answer || busy}>
+                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked}>
                   {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : '提交判断'}
                 </button>
               </div>
               <div className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
-                {busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `操作未完成：${error}` : session.feedback}
+                {busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `${recoveryNeeded ? '操作结果未确认' : '操作未完成'}：${error}` : session.feedback}
               </div>
-              {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={busy}>进入陌生文挑战 →</button>}
-              {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={busy}>查看本关总结 →</button>}
+              {recoveryNeeded && <div className="command-recovery" role="alert"><h3 id="command-recovery-title" tabIndex={-1}>刚才操作的结果尚未确认。</h3><p>服务可能已收到请求。本页暂不接受新操作；核对会沿用同一请求标识，避免重复记录或加分。刷新只重新读取进度，不自动提交。</p><button className="button button-secondary" disabled={busy} onClick={onRecover}>{busy ? '正在核对…' : '核对并重试刚才操作'}</button></div>}
+              {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={locked}>进入陌生文挑战 →</button>}
+              {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={locked}>查看本关总结 →</button>}
               </section>
-              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={busy} onCommand={onCommand} />
+              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={locked} onCommand={onCommand} />
               <nav className="reading-shortcuts" aria-label="训练页快捷操作"><button onClick={() => jumpTo('fulltext-title')}>阅读原文</button><button onClick={() => jumpTo('training-question')}>回到题目 ↑</button></nav>
             </>
           )}
@@ -838,6 +851,8 @@ export function App() {
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingCommand, setPendingCommand] = useState<CommandType | null>(null)
+  const [uncertainCommand, setUncertainCommand] = useState<PendingTrainingCommand | null>(null)
+  const operationLock = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [routeSessionLoading, setRouteSessionLoading] = useState(false)
   const [routeSessionError, setRouteSessionError] = useState<string | null>(null)
@@ -845,8 +860,9 @@ export function App() {
 
   useLayoutEffect(() => {
     if (pendingCommand) exitRisk.current = 'working'
+    else if (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId) exitRisk.current = 'uncertain'
     else if (page !== 'admin') exitRisk.current = null
-  }, [pendingCommand, page])
+  }, [pendingCommand, uncertainCommand, sessionId, page])
 
   useEffect(() => {
     document.title = `${pageLabels[page]} · 文言·推理`
@@ -924,6 +940,8 @@ export function App() {
   }, [page, route.sessionId, sessionId, profile?.id, profileLoading, routeSessionAttempt])
 
   const createProfile = useCallback(async (displayName: string, schoolStage: SchoolStage) => {
+    if (operationLock.current) return
+    operationLock.current = true
     setBusy(true); setError(null)
     try {
       const response = await profileApi.create(displayName, schoolStage)
@@ -931,8 +949,8 @@ export function App() {
       setProfile(response.profile)
       setPage('home')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setBusy(false) }
+      setError(errorMessage(reason))
+    } finally { setBusy(false); operationLock.current = false }
   }, [])
 
   const loadMistakes = useCallback(async (profileId: string) => {
@@ -1031,37 +1049,48 @@ export function App() {
   }, [profile, loadLessons])
 
   const start = useCallback(async (lessonId: string) => {
-    if (busy) return
+    if (operationLock.current) return
     if (!profile) { setPage('onboarding'); return }
+    operationLock.current = true
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.createSession(profile.id, lessonId)
       window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId: profile.id, sessionId: response.session_id }))
       setSessionId(response.session_id); setSession(response.session); setPage('training', response.session_id)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setBusy(false) }
+      setError(errorMessage(reason))
+    } finally { setBusy(false); operationLock.current = false }
   }, [profile, busy])
 
-  const command = useCallback(async (type: CommandType, payload: Record<string, unknown> = {}) => {
-    if (!sessionId || !session || busy) return
-    setPendingCommand(type)
+  const runCommand = useCallback(async (intent: PendingTrainingCommand) => {
+    if (operationLock.current) return
+    operationLock.current = true
+    setPendingCommand(intent.type)
     setBusy(true); setError(null)
     try {
-      const response = await trainingApi.command(sessionId, session.state_version, type, payload)
+      const response = await trainingApi.command(intent.sessionId, intent.version, intent.type, intent.payload, intent.key)
       setSession(response.session)
       if (response.profile) setProfile(response.profile)
+      setUncertainCommand(null)
     } catch (reason) {
       const code = reason instanceof Error ? reason.message : 'REQUEST_FAILED'
-      if (code === 'VERSION_CONFLICT') {
-        try { setSession((await trainingApi.getSession(sessionId)).session) } catch { /* Keep local state until retry. */ }
+      if (uncertainWrite(reason)) {
+        setUncertainCommand(intent); setError(errorMessage(reason))
+      } else if (code === 'VERSION_CONFLICT') {
+        setUncertainCommand(null)
+        try { setSession((await trainingApi.getSession(intent.sessionId)).session) } catch { /* Keep local state until retry. */ }
         setError('训练已在其他页面更新，已尝试同步。请确认当前内容后重试。')
-      } else setError(code === 'INVALID_CONTEXT_SELECTION' ? '所选词组超出原文范围，请重新点选。' : code)
-    } finally { setBusy(false); setPendingCommand(null) }
-  }, [session, sessionId, busy])
+      } else { setUncertainCommand(null); setError(code === 'INVALID_CONTEXT_SELECTION' ? '所选词组超出原文范围，请重新点选。' : errorMessage(reason)) }
+    } finally { setBusy(false); setPendingCommand(null); operationLock.current = false }
+  }, [])
+  const command = useCallback((type: CommandType, payload: Record<string, unknown> = {}) => {
+    if (!sessionId || !session || operationLock.current || uncertainCommand?.sessionId === sessionId) return
+    void runCommand({ sessionId, version: session.state_version, type, payload, key: requestId() })
+  }, [session, sessionId, uncertainCommand, runCommand])
 
   const openReviewSession = useCallback(async (nextSessionId: string) => {
-    if (busy) return
+    if (operationLock.current) return
+    operationLock.current = true
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.getSession(nextSessionId)
@@ -1069,7 +1098,7 @@ export function App() {
       setSessionId(nextSessionId); setSession(response.session); setPage('training', nextSessionId)
     } catch (reason) {
       setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setBusy(false) }
+    } finally { setBusy(false); operationLock.current = false }
   }, [busy])
 
   const navigate = (next: Page) => {
@@ -1089,6 +1118,7 @@ export function App() {
   return <div className="app-shell polished">
     <a className="skip-link" href="#page-content" onClick={event => { event.preventDefault(); jumpTo('page-content') }}>跳到主要内容</a>
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
+    <ConnectionStatus />
     <div className="page-view" id="page-content" tabIndex={-1} key={`${page}:${route.sessionId ?? ''}`}>
     {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
@@ -1099,7 +1129,7 @@ export function App() {
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
     {page === 'admin' && <ContentAdminPage onExitRiskChange={onExitRiskChange} />}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
-    {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
+    {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !route.sessionId && <EmptyPage onHome={() => setPage('home')} />}
     </div>
   </div>

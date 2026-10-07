@@ -1,4 +1,5 @@
 import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, KnowledgeCoverage, KnowledgeLookup, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
+import { requestJson } from './http'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -21,22 +22,17 @@ type LessonsResponse = { lessons: Lesson[] }
 type AdminLessonsResponse = { lessons: AdminLesson[] }
 type AdminLessonResponse = { lesson: AdminLesson }
 
-type ErrorResponse = { error?: { code?: string } }
-
 const apiRoot = import.meta.env.VITE_API_ROOT ?? ''
 
 // randomUUID requires a secure origin; LAN HTTP previews still have getRandomValues.
-function requestId() {
+export function requestId() {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiRoot}${path}`, init)
-  const body = (await response.json().catch(() => null)) as T & ErrorResponse
-  if (!response.ok) throw new Error(body?.error?.code ?? 'REQUEST_FAILED')
-  return body
+  return requestJson<T>(`${apiRoot}${path}`, init)
 }
 
 export const trainingApi = {
@@ -46,12 +42,12 @@ export const trainingApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile_id: profileId, lesson_id: lessonId }),
     }),
-  command: (sessionId: string, expectedStateVersion: number, type: CommandType, payload = {}) =>
+  command: (sessionId: string, expectedStateVersion: number, type: CommandType, payload = {}, idempotencyKey = requestId()) =>
     request<CommandResponse>(`/api/v1/training/sessions/${sessionId}/commands`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Idempotency-Key': requestId(),
+        'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify({
         type,
