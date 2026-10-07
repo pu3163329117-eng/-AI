@@ -10,8 +10,8 @@ export function usePageRoute(risk: MutableRefObject<ExitRisk>) {
   const restoring = useRef(false)
   const mayLeave = useCallback(() => {
     if (risk.current === 'working') { window.alert('操作正在进行，请等待结果返回后再离开。'); return false }
-    if (risk.current === 'uncertain') return window.confirm('上次训练操作的结果尚未确认。离开后请在复习页重新读取进度，系统不会自动重试。确定离开吗？')
-    return risk.current !== 'dirty' || window.confirm('当前有未保存的注释或推断理由，确定放弃修改并离开吗？')
+    if (risk.current === 'uncertain') return window.confirm('上次操作的结果尚未确认。离开后请返回对应页面重新读取进度，系统不会自动重试。确定离开吗？')
+    return risk.current !== 'dirty' || window.confirm('当前有未保存的修改或作答，确定放弃并离开吗？')
   }, [risk])
   const setPage = useCallback((page: Page, sessionId?: string, replace = false) => {
     const next = readRoute(routeHash({ page, sessionId }))

@@ -7,6 +7,8 @@ import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
 import { AdminWorkbench } from './components/KnowledgeWorkbench'
 import { ReasoningEditor, ReasoningHistory } from './components/ReasoningEditor'
+import { AssessmentPage } from './components/AssessmentPage'
+import { CourseAbilityWorkbench } from './components/CourseAbilityWorkbench'
 import { restoredAnswer } from './reasoning'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
 import { usePageRoute, type ExitRisk } from './usePageRoute'
@@ -23,7 +25,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
         文言 <span>·</span> 推理
       </button>
       <nav aria-label="主导航">
-        {(['home', 'skills', 'practice', 'review', 'profile', 'report', 'admin'] as Page[]).map(target => {
+        {(['home', 'skills', 'assessment', 'practice', 'review', 'profile', 'report', 'admin'] as Page[]).map(target => {
           const disabled = !profile && !['home', 'skills', 'admin'].includes(target)
           const active = page === target || (target === 'home' && page === 'training')
           return <a key={target} href={routeHash({ page: target })} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}
@@ -38,13 +40,14 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
   )
 }
 
-function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, isStarting, error, mission, missionLoading, missionError }: {
+function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, onAssessment, isStarting, error, mission, missionLoading, missionError }: {
   profile: LearnerProfile
   lessons: Lesson[]
   loading: boolean
   catalogError: string | null
   onRetry: () => void
   onStart: (lessonId: string) => void
+  onAssessment: () => void
   isStarting: boolean
   error: string | null
   mission: DailyMission | null
@@ -77,6 +80,10 @@ function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, i
             <small>{mission.completed ? '可以复习错题，或继续探索下一关。' : '从证据出发，完成核心判断与迁移。'}</small>
           </> : <><span>今日任务</span><strong>完成一节完整训练。</strong><small>从证据出发，完成核心判断与迁移。</small></>}
         </aside>
+      </section>
+      <section className="assessment-entry" aria-labelledby="assessment-entry-title">
+        <div><p className="eyebrow">新增 · 能力试测</p><h2 id="assessment-entry-title">先看看你的阅读起点。</h2><p>字词、句式、语境、篇章四维试测，可保存和继续。题目待审核，结果仅供体验，不改变当前课程分级。</p></div>
+        <button className="button button-secondary" onClick={onAssessment}>进入能力试测 <span aria-hidden="true">→</span></button>
       </section>
       <section className="lesson-catalog" aria-labelledby="catalog-title">
         <div className="catalog-heading">
@@ -872,7 +879,7 @@ export function App() {
   useLayoutEffect(() => {
     if (pendingCommand) exitRisk.current = 'working'
     else if (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId) exitRisk.current = 'uncertain'
-    else if (page !== 'admin') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
+    else if (page !== 'admin' && page !== 'assessment') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
   }, [pendingCommand, uncertainCommand, sessionId, page, trainingDirty])
 
   useEffect(() => {
@@ -1116,6 +1123,7 @@ export function App() {
     if (!profile && next !== 'admin') { setPage('onboarding'); return }
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
+    else if (next === 'assessment') setPage('assessment')
     else if (next === 'practice' && profile) setPage('practice')
     else if (next === 'review' && profile) setPage('review')
     else if (next === 'profile' && profile) setPage('profile')
@@ -1133,13 +1141,14 @@ export function App() {
     <div className="page-view" id="page-content" tabIndex={-1} key={`${page}:${route.sessionId ?? ''}`}>
     <RenderBoundary onHome={() => navigate('home')}>
     {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
-    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
+    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} onAssessment={() => navigate('assessment')} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
+    {page === 'assessment' && <AssessmentPage profileId={profile?.id ?? null} onCreateProfile={() => setPage('onboarding')} onHome={() => navigate('home')} onRiskChange={onExitRiskChange} />}
     {page === 'skills' && profile && <SkillsPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
-    {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
+    {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange} ability={callback => <CourseAbilityWorkbench onExitRiskChange={callback} />}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
     {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onDirtyChange={setTrainingDirty} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !route.sessionId && <EmptyPage onHome={() => setPage('home')} />}

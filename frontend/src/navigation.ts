@@ -1,6 +1,6 @@
-export type Page = 'home' | 'training' | 'skills' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
+export type Page = 'home' | 'training' | 'skills' | 'assessment' | 'practice' | 'review' | 'profile' | 'report' | 'admin' | 'onboarding'
 export type PageRoute = { page: Page; sessionId?: string }
-export const pageLabels: Record<Page, string> = { home: '今日训练', training: '原文训练', skills: '能力地图', practice: '专项练习', review: '复习', profile: '学习档案', report: '学习报告', admin: '教研工作台', onboarding: '建立档案' }
+export const pageLabels: Record<Page, string> = { home: '今日训练', training: '原文训练', skills: '能力地图', assessment: '能力试测', practice: '专项练习', review: '复习', profile: '学习档案', report: '学习报告', admin: '教研工作台', onboarding: '建立档案' }
 const pages = new Set(Object.keys(pageLabels))
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

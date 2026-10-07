@@ -69,6 +69,14 @@
 .polished .context-layers { scroll-margin-top: 105px; scroll-margin-bottom: 85px; }
 .polished .reader-keyboard-guide { margin: 0 0 14px; color: #555; font-size: 12px; line-height: 1.7; }
 .polished .knowledge-action { min-height: 44px; }
+.polished .assessment-entry { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; margin: 0 24px 24px; border-block: 1px solid #ccc; }
+.polished .assessment-entry h2 { font-size: 23px; line-height: 1.5; margin: 0 0 8px; }
+.polished .assessment-entry p { max-width: 660px; line-height: 1.8; margin: 4px 0; }
+.polished .assessment-entry .button { flex-shrink: 0; white-space: normal; }
+.polished .ability-tag-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 8px; }
+.polished .ability-tag-options label { display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 44px; margin: 0; }
+.polished .annotation-editor .ability-tag-options input { width: 18px; height: 18px; min-height: 18px; accent-color: #111; flex-shrink: 0; margin: 0; }
+@media (max-width: 650px) { .polished .assessment-entry { align-items: stretch; flex-direction: column; margin-inline: 16px; padding: 18px 0; gap: 14px; } }
 .polished .related-load-state { min-height: 42px; margin: 12px 0; padding: 10px; border-left: 2px solid #111; background: #f6f6f3; font-size: 12px; }
 .polished .related-load-state p { margin: 0; }
 .polished .related-items { scroll-margin-top: 72px; }

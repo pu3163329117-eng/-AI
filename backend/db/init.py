@@ -1,4 +1,6 @@
 from . import models  # noqa: F401 - imports model metadata
+from . import assessment_models  # noqa: F401 - additive assessment metadata
+from .assessment import seed_assessment_bank
 from .migrations import apply_migrations
 from .seed import seed_lessons
 from .knowledge import seed_knowledge
@@ -12,4 +14,5 @@ def init_db() -> None:
     with SessionLocal() as db:
         seed_lessons(db)
         seed_knowledge(db)
+        seed_assessment_bank(db)
         db.commit()

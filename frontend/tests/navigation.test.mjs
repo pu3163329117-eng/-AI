@@ -16,6 +16,11 @@ test('training bookmarks bind the exact session UUID', () => {
   const route = { page: 'training', sessionId: '01234567-89ab-cdef-0123-456789abcdef' }
   assert.deepEqual(readRoute(routeHash(route)), route)
 })
+test('assessment is a distinct restorable page without a training UUID', () => {
+  assert.deepEqual(readRoute('#/assessment'), { page: 'assessment' })
+  assert.equal(pageLabels.assessment, '能力试测')
+  assert.equal(routeHash({ page: 'assessment' }), '#/assessment')
+})
 test('missing or malformed training identifiers safely lead to review', () => {
   for (const hash of ['#/training', '#/training/no-such-id', '#/training/%2F']) assert.deepEqual(readRoute(hash), { page: 'review' })
   assert.equal(routeHash({ page: 'training' }), '#/review')

@@ -53,6 +53,12 @@ except ModuleNotFoundError:
     from knowledge_routes import router as knowledge_review_router
 app.include_router(knowledge_review_router)
 
+try:
+    from backend.assessment_routes import router as assessment_router
+except ModuleNotFoundError:
+    from assessment_routes import router as assessment_router
+app.include_router(assessment_router)
+
 
 @app.exception_handler(HTTPException)
 async def api_error(_: Request, exc: HTTPException) -> JSONResponse:

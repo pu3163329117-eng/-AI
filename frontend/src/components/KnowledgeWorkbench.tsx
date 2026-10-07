@@ -112,15 +112,15 @@ export function KnowledgeWorkbench({ onExitRiskChange }: { onExitRiskChange: (ri
   </main>
 }
 
-export function AdminWorkbench({ onExitRiskChange, children }: { onExitRiskChange: (risk: ExitRisk) => void; children: (callback: (risk: ExitRisk) => void) => React.ReactNode }) {
-  const [tab, setTab] = useState<'lessons' | 'words'>('lessons')
+export function AdminWorkbench({ onExitRiskChange, children, ability }: { onExitRiskChange: (risk: ExitRisk) => void; children: (callback: (risk: ExitRisk) => void) => React.ReactNode; ability?: (callback: (risk: ExitRisk) => void) => React.ReactNode }) {
+  const [tab, setTab] = useState<'lessons' | 'words' | 'ability'>('lessons')
   const risk = useRef<ExitRisk>(null)
   const report = useCallback((next: ExitRisk) => { risk.current = next; onExitRiskChange(next) }, [onExitRiskChange])
-  const change = (next: 'lessons' | 'words') => {
+  const change = (next: 'lessons' | 'words' | 'ability') => {
     if (next === tab) return
     if (risk.current === 'working') { window.alert('请等待当前操作完成。'); return }
     if (risk.current && !window.confirm('当前有未保存修改或未确认操作，确定离开此工作台吗？')) return
     report(null); setTab(next)
   }
-  return <><nav className="editor-tabs" aria-label="教研工作台类型"><button aria-pressed={tab === 'lessons'} onClick={() => change('lessons')}>课程与来源</button><button aria-pressed={tab === 'words'} onClick={() => change('words')}>字词知识库审核</button></nav>{tab === 'lessons' ? children(report) : <KnowledgeWorkbench onExitRiskChange={report} />}</>
+  return <><nav className="editor-tabs" aria-label="教研工作台类型"><button aria-pressed={tab === 'lessons'} onClick={() => change('lessons')}>课程与来源</button><button aria-pressed={tab === 'words'} onClick={() => change('words')}>字词知识库审核</button>{ability && <button aria-pressed={tab === 'ability'} onClick={() => change('ability')}>课程能力标定</button>}</nav>{tab === 'lessons' ? children(report) : tab === 'ability' && ability ? ability(report) : <KnowledgeWorkbench onExitRiskChange={report} />}</>
 }
