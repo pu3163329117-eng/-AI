@@ -44,10 +44,17 @@ def _v3_lesson_editorial_metadata(engine: Engine) -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_lessons_status ON lessons (status)"))
 
 
+def _v4_ability_content_version(engine: Engine) -> None:
+    """Legacy classifications remain unbound until a person re-confirms them."""
+    if _has_table(engine, "lesson_abilities"):
+        _ensure_column(engine, "lesson_abilities", "content_version", "VARCHAR(12)")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "profile-session-link", _v1_profile_session),
     (2, "lesson-session-link", _v2_lesson_session),
     (3, "lesson-editorial-metadata", _v3_lesson_editorial_metadata),
+    (4, "ability-content-version", _v4_ability_content_version),
 )
 
 

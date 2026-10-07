@@ -26,7 +26,7 @@ export function CourseAbilityWorkbench({ onExitRiskChange }: { onExitRiskChange:
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const lock = useRef(false)
-  const dirty = !!saved && (saved.ability_level !== level || JSON.stringify([...saved.dimension_tags].sort()) !== JSON.stringify([...tags].sort()) || note !== saved.note)
+  const dirty = !!saved && (saved.ability_level !== level || JSON.stringify([...saved.dimension_tags].sort()) !== JSON.stringify([...tags].sort()) || note !== saved.note || (saved.version > 0 && saved.valid_for_content === false))
   useEffect(() => { onExitRiskChange(busy ? 'working' : uncertain ? 'uncertain' : dirty ? 'dirty' : null) }, [busy, uncertain, dirty, onExitRiskChange])
   useEffect(() => () => onExitRiskChange(null), [onExitRiskChange])
   useEffect(() => {
@@ -44,12 +44,12 @@ export function CourseAbilityWorkbench({ onExitRiskChange }: { onExitRiskChange:
     finally { lock.current = false; setBusy(false) }
   }
   const save = async () => {
-    if (lock.current || uncertain || !lesson || !saved || !dirty || !actor.trim() || !note.trim()) return
+    if (lock.current || uncertain || !lesson || !saved || !saved.current_content_version || !dirty || !actor.trim() || !note.trim()) return
     lock.current = true; setBusy(true); setError(''); setNotice('')
     try {
-      const row = await readAbility(lesson.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ability_level: level, dimension_tags: tags, expected_version: saved.version, actor: actor.trim(), note: note.trim() }) })
+      const row = await readAbility(lesson.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ability_level: level, dimension_tags: tags, expected_version: saved.version, expected_content_version: saved.current_content_version, actor: actor.trim(), note: note.trim() }) })
       accept(row); setNotice('课程能力标定已保存。未更改原文、旧训练或学习者等级。')
-    } catch (reason) { setUncertain(uncertainWrite(reason)); setError(reason instanceof Error && reason.message === 'ABILITY_VERSION_CONFLICT' ? '标定版本已变化，本次未覆盖新版本。请先保留你的修改，再重新读取。' : errorMessage(reason)) }
+    } catch (reason) { setUncertain(uncertainWrite(reason)); setError(reason instanceof Error && ['ABILITY_VERSION_CONFLICT', 'ABILITY_CONTENT_VERSION_CONFLICT'].includes(reason.message) ? '标定或课程内容版本已变化，本次未覆盖新版本。请先保留你的修改，再重新读取。' : errorMessage(reason)) }
     finally { lock.current = false; setBusy(false) }
   }
   return <main className="knowledge-workbench course-ability-workbench">
@@ -62,13 +62,14 @@ export function CourseAbilityWorkbench({ onExitRiskChange }: { onExitRiskChange:
       </aside>
       <section className="annotation-editor" aria-label="当前课程能力标定">
         {lesson && saved ? <><h2>{lesson.title}</h2><p>{lesson.source} · 标定版本 v{saved.version}{dirty && ' · 未保存'}</p><form onSubmit={event => { event.preventDefault(); void save() }}>
+          {saved.version > 0 && saved.valid_for_content === false && <p role="status" className="knowledge-note">当前标定未绑定此内容版本，不能进入正式推荐。请核对改稿后重新填写标定人并保存。</p>}
           <fieldset disabled={busy || uncertain}><legend>能力与专项要求</legend>
             <label>任务能力等级<select value={level ?? ''} onChange={event => setLevel((event.target.value || null) as CourseAbility['ability_level'])}><option value="">未标定</option><option value="L1">L1 · 基础级</option><option value="L2">L2 · 进阶级</option><option value="L3">L3 · 高阶级</option></select></label>
             <fieldset className="ability-tag-options"><legend>专项能力标签</legend>{abilityDimensions.map(dimension => <label key={dimension}><input type="checkbox" checked={tags.includes(dimension)} onChange={event => setTags(current => event.target.checked ? [...current, dimension] : current.filter(tag => tag !== dimension))} />{abilityDimensionLabels[dimension]}</label>)}</fieldset>
             <label>标定人<input required maxLength={80} value={actor} onChange={event => setActor(event.target.value)} placeholder="填写实际标定人" /></label>
             <label>标定依据<textarea required maxLength={2000} value={note} onChange={event => setNote(event.target.value)} placeholder="说明题目要求、目标能力及难度依据；仅材料长短不足以判断" /></label>
           </fieldset>
-          <button className="button button-primary" disabled={busy || uncertain || !dirty || !actor.trim() || !note.trim()}>{busy ? '正在保存…' : '保存课程标定'}</button>
+          <button className="button button-primary" disabled={busy || uncertain || !saved.current_content_version || !dirty || !actor.trim() || !note.trim()}>{busy ? '正在保存…' : '保存课程标定'}</button>
         </form><p className="knowledge-note">{saved.actor ? `当前版本标定人：${saved.actor}` : '当前未记录人工标定。'}{saved.updated_at && ` · ${new Date(saved.updated_at).toLocaleString('zh-CN')}`}</p><button type="button" className="knowledge-action" disabled={busy} onClick={() => void open(lesson)}>重新读取当前标定</button>{uncertain && <p role="alert">保存结果尚未确认，已暂停写入。请重新读取核对，不自动重复保存。</p>}</> : <p>选择一个课程，标定其任务能力要求。</p>}
       </section>
     </div>

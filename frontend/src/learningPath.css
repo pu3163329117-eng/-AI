@@ -1,0 +1,56 @@
+.learning-path { min-width: 0; color: #171717; overflow-wrap: anywhere; }
+.learning-path *, .learning-path *::before, .learning-path *::after { box-sizing: border-box; }
+.learning-path .button { min-height: 44px; margin-top: 0; white-space: normal; }
+.learning-path h2 { font-size: clamp(24px, 2.7vw, 36px); line-height: 1.35; letter-spacing: -.035em; margin: 12px 0; }
+.learning-path h3 { font-size: 20px; line-height: 1.5; }
+.learning-path h4 { font-size: 22px; line-height: 1.5; margin: 9px 0; }
+.learning-path p, .learning-path li { line-height: 1.8; }
+.path-section-heading { display: flex; justify-content: space-between; align-items: start; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid #aaa; }
+.path-section-heading > .button { flex: 0 0 auto; }
+.ability-profile-panel { margin-top: 45px; }
+.path-formal-profile { padding-block: 20px 25px; }
+.path-dimension-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+.path-dimension-list article { min-width: 0; padding: 18px 0; border-bottom: 1px solid #d9d9d5; }
+.path-dimension-list article > div { display: flex; justify-content: space-between; gap: 12px; }
+.path-dimension-list article p { margin: 8px 0 0; color: #555; font-size: 14px; }
+.path-dimension-list meter { width: 100%; height: 12px; display: block; margin-top: 12px; accent-color: #111; }
+.path-dimension-list meter::-webkit-meter-bar { background: #e4e4df; border: 0; }
+.path-dimension-list meter::-webkit-meter-optimum-value { background: #111; }
+.path-dimension-list meter::-moz-meter-bar { background: #111; }
+.path-note { color: #5a5a56; font-size: 14px; }
+.path-pilot-reference { padding: 22px 0 24px 22px; border-left: 3px solid #111; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+.path-pilot-dimensions { list-style: none; margin: 0; padding: 0; }
+.path-pilot-dimensions li { display: flex; flex-wrap: wrap; gap: 8px 20px; padding-block: 8px; }
+.path-pilot-dimensions b { min-width: 80px; }
+.path-ability-history { margin-block: 25px; }
+.learning-path summary { cursor: pointer; min-height: 44px; padding-block: 11px; }
+.path-ability-history ol { padding-left: 24px; }
+.path-ability-history li { padding-block: 15px; border-bottom: 1px solid #ddd; }
+.path-ability-history li p { margin: 5px 0; color: #555; font-size: 14px; }
+.recommendation-queue { margin: 45px clamp(20px, 5vw, 70px); }
+.path-level-choice { border: 0; min-width: 0; padding: 20px 0; margin: 25px 0 0; display: flex; flex-wrap: wrap; gap: 8px 25px; }
+.path-level-choice legend { font-size: 17px; font-weight: 700; }
+.path-level-choice label { display: flex; align-items: center; gap: 10px; font-size: 16px; min-height: 44px; cursor: pointer; }
+.path-level-choice label:first-of-type { flex-basis: 100%; }
+.path-level-choice input[type='radio'] { margin: 0; flex: 0 0 18px; width: 18px; height: 18px; accent-color: #111; }
+.path-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 12px; }
+.path-save-status { min-height: 26px; font-size: 14px; color: #555; }
+.path-message { padding: 18px 22px; margin-block: 22px; border: 1px solid #777; background: #f4f4f1; }
+.path-plan-meta { padding-block: 15px 23px; border-bottom: 1px solid #aaa; }
+.path-plan-meta small { color: #555; line-height: 1.8; }
+.path-task-groups { display: grid; gap: 30px; padding-top: 15px; }
+.path-task-groups ol { list-style: none; margin: 0; padding: 0; }
+.path-task-groups li { padding: 22px 0; border-top: 1px solid #d4d4cf; }
+.path-task-heading { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+.path-task-heading > span { flex: 0 0 auto; color: #555; font-size: 14px; }
+.path-task-heading .eyebrow { margin: 0; }
+.path-task-footer { display: flex; flex-wrap: wrap; gap: 12px 25px; justify-content: space-between; align-items: center; }
+.path-task-footer small { color: #555; max-width: 65%; }
+.path-empty { padding-block: 25px; }
+.path-gaps { padding: 18px 0; border-top: 1px solid #aaa; }
+.path-gaps ul { padding-left: 22px; }
+.learning-path :is(button, input, summary):focus-visible { outline: 2px solid #111; outline-offset: 4px; }
+.learning-path :is(button, fieldset):disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 48rem) { .path-section-heading { flex-direction: column; gap: 12px; }.path-dimension-list { grid-template-columns: 1fr; }.path-task-footer small { max-width: 100%; }.path-task-heading { flex-direction: column; gap: 4px; } }
+@media (max-width: 32rem) { .recommendation-queue { margin: 35px 20px; }.path-pilot-reference { padding-left: 15px; }.path-actions .button { width: 100%; }.path-pilot-dimensions li { flex-direction: column; gap: 0; }.path-task-footer { align-items: start; flex-direction: column; }.path-task-footer .button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .learning-path * { transition: none !important; animation: none !important; } }

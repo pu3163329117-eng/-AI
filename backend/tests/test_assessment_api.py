@@ -314,6 +314,7 @@ def test_lesson_ability_additive_nullable_and_conflict(setup):
     initial = client.get(url).json()["ability"]
     assert initial["ability_level"] is None and initial["version"] == 0
     payload = {"ability_level": "L2", "dimension_tags": ["syntax", "context"], "expected_version": 0,
+        "expected_content_version": initial["current_content_version"],
         "actor": "隔离测试标定", "note": "测试，不代表已审核"}
     edited = client.patch(url, json=payload).json()["ability"]
     assert edited["version"] == 1 and edited["updated_at"].endswith("+00:00")
@@ -329,3 +330,26 @@ def test_new_assessment_datetime_normalization_preserves_utc_instant():
     assert utc_iso(None) is None
     assert utc_iso(datetime(2026, 10, 7, 12, 26)) == "2026-10-07T12:26:00+00:00"
     assert utc_iso(datetime(2026, 10, 7, 20, 26, tzinfo=timezone(timedelta(hours=8)))) == "2026-10-07T12:26:00+00:00"
+
+
+def test_classification_binds_the_read_content_and_rejects_stale_confirmation(setup):
+    db, client, _ = setup
+    url = "/api/v1/admin/lessons/test-lesson/ability"
+    initial = client.get(url).json()["ability"]
+    payload = {"ability_level": "L2", "dimension_tags": ["context"], "expected_version": 0,
+        "actor": "隔离测试标定", "note": "测试，不代表实际审核"}
+    assert client.patch(url, json=payload).status_code == 422
+    payload["expected_content_version"] = initial["current_content_version"]
+    assert client.patch(url, json={**payload, "expected_content_version": "0" * 12}).status_code == 409
+    first = client.patch(url, json=payload).json()["ability"]
+    assert first["valid_for_content"] and first["content_version"] == initial["current_content_version"]
+    lesson = db.get(Lesson, "test-lesson")
+    lesson.summary = "隔离测试修改课程，旧能力标定必须失效"
+    db.commit()
+    stale = client.get(url).json()["ability"]
+    assert not stale["valid_for_content"] and stale["ability_level"] == "L2"
+    assert stale["content_version"] == first["content_version"]
+    assert client.patch(url, json={**payload, "expected_version": 1}).status_code == 409
+    renewed = client.patch(url, json={**payload, "expected_version": 1,
+        "expected_content_version": stale["current_content_version"]}).json()["ability"]
+    assert renewed["valid_for_content"] and renewed["version"] == 2

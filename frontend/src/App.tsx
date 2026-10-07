@@ -9,6 +9,8 @@ import { AdminWorkbench } from './components/KnowledgeWorkbench'
 import { ReasoningEditor, ReasoningHistory } from './components/ReasoningEditor'
 import { AssessmentPage } from './components/AssessmentPage'
 import { CourseAbilityWorkbench } from './components/CourseAbilityWorkbench'
+import { AbilityProfilePanel } from './components/AbilityProfilePanel'
+import { RecommendationQueue } from './components/RecommendationQueue'
 import { restoredAnswer } from './reasoning'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
 import { usePageRoute, type ExitRisk } from './usePageRoute'
@@ -40,7 +42,7 @@ function AppHeader({ page, profile, onNavigate }: { page: Page; profile: Learner
   )
 }
 
-function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, onAssessment, isStarting, error, mission, missionLoading, missionError }: {
+function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, onAssessment, onPractice, onStartSession, onRiskChange, isStarting, error, mission, missionLoading, missionError }: {
   profile: LearnerProfile
   lessons: Lesson[]
   loading: boolean
@@ -48,6 +50,9 @@ function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, o
   onRetry: () => void
   onStart: (lessonId: string) => void
   onAssessment: () => void
+  onPractice: () => void
+  onStartSession: (sessionId: string) => void
+  onRiskChange: (risk: ExitRisk) => void
   isStarting: boolean
   error: string | null
   mission: DailyMission | null
@@ -85,9 +90,10 @@ function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, o
         <div><p className="eyebrow">新增 · 能力试测</p><h2 id="assessment-entry-title">先看看你的阅读起点。</h2><p>字词、句式、语境、篇章四维试测，可保存和继续。题目待审核，结果仅供体验，不改变当前课程分级。</p></div>
         <button className="button button-secondary" onClick={onAssessment}>进入能力试测 <span aria-hidden="true">→</span></button>
       </section>
+      <RecommendationQueue profileId={profile.id} onAssessment={onAssessment} onPractice={onPractice} onStartSession={onStartSession} onRiskChange={onRiskChange} externalBusy={isStarting} />
       <section className="lesson-catalog" aria-labelledby="catalog-title">
         <div className="catalog-heading">
-          <div><p className="eyebrow">当前分级</p><h2 id="catalog-title">{stageLabel}关卡</h2></div>
+          <div><p className="eyebrow">已有课程 · 保留旧练习入口</p><h2 id="catalog-title">{stageLabel}关卡</h2></div>
           {!loading && !catalogError && lessons.length > 0 && <span>{lessons.length} 个可选关卡</span>}
         </div>
         {loading ? <CatalogLoading compact /> : catalogError ? <CatalogError error={catalogError} onRetry={onRetry} compact /> : lessons.length === 0 ? <CatalogEmpty stageLabel={stageLabel} compact /> : (
@@ -205,17 +211,17 @@ function LearningReportPage({
   onRecommendation: (kind: string) => void
 }) {
   if (loading) {
-    return <main className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习报告</p><h1>正在整理<br />你的学习轨迹。</h1><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></main>
+    return <section className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习报告</p><h1>正在整理<br />你的学习轨迹。</h1><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></section>
   }
   if (error) {
-    return <main className="learning-report-page report-state" role="alert"><p className="eyebrow">学习报告</p><h1>报告暂时<br />还没准备好。</h1><p className="intro">请确认本地服务仍在运行后再试一次。错误代码：{error}</p><button className="button button-primary" onClick={onRetry}>重新读取 <span aria-hidden="true">→</span></button></main>
+    return <section className="learning-report-page report-state" role="alert"><p className="eyebrow">学习报告</p><h1>报告暂时<br />还没准备好。</h1><p className="intro">请确认本地服务仍在运行后再试一次。错误代码：{error}</p><button className="button button-primary" onClick={onRetry}>重新读取 <span aria-hidden="true">→</span></button></section>
   }
   if (!summary || (summary.completed_sessions === 0 && summary.completed_lessons === 0 && summary.total_points === 0)) {
-    return <main className="learning-report-page report-state"><p className="eyebrow">学习报告</p><h1>先完成一关，<br />再看见你的路径。</h1><p className="intro">每次完成训练后，这里会记录知行、连续学习天数，以及下一步值得回看的推理能力。</p><button className="button button-primary" onClick={onStart}>开始第一关 <span aria-hidden="true">→</span></button></main>
+    return <section className="learning-report-page report-state"><p className="eyebrow">学习报告</p><h1>先完成一关，<br />再看见你的路径。</h1><p className="intro">每次完成训练后，这里会记录知行、连续学习天数，以及下一步值得回看的推理能力。</p><button className="button button-primary" onClick={onStart}>开始第一关 <span aria-hidden="true">→</span></button></section>
   }
 
   return (
-    <main className="learning-report-page">
+    <section className="learning-report-page">
       <header className="report-heading">
         <div><p className="eyebrow">学习报告</p><h1>把每一次判断，<br />看成一条路径。</h1><p>这不是排名，而是你在文言语境中留下的证据、回溯与迁移记录。</p></div>
         <aside className="report-streak" aria-label={`已连续学习 ${summary.current_streak_days} 天`}><b>{summary.current_streak_days}</b><span>连续学习<br />天</span></aside>
@@ -277,7 +283,7 @@ function LearningReportPage({
         <button className="button button-secondary" onClick={() => onRecommendation(achievements.review_recommendation!.kind)}>{achievements.review_recommendation.action_label} <span aria-hidden="true">→</span></button>
       </section>}
       <button className="button button-primary report-action" onClick={onStart}>继续今日训练 <span aria-hidden="true">→</span></button>
-    </main>
+    </section>
   )
 }
 
@@ -879,7 +885,7 @@ export function App() {
   useLayoutEffect(() => {
     if (pendingCommand) exitRisk.current = 'working'
     else if (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId) exitRisk.current = 'uncertain'
-    else if (page !== 'admin' && page !== 'assessment') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
+    else if (page !== 'admin' && page !== 'assessment' && page !== 'home') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
   }, [pendingCommand, uncertainCommand, sessionId, page, trainingDirty])
 
   useEffect(() => {
@@ -1069,6 +1075,9 @@ export function App() {
   const start = useCallback(async (lessonId: string) => {
     if (operationLock.current) return
     if (!profile) { setPage('onboarding'); return }
+    if (exitRisk.current === 'working') { window.alert('学习路线操作正在进行，请等待确认后再开始旧练习。'); return }
+    if (exitRisk.current && !window.confirm('学习路线有未确认的选择或提交。确定离开路线并开始已有练习吗？')) return
+    exitRisk.current = null
     operationLock.current = true
     setBusy(true); setError(null)
     try {
@@ -1141,13 +1150,13 @@ export function App() {
     <div className="page-view" id="page-content" tabIndex={-1} key={`${page}:${route.sessionId ?? ''}`}>
     <RenderBoundary onHome={() => navigate('home')}>
     {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
-    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} onAssessment={() => navigate('assessment')} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
+    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} onStartSession={id => setPage('training', id)} onRiskChange={onExitRiskChange} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'assessment' && <AssessmentPage profileId={profile?.id ?? null} onCreateProfile={() => setPage('onboarding')} onHome={() => navigate('home')} onRiskChange={onExitRiskChange} />}
     {page === 'skills' && profile && <SkillsPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
+    {page === 'report' && profile && <main aria-label="学习报告"><div className="ability-report-container"><AbilityProfilePanel profileId={profile.id} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} /></div><LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} /></main>}
     {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange} ability={callback => <CourseAbilityWorkbench onExitRiskChange={callback} />}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
     {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onDirtyChange={setTrainingDirty} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}

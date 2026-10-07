@@ -1,0 +1,83 @@
+import { useEffect, useRef, useState } from 'react'
+import type { AbilityLevel } from '../assessment'
+import { learningPathApi, pathRequestId } from '../learningPathApi'
+import { categoryLabels, materialLabels, pathDimensionLabels, recommendationProgress, taskStatusLabels } from '../learningPath'
+import type { RecommendationCategory, RecommendationPlan, RecommendationTask } from '../learningPath'
+import { errorMessage, uncertainWrite } from '../http'
+import type { ExitRisk } from '../usePageRoute'
+import '../learningPath.css'
+
+type Pending = { kind: 'GENERATE'; key: string; profileId: string; level: AbilityLevel | null } | { kind: 'START'; key: string; profileId: string; taskId: string }
+type Props = { profileId: string | null; externalBusy?: boolean; onAssessment?: () => void; onPractice?: () => void; onStartSession: (sessionId: string) => void; onRiskChange?: (risk: ExitRisk) => void }
+function pathError(error: unknown) {
+  const messages: Record<string, string> = { RECOMMENDATION_DISABLED: '学习推荐暂未启用，可以继续已有课程。', RECOMMENDATION_TASK_UNAVAILABLE: '课程的发布、审核或版本条件已变化。没有开始新训练，请重新读取队列。', RECOMMENDATION_TASK_NOT_FOUND: '未找到这条推荐任务，请重新读取队列。', IDEMPOTENCY_KEY_REUSED: '同一提交标识对应了不同内容，本次已停止。请重新读取队列。', PROFILE_NOT_FOUND: '学习档案暂不可用，请重新选择档案。', RECOMMENDATION_VERSION_CONFLICT: '队列状态已变化，没有覆盖新记录。请重新读取队列。', RECOMMENDATION_CONFLICT: '另一页面同时修改了学习路线，本次未覆盖。请重新读取后再明确提交。' }
+  return error instanceof Error ? messages[error.message] ?? errorMessage(error) : errorMessage(error)
+}
+function time(value: string) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString('zh-CN') }
+export function RecommendationQueue({ profileId, externalBusy = false, onAssessment, onPractice, onStartSession, onRiskChange }: Props) {
+  const [plan, setPlan] = useState<RecommendationPlan | null>(null)
+  const [level, setLevel] = useState<AbilityLevel | ''>('')
+  const [savedLevel, setSavedLevel] = useState<AbilityLevel | ''>('')
+  const [loading, setLoading] = useState(!!profileId)
+  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<Pending | null>(null)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [retry, setRetry] = useState(0)
+  const lock = useRef(false)
+  const alive = useRef(true)
+  const currentProfile = useRef(profileId); currentProfile.current = profileId
+  const previousProfile = useRef(profileId)
+  const dirty = level !== savedLevel
+  const risk: ExitRisk = busy ? 'working' : pending ? 'uncertain' : dirty ? 'dirty' : null
+  useEffect(() => { onRiskChange?.(risk) }, [onRiskChange, risk])
+  useEffect(() => () => onRiskChange?.(null), [onRiskChange])
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  useEffect(() => {
+    if (previousProfile.current !== profileId) {
+      previousProfile.current = profileId
+      setPending(null); setLevel(''); setSavedLevel(''); setBusy(lock.current)
+    }
+    const controller = new AbortController(); setPlan(null); setError(''); setNotice(''); setLoading(!!profileId)
+    if (profileId) learningPathApi.recommendations(profileId, controller.signal).then(next => {
+      if (controller.signal.aborted) return
+      setPlan(next); const initial = next?.level_source === 'USER_CHOICE' ? next.practice_level : ''; setLevel(initial); setSavedLevel(initial); setLoading(false)
+    }).catch(reason => { if (!controller.signal.aborted) { setError(pathError(reason)); setLoading(false) } })
+    return () => controller.abort()
+  }, [profileId, retry])
+  async function execute(request: Pending) {
+    if (lock.current || externalBusy || request.profileId !== profileId) return
+    lock.current = true; setBusy(true); setError('')
+    try {
+      if (request.kind === 'GENERATE') {
+        const next = await learningPathApi.generate(request.profileId, request.level, request.key)
+        if (!alive.current || currentProfile.current !== request.profileId) return
+        setPlan(next); const selected = next.level_source === 'USER_CHOICE' ? next.practice_level : ''; setLevel(selected); setSavedLevel(selected); setPending(null); setNotice('队列已由服务端确认。刷新读取不会再生成任务。')
+      } else {
+        const next = await learningPathApi.start(request.profileId, request.taskId, request.key)
+        if (!alive.current || currentProfile.current !== request.profileId) return
+        setPlan(current => current ? { ...current, tasks: current.tasks.map(task => task.id === next.task.id ? next.task : task) } : current); setLevel(savedLevel); setPending(null); setBusy(false); setNotice('训练会话已确认，正在进入原文学习。'); onRiskChange?.(null); onStartSession(next.session_id)
+      }
+    } catch (reason) {
+      if (alive.current && currentProfile.current === request.profileId) { setError(pathError(reason)); setPending(uncertainWrite(reason) ? request : null) }
+    } finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
+  const disabled = loading || busy || externalBusy || !!pending
+  const progress = plan ? recommendationProgress(plan) : null
+  function start(task: RecommendationTask) {
+    if (!profileId || disabled || task.status === 'UNAVAILABLE') return
+    if (dirty && !window.confirm('新的练习起点尚未确认。保留当前队列并开始这条任务吗？')) return
+    if (task.status === 'COMPLETED' && task.session_id) { setLevel(savedLevel); setBusy(false); onRiskChange?.(null); onStartSession(task.session_id); return }
+    void execute({ kind: 'START', key: pathRequestId(), profileId, taskId: task.id })
+  }
+  return <section className="learning-path recommendation-queue" aria-labelledby="recommendation-queue-title"><header className="path-section-heading"><div><p className="eyebrow">学习路线 · 只推荐实际可用任务</p><h2 id="recommendation-queue-title">下一步，带着理由去读。</h2></div>{onAssessment && <button className="button button-secondary" disabled={busy || externalBusy} onClick={onAssessment}>先看看能力试测</button>}</header>
+    {!profileId ? <p>建立档案后可保存自己的学习队列。你仍可以浏览现有课程。</p> : <>
+      <fieldset className="path-level-choice" disabled={disabled}><legend>选择练习起点，不是修改能力等级</legend><label><input type="radio" name="path-practice-level" checked={level === ''} onChange={() => setLevel('')} />使用正式建议；尚未正式测评则从基础起步</label>{(['L1', 'L2', 'L3'] as AbilityLevel[]).map(item => <label key={item}><input type="radio" name="path-practice-level" checked={level === item} onChange={() => setLevel(item)} />{item} · {{ L1: '基础入境', L2: '通篇理解', L3: '深入阅读' }[item]}</label>)}</fieldset>
+      <div className="path-actions"><button className="button button-primary" disabled={disabled} onClick={() => void execute({ kind: 'GENERATE', key: pathRequestId(), profileId, level: level || null })}>{busy ? '正在等待服务端确认…' : plan ? '确认起点并生成／读取队列' : '确认起点并生成学习队列'}</button>{onPractice && <button className="button button-secondary" disabled={busy || externalBusy} onClick={onPractice}>暂不测评，继续已有练习</button>}</div>
+      <p className="path-save-status" role="status" aria-live="polite">{busy ? '正在确认提交，请勿重复操作。' : pending ? '上次提交的结果未知，请先恢复确认。' : dirty ? '新选择的练习起点尚未确认。' : notice}</p>
+      {error && <div className="path-message" role="alert"><p>{error}</p>{!pending && !busy && <button className="button button-secondary" disabled={externalBusy} onClick={() => { if (dirty && !window.confirm('重新读取会放弃未确认的练习起点。确认读取吗？')) return; setRetry(value => value + 1) }}>重新读取队列</button>}</div>}
+      {pending && <div className="path-message" role="alert"><p>保存或开始任务的结果尚未确认。已暂停新的提交；恢复时只使用上次的标识和原始内容。</p><button className="button button-secondary" disabled={busy || externalBusy} onClick={() => void execute(pending)}>恢复上一次提交</button></div>}
+      {loading ? <p role="status" aria-busy="true">正在读取已保存的学习队列，不会自动生成…</p> : plan ? <><div className="path-plan-meta"><p>练习起点 {plan.practice_level} · {{ USER_CHOICE: '你选择的练习方向，不是测评定级', FORMAL_ASSESSMENT: '来自正式测评的试行建议', FOUNDATION_DEFAULT: '未定级时的基础练习起点' }[plan.level_source]}</p><p>{plan.explanation}</p><small>{time(plan.created_at)} · 实际 {progress!.total} 项任务 · 已完成 {progress!.completed}{progress!.unavailable ? ` · 暂不可用 ${progress!.unavailable}` : ''}</small></div>{plan.tasks.length ? <div className="path-task-groups">{(['MAIN', 'REINFORCEMENT', 'CHALLENGE'] as RecommendationCategory[]).map(category => { const tasks = plan.tasks.filter(task => task.category === category); return tasks.length ? <section key={category} aria-labelledby={`path-category-${category}`}><h3 id={`path-category-${category}`}>{categoryLabels[category]} · {tasks.length} 项</h3><ol>{tasks.map(task => <li key={task.id}><div className="path-task-heading"><div><p className="eyebrow">{task.task_type === 'WHOLE_READING' ? '通篇阅读' : '专项练习'} · {materialLabels[task.material_extent]} · {task.ability_level}</p><h4>{task.title}</h4></div><span>{taskStatusLabels[task.status]}</span></div><p>{task.source} · {task.dimension_tags.map(tag => pathDimensionLabels[tag]).join('、') || '目标未登记'}</p><p><b>为什么推荐：</b>{task.reason}</p>{task.unavailable_reason && <p className="path-note">{task.unavailable_reason}</p>}<div className="path-task-footer"><small>冻结内容版本 {task.content_version}</small><button className="button button-secondary" disabled={disabled || task.status === 'UNAVAILABLE'} onClick={() => start(task)}>{task.status === 'COMPLETED' ? '回看已完成训练' : task.status === 'IN_PROGRESS' ? '继续这条训练' : task.status === 'UNAVAILABLE' ? '暂不可开始' : '开始这条训练'}</button></div></li>)}</ol></section> : null })}</div> : <div className="path-empty"><h3>当前还没有合格的推荐任务。</h3><p>没有把未审核、未标定或已过期课程凑进队列。旧练习仍可使用，但不冒充正式推荐。</p></div>}{plan.gaps.length > 0 && <aside className="path-gaps" aria-labelledby="path-gaps-title"><h3 id="path-gaps-title">当前内容缺口</h3><ul>{plan.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></aside>}<p className="path-note">这里展示实际任务，不把三类任务数量称为已经满足 70／20／10 比例。新材料挑战也不意味着你的能力等级已经提高。</p></> : !error && <div className="path-empty"><h3>尚未生成学习路线。</h3><p>先确认练习起点，再明确生成。仅打开或刷新首页不会新增队列。</p></div>}
+    </>}
+  </section>
+}

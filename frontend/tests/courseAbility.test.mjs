@@ -19,3 +19,12 @@ test('invalid metadata fails closed instead of rendering an incorrect level', ()
   }
   for (const value of [null, {}, [], { ability: null }, { ability: 'L1' }]) assert.equal(isCourseAbilityResponse(value), false)
 })
+
+test('classification validity requires the saved and current content versions to match', () => {
+  const bound = { ...row, content_version: 'abcdef012345', current_content_version: 'abcdef012345', valid_for_content: true }
+  assert.equal(isCourseAbilityResponse({ ability: bound }), true)
+  assert.equal(isCourseAbilityResponse({ ability: { ...bound, current_content_version: '012345abcdef', valid_for_content: false } }), true)
+  for (const change of [{ content_version: null }, { current_content_version: '012345abcdef' }, { content_version: 'old' }, { valid_for_content: 'yes' }]) {
+    assert.equal(isCourseAbilityResponse({ ability: { ...bound, ...change } }), false)
+  }
+})

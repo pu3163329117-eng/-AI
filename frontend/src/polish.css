@@ -69,6 +69,8 @@
 .polished .context-layers { scroll-margin-top: 105px; scroll-margin-bottom: 85px; }
 .polished .reader-keyboard-guide { margin: 0 0 14px; color: #555; font-size: 12px; line-height: 1.7; }
 .polished .knowledge-action { min-height: 44px; }
+.ability-report-container { width: 100%; max-width: 1200px; margin-inline: auto; padding: 44px var(--surface-padding) 24px; }
+.ability-report-container .ability-profile-panel { margin-top: 0; }
 .polished .assessment-entry { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; margin: 0 24px 24px; border-block: 1px solid #ccc; }
 .polished .assessment-entry h2 { font-size: 23px; line-height: 1.5; margin: 0 0 8px; }
 .polished .assessment-entry p { max-width: 660px; line-height: 1.8; margin: 4px 0; }

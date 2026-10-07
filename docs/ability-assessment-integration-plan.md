@@ -1,6 +1,6 @@
 # 文言文平台能力分级与评测融合实施方案
 
-日期：2026-10-07。状态：首轮 A / B 的内容准备、数据层及试测闭环已实现，正式测评尚未开放。实际范围与验收见 [首轮验收](assessment-pilot-acceptance.md)。
+日期：2026-10-07。状态：A / B 的技术基础和 C 的能力档案、持久学习队列已实现；真实教研审核与正式测评尚未开放。实际范围见 [首轮验收](assessment-pilot-acceptance.md) 和 [能力档案与队列验收](learning-path-acceptance.md)。
 
 目标是在现有原文点读、五层语境、字词知识库和证据推理训练上，增加可解释的能力评测与学习推荐。采用用户提供的《文言文学习产品等级与评测模块优化计划书》中多维画像、断点恢复和表现回流的方向；调整材料分级、评分、可信度及数据保存方式。登录和权限按用户决定暂缓，本轮不进行公网发布。
 
@@ -147,7 +147,13 @@
 
 建议模块边界：`backend/domain/assessment.py` 管理测评状态；`backend/domain/ability.py` 管理画像规则；`backend/domain/recommendation.py` 管理队列；对应路由独立注册。前端将测评流程、结果页、队列和能力面板拆为组件，并扩展 `types.ts`、`contracts.ts`、`api.ts`。
 
-已实现创建 `/api/v1/assessments`、读取 `/api/v1/assessments/{id}`、提交 `/api/v1/assessments/{id}/commands`、档案测评历史 `/api/v1/profiles/{id}/assessments`、可用性 `/api/v1/assessments/availability`，以及课程标定 GET / PATCH `/api/v1/admin/lessons/{id}/ability`。学习者能力档案 `/api/v1/profiles/{id}/ability` 和推荐 `/api/v1/profiles/{id}/recommendations` 仍为后续设计，尚未实现。
+已实现创建 `/api/v1/assessments`、读取 `/api/v1/assessments/{id}`、提交 `/api/v1/assessments/{id}/commands`、档案测评历史 `/api/v1/profiles/{id}/assessments`、可用性 `/api/v1/assessments/availability`，以及课程标定 GET / PATCH `/api/v1/admin/lessons/{id}/ability`。C 增加能力档案 GET `/api/v1/profiles/{id}/ability`、推荐队列 GET / POST `/api/v1/profiles/{id}/recommendations`、任务开始 POST `/api/v1/profiles/{id}/recommendations/{task_id}/start`。
+
+当前能力档案是从不可变 AssessmentResult 和冻结试卷重建的只读投影，未另建可被随意改写的主等级表，也未实现 D 的 AbilityObservation。优先采用最近合法且样本充分的正式结果；较新不足结果保留在历史中，不冲掉既有有效依据。仅有不足的正式结果时保留实际样本，未达到每维最低作答量的分数为 null；PILOT 始终单独显示。
+
+推荐采用追加的 RecommendationPlan、当前 RecommendationHead、稳定 RecommendationTask 和 LearningPathReceipt。GET 不生成或更新记录；POST 要求 Idempotency-Key，相同起点和内容复用当前计划，包括空计划。同一任务唯一关联训练会话，状态从该会话派生，不能由同课另一训练冒认完成。新开始严格验证当前发布、审核与能力标定版本；已有会话继续冻结版本，不因后来的改稿、下架或重标定被封死。
+
+课程能力标定 PATCH 新增必填 expected_content_version，取标定 GET 的 current_content_version，同时校验原有 expected_version。旧标定不补造版本绑定，内容修改后 valid_for_content=false；真实教研重新确认后才参与推荐。
 
 测评命令采用 SAVE_ANSWER、SKIP_QUESTION、COMPLETE_ASSESSMENT、ABANDON_ASSESSMENT，要求 `expected_state_version` 和 `Idempotency-Key`。服务端检查题目属于冻结试卷、选项属于该题，以及当前会话状态；发生冲突不覆盖已确认作答。保存状态由服务端响应确认，不显示虚假的已保存。
 
@@ -195,4 +201,5 @@
 3. 已完成功能：课程能力等级和专项标签独立保存，教研标定页面、并发版本检查及旧课程兼容回归。
 4. 已完成试测：24 题创建、服务端作答、刷新恢复、同标识命令恢复、幂等交卷、四维结果和四屏验收。
 5. 待完成：独立评测题目的审核工作流与真实审核、难度及评分试答校准；当前正式入口关闭。
-6. 后续 C / D：能力档案、解释型推荐队列、独立与辅助表现回流；不得用待审核试测替代正式能力观测。
+6. 已完成 C 技术闭环：只读能力档案、独立试测参考、来源历史、显式选择练习方向、持久解释型推荐队列、任务与冻结训练联动。现有课程缺少合格能力标定，因此推荐如实显示缺口，不以旧演示内容替代正式推荐。
+7. 下一阶段 D：独立与辅助表现回流、来源唯一观测和趋势展示；旧事件缺失的信息保持未知，不用待审核试测替代正式能力观测。E 的影子调级仍待代表性数据与规则校准。

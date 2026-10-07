@@ -57,6 +57,7 @@ class LessonAbility(Base):
     ability_level: Mapped[str | None] = mapped_column(String(10), nullable=True)
     dimension_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    content_version: Mapped[str | None] = mapped_column(String(12), nullable=True)
     actor: Mapped[str | None] = mapped_column(String(80), nullable=True)
     note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)

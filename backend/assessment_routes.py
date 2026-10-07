@@ -119,6 +119,7 @@ class LessonAbilityRequest(BaseModel):
     ability_level: Literal["L1", "L2", "L3"] | None
     dimension_tags: list[Literal["vocabulary", "syntax", "context", "chapter", "translation", "transfer"]] = Field(max_length=6)
     expected_version: int = Field(strict=True, ge=0)
+    expected_content_version: str = Field(pattern=r"^[a-f0-9]{12}$")
     actor: str = Field(min_length=1, max_length=80)
     note: str = Field(min_length=1, max_length=2000)
 
@@ -138,13 +139,23 @@ class LessonAbilityRequest(BaseModel):
 
 
 def ability_payload(db, lesson_id):
-    if db.get(Lesson, lesson_id) is None:
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
         store.fail("LESSON_NOT_FOUND", 404)
+    # Lazy import reuses the editorial fingerprint after all routes are registered.
+    try:
+        from backend.main import _editorial_hash
+    except ModuleNotFoundError:
+        from main import _editorial_hash
+    current_content_version = _editorial_hash(db, lesson)[:12]
     row = db.get(LessonAbility, lesson_id, populate_existing=True)
     return {"lesson_id": lesson_id, "ability_level": row.ability_level if row else None,
         "dimension_tags": row.dimension_tags if row else [], "version": row.version if row else 0,
         "actor": row.actor if row else None, "note": (row.note or "") if row else "",
-        "updated_at": store.utc_iso(row.updated_at) if row else None}
+        "updated_at": store.utc_iso(row.updated_at) if row else None,
+        "content_version": row.content_version if row else None,
+        "current_content_version": current_content_version,
+        "valid_for_content": bool(row and row.content_version == current_content_version)}
 
 
 @router.get("/admin/lessons/{lesson_id}/ability")
@@ -158,9 +169,11 @@ def set_lesson_ability(lesson_id: str, request: LessonAbilityRequest, db: Db):
     current = ability_payload(db, lesson_id)
     if current["version"] != request.expected_version:
         store.fail("ABILITY_VERSION_CONFLICT", current_version=current["version"])
+    if current["current_content_version"] != request.expected_content_version:
+        store.fail("ABILITY_CONTENT_VERSION_CONFLICT", current_content_version=current["current_content_version"])
     values = {"ability_level": request.ability_level, "dimension_tags": request.dimension_tags,
         "version": current["version"] + 1, "actor": request.actor, "note": request.note,
-        "updated_at": datetime.now(timezone.utc)}
+        "updated_at": datetime.now(timezone.utc), "content_version": request.expected_content_version}
     if current["version"] == 0:
         db.add(LessonAbility(lesson_id=lesson_id, **values))
     else:
