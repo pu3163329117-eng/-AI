@@ -1,5 +1,6 @@
 /** Runtime guards for the data rendered by this client. Extra server fields are
  * allowed; missing historical optional fields are allowed, invalid values aren't. */
+import { validLearningTrace } from './observations'
 type Check = (value: unknown) => boolean
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const text: Check = value => typeof value === 'string'
@@ -35,7 +36,7 @@ const trainingFields = shape({ stage, state: oneOf('AWAITING_INITIAL_ATTEMPT', '
   state_version: count, source: text, passage: text, variable: id, question: text, choices: list(id, 2), evidence: text,
   selected_answer: nullable(text), evidence_selected: bool, deferred: bool, hint_level: count, hint: nullable(text), feedback: text,
   transfer_ready: bool, summary_ready: bool, completed: bool, summary: nullable(summary), reading_context: optional(reading),
-  context_selection: optional(nullable(selection)), reasoning_graph: optional(nullable(graph)), profile_id: optional(id),
+  context_selection: optional(nullable(selection)), reasoning_graph: optional(nullable(graph)), learning_trace: optional(validLearningTrace), profile_id: optional(id),
   lesson: optional(shape({ id, title: text, school_stage: optional(school), difficulty: optional(text), content_version: optional(text),
     review_status: optional(reviewStatus), reviewer: optional(nullable(text)), reviewed_at: optional(nullable(text)) })) })
 const training: Check = value => trainingFields(value) && record(value) && (!value.completed || summary(value.summary))

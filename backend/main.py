@@ -8,7 +8,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ try:
     from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from backend.db.session import get_db
     from backend.db.knowledge import knowledge_coverage, knowledge_lookup
+    from backend.db.observations import persist_observations
     from backend.domain.training import apply_command, initial_snapshot
     from backend.domain.reading_context import reading_context_for, validate_reading_context
     from backend.domain.editorial import content_fingerprint, review_readiness
@@ -30,6 +31,7 @@ except ModuleNotFoundError:
     from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from db.session import get_db
     from db.knowledge import knowledge_coverage, knowledge_lookup
+    from db.observations import persist_observations
     from domain.training import apply_command, initial_snapshot
     from domain.reading_context import reading_context_for, validate_reading_context
     from domain.editorial import content_fingerprint, review_readiness
@@ -64,6 +66,12 @@ try:
 except ModuleNotFoundError:
     from ability_routes import router as ability_router
 app.include_router(ability_router)
+
+try:
+    from backend.observation_routes import router as observation_router
+except ModuleNotFoundError:
+    from observation_routes import router as observation_router
+app.include_router(observation_router)
 
 
 @app.exception_handler(HTTPException)
@@ -104,16 +112,16 @@ def _review_session_payload(record: TrainingSession) -> dict:
 
 
 def _local_calendar_date(value: datetime | None) -> date | None:
-    """Return the application's local calendar date for a database timestamp.
+    """Database timestamps are UTC; learner calendar dates use UTC+08:00.
 
-    SQLite returns naive timestamps in local application time, while a production
-    database can return timezone-aware values.  Converting aware values with
-    ``astimezone()`` deliberately uses the app host's local timezone; that keeps
-    the streak rule aligned with what a learner sees as "today".
+    SQLite strips timezone information from UTC event and server timestamps.
+    Restore UTC before conversion, rather than silently treating them as local.
     """
     if value is None:
         return None
-    return value.astimezone().date() if value.tzinfo is not None else value.date()
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone(timedelta(hours=8))).date()
 
 
 def _earned_points(snapshot: dict) -> int:
@@ -147,7 +155,7 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
         bucket["completed_sessions"] += 1
 
     streak = 0
-    current_day = date.today()
+    current_day = _local_calendar_date(datetime.now(timezone.utc))
     while current_day in completion_days:
         streak += 1
         current_day -= timedelta(days=1)
@@ -440,7 +448,7 @@ def _daily_mission_payload(
         for event in events
         if event.type == "training.session_completed"
     }
-    today = date.today()
+    today = _local_calendar_date(datetime.now(timezone.utc))
     completed_today = sum(
         1
         for record in records
@@ -943,8 +951,14 @@ def command(
         current = db.get(TrainingSession, session_id)
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "current_state_version": current.state_version if current else None})
 
+    # A command may emit several events; state_version is not an event counter.
+    # The successful session CAS serializes allocation within this transaction.
+    event_sequence = db.scalar(select(func.max(TrainingEvent.sequence_no)).where(TrainingEvent.session_id == session_id)) or 0
+    source_events = []
     for offset, event in enumerate(result.events, start=1):
-        db.add(TrainingEvent(session_id=session_id, sequence_no=request.expected_state_version + offset, type=event["type"], payload=event["payload"]))
+        source_event = TrainingEvent(session_id=session_id, sequence_no=event_sequence + offset, type=event["type"], payload=event["payload"])
+        db.add(source_event)
+        source_events.append(source_event)
     response = {"session_id": session_id, "state": result.state, "state_version": result.snapshot["state_version"], "session": result.snapshot}
     if request.type == "COMPLETE_SESSION":
         profile_id = result.snapshot.get("profile_id")
@@ -955,6 +969,8 @@ def command(
             response["profile"] = _profile_payload(profile)
     db.add(CommandReceipt(session_id=session_id, idempotency_key=idempotency_key, request_hash=request_hash, response=response))
     try:
+        db.flush()
+        persist_observations(db, record, result, source_events)
         db.commit()
     except IntegrityError:
         db.rollback()

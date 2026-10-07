@@ -11,6 +11,8 @@ import { AssessmentPage } from './components/AssessmentPage'
 import { CourseAbilityWorkbench } from './components/CourseAbilityWorkbench'
 import { AbilityProfilePanel } from './components/AbilityProfilePanel'
 import { RecommendationQueue } from './components/RecommendationQueue'
+import { ObservationReport } from './components/ObservationReport'
+import { SessionObservations } from './components/SessionObservations'
 import { restoredAnswer } from './reasoning'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
 import { usePageRoute, type ExitRisk } from './usePageRoute'
@@ -728,6 +730,7 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
   const pendingLabels: Partial<Record<CommandType, string>> = { SUBMIT_ATTEMPT: '正在核验判断…', REQUEST_MORE_CONTEXT: '正在保存点读位置与语境…', SELECT_EVIDENCE: '正在记录证据…', DEFER_VARIABLE: '正在暂放变量…', REVISIT_VARIABLE: '正在恢复判断…', REQUEST_HINT: '正在读取提示…', CONTINUE_TO_TRANSFER: '正在准备迁移挑战…', COMPLETE_SESSION: '正在保存本关总结…' }
   const locked = busy || recoveryNeeded
   pendingLabels.SAVE_REASONING = '正在保存原文证据与推断理由…'
+  pendingLabels.RECORD_ASSISTANCE = '正在记录字词解释辅助，确认后再展开…'
   useEffect(() => {
     if (!recoveryNeeded) return
     const frame = requestAnimationFrame(() => jumpTo('command-recovery-title'))
@@ -737,6 +740,8 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
   const submit = () => answer && onCommand('SUBMIT_ATTEMPT', { answer })
   const isTransferReady = session.transfer_ready && !session.completed
   const isSummaryReady = session.summary_ready && !session.completed
+  const stageTrace = session.learning_trace?.stages[session.stage]
+  const firstJudgment = !!stageTrace && stageTrace.first_attempt === null
   const currentStep = session.completed ? 4 : session.stage === 'TRANSFER' ? 3 : 1
   const variableIndex = session.passage.indexOf(session.variable)
   const beforeVariable = variableIndex < 0 ? session.passage : session.passage.slice(0, variableIndex)
@@ -762,6 +767,7 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
         </aside>
         <section className="lesson" aria-labelledby="question-title">
           <div className="lesson-meta"><span>{session.source}</span><span>{session.stage === 'CORE' ? '02 / 04' : '04 / 04'}</span></div>
+          <SessionObservations trace={session.learning_trace} currentStage={session.stage} completed={session.completed} />
           {session.completed && session.summary ? (
             <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
           ) : (
@@ -778,10 +784,11 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
                     <span>{choice}</span>
                   </label>)}
                 </div>
-                <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
-                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked || reasoningDirty || !session.reasoning_graph || session.reasoning_graph.conclusion !== answer || isTransferReady || isSummaryReady}>
-                  {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : '提交判断'}
+                {firstJudgment && <p className="knowledge-note">可以先提交首次词义判断，再补充证据与理由。查看字词解释、提示或保存证据后的规则回执会记录为辅助；首次判断不会直接发积分。</p>}
+                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked || reasoningDirty || (!firstJudgment && (!session.reasoning_graph || session.reasoning_graph.conclusion !== answer)) || isTransferReady || isSummaryReady}>
+                  {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : firstJudgment ? '提交首次词义判断' : '提交判断'}
                 </button>
+                <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
               </div>
               <div className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
                 {busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `${recoveryNeeded ? '操作结果未确认' : '操作未完成'}：${error}` : session.feedback}
@@ -790,7 +797,9 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
               {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={locked}>进入陌生文挑战 →</button>}
               {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={locked}>查看本关总结 →</button>}
               </section>
-              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={locked} onCommand={onCommand} />
+              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={locked} onCommand={onCommand}
+                meaningMode={session.learning_trace ? 'TRACKED' : 'LEGACY'} isMeaningAllowed={stageTrace?.assistance_kinds.includes('WORD_MEANING') ?? false}
+                onRevealMeaning={selection => onCommand('RECORD_ASSISTANCE', { kind: 'WORD_MEANING', paragraph_index: selection.paragraph_index, start: selection.start, end: selection.end })} />
               <nav className="reading-shortcuts" aria-label="训练页快捷操作"><button onClick={() => jumpTo('fulltext-title')}>阅读原文</button><button onClick={() => jumpTo('training-question')}>回到题目 ↑</button></nav>
             </>
           )}
@@ -1156,7 +1165,7 @@ export function App() {
     {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'report' && profile && <main aria-label="学习报告"><div className="ability-report-container"><AbilityProfilePanel profileId={profile.id} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} /></div><LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} /></main>}
+    {page === 'report' && profile && <main aria-label="学习报告"><div className="ability-report-container"><AbilityProfilePanel profileId={profile.id} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} /><ObservationReport profileId={profile.id} onOpenSession={(id) => setPage('training', id)} /></div><LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} /></main>}
     {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange} ability={callback => <CourseAbilityWorkbench onExitRiskChange={callback} />}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
     {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onDirtyChange={setTrainingDirty} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}

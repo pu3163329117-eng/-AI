@@ -1,6 +1,7 @@
 from . import models  # noqa: F401 - imports model metadata
 from . import assessment_models  # noqa: F401 - additive assessment metadata
 from . import learning_path_models  # noqa: F401 - additive recommendation metadata
+from . import observation_models  # noqa: F401 - additive learning behavior metadata
 from .assessment import seed_assessment_bank
 from .migrations import apply_migrations
 from .seed import seed_lessons

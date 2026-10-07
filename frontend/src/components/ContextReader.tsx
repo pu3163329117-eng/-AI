@@ -3,6 +3,8 @@ import type { CommandType, ContextScope, ContextSelection, TrainingSession } fro
 import { WordKnowledge } from './WordKnowledge'
 import { KnowledgeCoverage } from './KnowledgeCoverage'
 import { readingIndex, sentenceAt, tokensFor } from '../reader'
+import { meaningMayBeShown, type MeaningMode } from '../observations'
+import '../observations.css'
 
 const layers: [ContextScope, string][] = [['WORD', '词'], ['SENTENCE', '句'], ['PARAGRAPH', '段'], ['WORK', '篇'], ['ERA', '时代']]
 const extentLabels = { FULL: '全文', CHAPTER: '完整章节', EXCERPT: '课内节选', PROMPT: '题目原文' }
@@ -37,11 +39,14 @@ function defaultSelection(session: TrainingSession, paragraphs: string[]): Conte
   return { paragraph_index: index, start, end, token: session.variable, paragraph, sentence: sentenceAt(paragraph, start, end), scope: 'WORD' }
 }
 
-export function ContextReader({ sessionId, session, busy, onCommand }: {
+export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAllowed = false, onRevealMeaning, meaningMode = 'LEGACY' }: {
   sessionId: string
   session: TrainingSession
   busy: boolean
   onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
+  isMeaningAllowed?: boolean
+  onRevealMeaning?: (selection: ContextSelection) => void
+  meaningMode?: MeaningMode
 }) {
   const context = session.reading_context
   const paragraphs = context?.paragraphs?.length ? context.paragraphs : [session.passage]
@@ -70,6 +75,7 @@ export function ContextReader({ sessionId, session, busy, onCommand }: {
   }, [selectionKey, session.state_version])
   const extent = extentLabels[context?.extent ?? 'EXCERPT']
   const sourceUrl = context?.source_url && /^https?:\/\//i.test(context.source_url) ? context.source_url : null
+  const showMeaning = meaningMayBeShown(meaningMode, isMeaningAllowed)
 
   function select(paragraphIndex: number, start: number, end: number, scope: ContextScope = selection?.scope ?? 'WORD') {
     if (busy) return
@@ -95,8 +101,8 @@ export function ContextReader({ sessionId, session, busy, onCommand }: {
       <button type="button" className="reader-range-toggle" aria-pressed={rangeMode} disabled={busy}
         onClick={() => { setRangeMode(!rangeMode); setAnchor(null); setRangeError('') }}>{rangeMode ? '取消词组选择' : '选择任意词组'}</button>
     </header>
-    <p className="reader-guide" aria-live="polite">{rangeError || (rangeMode ? (anchor ? '再点同段的结束字，选取整段词组；Esc 可取消。' : '先点词组起始字，再点结束字；Esc 可取消。') : '点击字词查看本句释义、变量判断和五层语境；词组可选择起止位置。')}</p>
-    <p className="reader-keyboard-guide" id="reader-keyboard-guide">键盘：左右键移到相邻字词，上下键切换段落，Home / End 移到段首／段末，Enter 查看释义。</p>
+    <p className="reader-guide" aria-live="polite">{rangeError || (rangeMode ? (anchor ? '再点同段的结束字，选取整段词组；Esc 可取消。' : '先点词组起始字，再点结束字；Esc 可取消。') : '点击字词查看五层原文语境；字词解释另行展开，词组可选择起止位置。')}</p>
+    <p className="reader-keyboard-guide" id="reader-keyboard-guide">键盘：左右键移到相邻字词，上下键切换段落，Home / End 移到段首／段末，Enter 查看原文语境。</p>
     <KnowledgeCoverage />
     <div className="fulltext-layout">
       <div className="fulltext-canvas" ref={canvasRef} aria-label={`${session.source}${extent}`} aria-describedby="reader-keyboard-guide">
@@ -127,8 +133,11 @@ export function ContextReader({ sessionId, session, busy, onCommand }: {
           const button = canvasRef.current?.querySelector<HTMLButtonElement>('.text-token.is-selected') ?? canvasRef.current?.querySelector<HTMLButtonElement>('.text-token')
           button?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); button?.focus({ preventScroll: true })
         }}>返回原文字词</button></div>
-        {session.context_selection ? <WordKnowledge sessionId={sessionId} selection={session.context_selection} stage={session.stage} /> :
-          <p className="reader-version">点击原文字词，查看本句解释与其他语境。释义按需展开，不在进入训练时自动揭示。</p>}
+        {session.context_selection ? <>
+          {meaningMode === 'LEGACY' && <p className="reader-version">旧训练的辅助使用未完整记录，保持未知；查看资料不会补造历史首答。</p>}
+          {meaningMode === 'REVIEW' && <p className="reader-version">已完成训练只读回看，不新增辅助事件。</p>}
+          {showMeaning ? <WordKnowledge key={`${sessionId}:${session.stage}`} sessionId={sessionId} selection={session.context_selection} stage={session.stage} /> : <section className="meaning-access-gate" aria-labelledby="word-meaning-title"><h3 id="word-meaning-title" tabIndex={-1}>“{session.context_selection.token}”的字词解释尚未展开</h3><p>原文、词句段篇时代语境可以继续阅读，不记为辅助。展开解释会记录本阶段辅助使用，包括释义、词性、推断依据和其他语境释义。</p><button type="button" className="button button-secondary" disabled={busy || !onRevealMeaning} onClick={() => onRevealMeaning?.(session.context_selection!)}>查看字词解释（记录为辅助）</button><p className="reader-version" role="status">{busy ? '等待服务端确认；确认前不展示解释。' : '只有服务端确认记录后，才展开答案性内容。'}</p></section>}
+        </> : <p className="reader-version">点击原文字词，先查看本句与五层语境；解释按需确认后展开。</p>}
         <ol>{layers.map(([scope, label]) => <li key={scope} className={selection?.scope === scope ? 'active-layer' : ''}>
           <button type="button" aria-pressed={selection?.scope === scope} disabled={!selection || busy || rangeMode}
             onClick={() => selection && onCommand('REQUEST_MORE_CONTEXT', { paragraph_index: selection.paragraph_index, start: selection.start, end: selection.end, scope })}>{label}</button>

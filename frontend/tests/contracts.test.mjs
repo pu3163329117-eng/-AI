@@ -1,7 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import ts from 'typescript'
 import { importSource } from './import-source.mjs'
-const { validateResponse: valid } = await importSource('contracts.ts')
+// Resolve the one runtime dependency explicitly: data URLs have no directory
+// against which Node can resolve relative module specifiers.
+const sourceUrl = async name => {
+  const source = await readFile(new URL(`../src/${name}`, import.meta.url), 'utf8')
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } })
+  return outputText
+}
+const dataUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
+const observationsUrl = dataUrl(await sourceUrl('observations.ts'))
+const contractsSource = (await sourceUrl('contracts.ts')).replace(/(['"])\.\/observations\1/g, JSON.stringify(observationsUrl))
+const { validateResponse: valid } = await import(dataUrl(contractsSource))
 const { restoredAnswer } = await importSource('reasoning.ts')
 const lesson = { id: 'lesson-1', title: '假', source: '劝学', difficulty: '进阶', estimated_minutes: 10, summary: '借助语境判断' }
 const profile = { id: 'profile-1', display_name: '验收', school_stage: 'SENIOR', total_points: 0, completed_levels: 0 }

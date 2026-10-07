@@ -102,7 +102,10 @@ def test_reasoning_command_receipt_replay_refresh_and_history():
         assert client.get(url).json()['session']['reasoning_graph'] == first.json()['session']['reasoning_graph']
         records = client.get(url + '/reasoning').json()['records']
         assert len(records) == 1 and records[0]['graph']['reason_review_status'] == 'UNREVIEWED'
-        assert db.scalar(select(func.count()).select_from(TrainingEvent)) == 1
+        assert db.scalar(select(func.count()).select_from(TrainingEvent).where(TrainingEvent.type == 'training.reasoning_saved')) == 1
+        assistance = db.scalar(select(TrainingEvent).where(TrainingEvent.type == 'training.assistance_recorded'))
+        assert assistance.payload['kind'] == 'RULE_CHECK' and assistance.payload['before_first_attempt']
+        assert db.scalar(select(func.count()).select_from(TrainingEvent)) == 2
         assert db.scalar(select(func.count()).select_from(CommandReceipt)) == 1
         assert client.get('/api/v1/training/sessions/absent/reasoning').status_code == 404
     finally:

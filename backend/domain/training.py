@@ -7,6 +7,7 @@ from typing import Any
 from unicodedata import category
 
 from .reading_context import reading_context_for
+from .observations import initial_trace, traced, record_assistance, record_attempt
 
 
 DEFAULT_LESSON_CONTENT: dict[str, Any] = {
@@ -86,6 +87,7 @@ def initial_snapshot(
         "feedback": f"先读完整句话，再判断“{core_content['variable']}”的意思。", "transfer_ready": False,
         "summary_ready": False, "summary": None, "completed": False, "transfer_content": transfer_content,
         "lesson_summary": deepcopy(content.get("summary", DEFAULT_LESSON_CONTENT["summary"])),
+        "learning_trace": initial_trace(),
     }
     if lesson:
         snapshot["lesson"] = lesson
@@ -174,12 +176,14 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         next_snapshot.update(reasoning_graph=graph, evidence_selected=matches,
                              feedback="已保存证据链；理由尚未人工审核。" + ("可提交词义判断。" if matches else "所选原文未覆盖课程预设线索，可修改证据或继续提交判断。"))
         events.append({"type": "training.reasoning_saved", "payload": graph})
+        record_assistance(next_snapshot, "RULE_CHECK", events)
     elif action == "SELECT_EVIDENCE":
         if snapshot.get("reasoning_graph"):
             raise ValueError("REASONING_RECORD_REQUIRED")
         next_snapshot["evidence_selected"] = True
         next_snapshot["feedback"] = "已记录证据。现在用它解释你的判断。"
         events.append({"type": "training.evidence_selected", "payload": {"evidence": snapshot["evidence"], "stage": snapshot["stage"]}})
+        record_assistance(next_snapshot, "PRESET_EVIDENCE", events)
     elif action == "DEFER_VARIABLE":
         next_snapshot.update(deferred=True, state="VARIABLE_DEFERRED", feedback=f"已暂放“{snapshot['variable']}”。继续读到新证据后，再回来看它。")
         events.append({"type": "training.variable_deferred", "payload": {"variable": snapshot["variable"]}})
@@ -188,6 +192,7 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
             raise ValueError("VARIABLE_NOT_DEFERRED")
         next_snapshot.update(deferred=False, state="VARIABLE_REVISITED", feedback=f"回到“{snapshot['variable']}”：结合已读语境和“{snapshot['evidence']}”，重新检查你的判断。")
         events.append({"type": "training.variable_revisited", "payload": {"variable": snapshot["variable"]}})
+        record_assistance(next_snapshot, "PRESET_EVIDENCE", events)
     elif action == "REQUEST_MORE_CONTEXT":
         context, selection = _context_selection(snapshot, payload)
         next_snapshot.update(reading_context=context, context_selection=selection)
@@ -202,7 +207,20 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         level = min(snapshot["hint_level"] + 1, len(snapshot["hint_ladder"]))
         next_snapshot.update(hint_level=level, hint=_hint(snapshot, level), state="HINT_PRESENTED", feedback="提示只增加一条必要信息；答案仍要由你自己作出。")
         events.append({"type": "training.hint_presented", "payload": {"level": level, "stage": snapshot["stage"]}})
+        record_assistance(next_snapshot, "HINT", events)
+    elif action == "RECORD_ASSISTANCE":
+        if payload.get("kind") != "WORD_MEANING" or set(payload) - {"kind", "paragraph_index", "start", "end"}:
+            raise ValueError("INVALID_ASSISTANCE_KIND")
+        _, selection = _context_selection(snapshot, {**payload, "scope": "WORD"})
+        if traced(snapshot):
+            record_assistance(next_snapshot, "WORD_MEANING", events, selection)
+        else:
+            events.append({"type": "training.assistance_recorded", "payload": {"schema_version": None,
+                "stage": snapshot["stage"], "kind": "WORD_MEANING", "tracking_status": "UNKNOWN",
+                **{key: selection[key] for key in ("paragraph_index", "start", "end", "token")}}})
     elif action == "SUBMIT_ATTEMPT":
+        if traced(snapshot) and snapshot["learning_trace"]["stages"][snapshot["stage"]]["validated"]:
+            raise ValueError("STAGE_ALREADY_VALIDATED")
         answer = payload.get("answer")
         if answer not in snapshot["choices"]:
             raise ValueError("INVALID_ANSWER")
@@ -239,6 +257,9 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
                     },
                 }
             )
+        rule_matched = bool(graph["evidence_rule_matched"]) if graph else bool(snapshot["evidence_selected"])
+        record_attempt(snapshot, next_snapshot, answer, answer == snapshot["correct_answer"],
+            rule_matched, answer == snapshot["correct_answer"] and evidence_ready, events)
     elif action == "CONTINUE_TO_TRANSFER":
         if snapshot["stage"] != "CORE" or not snapshot["transfer_ready"]:
             raise ValueError("TRANSFER_NOT_READY")

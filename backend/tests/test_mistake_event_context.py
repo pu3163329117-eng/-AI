@@ -7,7 +7,7 @@ def test_wrong_attempt_event_keeps_submitted_answer_variable_and_stage():
         {"type": "SUBMIT_ATTEMPT", "payload": {"answer": "来自"}},
     )
 
-    assert result.events == [
+    assert [event for event in result.events if event["type"] == "training.attempt_evaluated"] == [
         {
             "type": "training.attempt_evaluated",
             "payload": {
@@ -18,3 +18,8 @@ def test_wrong_attempt_event_keeps_submitted_answer_variable_and_stage():
             },
         }
     ]
+    first = next(event for event in result.events if event["type"] == "training.first_attempt_recorded")
+    assert first["payload"]["answer"] == "来自" and first["payload"]["correct"] is False
+    assert first["payload"]["assistance_status"] == "NONE_RECORDED"
+    feedback = next(event for event in result.events if event["type"] == "training.assistance_recorded")
+    assert feedback["payload"]["kind"] == "FEEDBACK" and not feedback["payload"]["before_first_attempt"]

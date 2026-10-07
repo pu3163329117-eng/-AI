@@ -149,7 +149,7 @@
 
 已实现创建 `/api/v1/assessments`、读取 `/api/v1/assessments/{id}`、提交 `/api/v1/assessments/{id}/commands`、档案测评历史 `/api/v1/profiles/{id}/assessments`、可用性 `/api/v1/assessments/availability`，以及课程标定 GET / PATCH `/api/v1/admin/lessons/{id}/ability`。C 增加能力档案 GET `/api/v1/profiles/{id}/ability`、推荐队列 GET / POST `/api/v1/profiles/{id}/recommendations`、任务开始 POST `/api/v1/profiles/{id}/recommendations/{task_id}/start`。
 
-当前能力档案是从不可变 AssessmentResult 和冻结试卷重建的只读投影，未另建可被随意改写的主等级表，也未实现 D 的 AbilityObservation。优先采用最近合法且样本充分的正式结果；较新不足结果保留在历史中，不冲掉既有有效依据。仅有不足的正式结果时保留实际样本，未达到每维最低作答量的分数为 null；PILOT 始终单独显示。
+当前正式能力档案是从不可变 AssessmentResult 和冻结试卷重建的只读投影，未另建可被随意改写的主等级表。D 使用独立的 StageObservation 保存学习模式中的首次阶段行为，不将其写入正式能力档案。优先采用最近合法且样本充分的正式结果；较新不足结果保留在历史中，不冲掉既有有效依据。仅有不足的正式结果时保留实际样本，未达到每维最低作答量的分数为 null；PILOT 始终单独显示。
 
 推荐采用追加的 RecommendationPlan、当前 RecommendationHead、稳定 RecommendationTask 和 LearningPathReceipt。GET 不生成或更新记录；POST 要求 Idempotency-Key，相同起点和内容复用当前计划，包括空计划。同一任务唯一关联训练会话，状态从该会话派生，不能由同课另一训练冒认完成。新开始严格验证当前发布、审核与能力标定版本；已有会话继续冻结版本，不因后来的改稿、下架或重标定被封死。
 
@@ -202,4 +202,5 @@
 4. 已完成试测：24 题创建、服务端作答、刷新恢复、同标识命令恢复、幂等交卷、四维结果和四屏验收。
 5. 待完成：独立评测题目的审核工作流与真实审核、难度及评分试答校准；当前正式入口关闭。
 6. 已完成 C 技术闭环：只读能力档案、独立试测参考、来源历史、显式选择练习方向、持久解释型推荐队列、任务与冻结训练联动。现有课程缺少合格能力标定，因此推荐如实显示缺口，不以旧演示内容替代正式推荐。
-7. 下一阶段 D：独立与辅助表现回流、来源唯一观测和趋势展示；旧事件缺失的信息保持未知，不用待审核试测替代正式能力观测。E 的影子调级仍待代表性数据与规则校准。
+7. 已完成 D 的学习行为闭环：新训练两阶段首答、辅助与后续规则核验分开保存，来源唯一观测和北京时间趋势可查。阅读原文不算辅助，释义、提示、预设证据、证据覆盖回执及判断反馈分别记录；未记录辅助不等于闭卷独立作答。旧未知字段不补造，不更新正式能力档案。验收见 [学习行为回流](learning-observations-acceptance.md)。
+8. 后续仍需真实教研审核与代表性试答、评分和难度校准。E 的影子调级和自动主等级调整本轮未启用；AI 理由语义评分、登录权限继续暂缓。

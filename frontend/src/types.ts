@@ -1,3 +1,5 @@
+import type { LearningTrace } from './observations'
+
 export type TrainingState =
   | 'AWAITING_INITIAL_ATTEMPT'
   | 'VARIABLE_DEFERRED'
@@ -187,6 +189,7 @@ export type Mistake = {
 }
 
 export type TrainingSession = {
+  learning_trace?: LearningTrace
   reasoning_graph?: ReasoningGraph | null
   /** Frozen teaching attribution; older stored sessions may not have these fields. */
   lesson?: {
@@ -229,6 +232,7 @@ export type CommandType =
   | 'DEFER_VARIABLE'
   | 'REVISIT_VARIABLE'
   | 'REQUEST_MORE_CONTEXT'
+  | 'RECORD_ASSISTANCE'
   | 'REQUEST_HINT'
   | 'SUBMIT_ATTEMPT'
   | 'CONTINUE_TO_TRANSFER'
