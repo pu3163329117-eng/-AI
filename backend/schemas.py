@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 CommandType = Literal[
-    "SELECT_EVIDENCE", "DEFER_VARIABLE", "REVISIT_VARIABLE", "REQUEST_MORE_CONTEXT", "REQUEST_HINT", "SUBMIT_ATTEMPT", "CONTINUE_TO_TRANSFER", "COMPLETE_SESSION"
+    "SAVE_REASONING", "SELECT_EVIDENCE", "DEFER_VARIABLE", "REVISIT_VARIABLE", "REQUEST_MORE_CONTEXT", "REQUEST_HINT", "SUBMIT_ATTEMPT", "CONTINUE_TO_TRANSFER", "COMPLETE_SESSION"
 ]
 SchoolStage = Literal["JUNIOR", "SENIOR"]
 
@@ -98,3 +98,42 @@ class CommandRequest(BaseModel):
     type: CommandType
     expected_state_version: int = Field(ge=1)
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnnotationReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(strict=True, ge=0)
+    actor: str = Field(min_length=1, max_length=80)
+    note: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("actor", "note")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value.strip()
+
+
+class AnnotationEditRequest(AnnotationReviewRequest):
+    meaning: str = Field(min_length=1, max_length=2000)
+    part_of_speech: str = Field(min_length=1, max_length=80)
+    variability: Literal["CONTEXTUAL", "STABLE"]
+    reasoning: str = Field(min_length=1, max_length=4000)
+    source_url: str = Field(max_length=2000)
+    citation: str = Field(max_length=2000)
+
+    @field_validator("meaning", "part_of_speech", "reasoning")
+    @classmethod
+    def trim_content(cls, value: str) -> str:
+        return AnnotationReviewRequest.not_blank(value)
+
+    @field_validator("source_url")
+    @classmethod
+    def public_source(cls, value: str) -> str:
+        from urllib.parse import urlparse
+        value = value.strip()
+        if value:
+            parsed = urlparse(value)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+                raise ValueError("source must be an HTTP(S) URL without credentials")
+        return value

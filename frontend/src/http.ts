@@ -8,6 +8,11 @@ export function uncertainWrite(error: unknown) {
 }
 
 const messages: Record<string, string> = {
+  ANNOTATION_SOURCE_REQUIRED: '请先保存注释来源链接和实际核对的注释依据，再审核当前版本。',
+  ANNOTATION_VERSION_CONFLICT: '注释版本已变化，本次未覆盖新版本。请保留自己的修改，再重新读取。',
+  INVALID_REASONING_REASON: '推断理由须为 5–2000 个字，不能只填写空白。',
+  REASONING_STAGE_VALIDATED: '这个阶段已完成核验，证据链已锁定；请继续迁移挑战或回看记录。',
+  REASONING_RECORD_REQUIRED: '已经记录开放理由，请修改并保存证据链，不使用旧的预设证据快捷命令。',
   NETWORK_ERROR: '无法连接学习服务，请确认网络及本地后端是否运行。',
   REQUEST_TIMEOUT: '服务响应超时，请稍后重新读取。',
   INVALID_RESPONSE: '服务返回了无法读取的数据，请重新读取，记录未被清除。',

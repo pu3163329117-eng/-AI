@@ -25,6 +25,8 @@ const adminLesson: Check = value => lesson(value) && shape({ school_stage: schoo
   theme: text, accumulation_points: strings, reasoning_points: strings, reasoning_level: text, content: optional(record), review: optional(review) })(value)
 const position: Check = value => shape({ paragraph_index: count, start: count, end: count })(value) && record(value) && (value.end as number) > (value.start as number)
 const selection: Check = value => position(value) && shape({ token: text, sentence: text, paragraph: text, scope })(value)
+const graph = shape({ schema_version: value => value === 1, stage, source: text, text_version: text, target: id,
+  evidence: selection, reason: id, conclusion: id, evidence_rule_matched: bool, reason_review_status: oneOf('UNREVIEWED') })
 const reading = shape({ paragraphs: list(text, 1), full_text: text, author: text, era: text, work_note: text,
   extent: optional(extent), text_version: optional(text), source_url: optional(text), terms: optional(strings) })
 const summary = shape({ accumulation: text, reasoning: text, earned_points: count })
@@ -33,7 +35,7 @@ const trainingFields = shape({ stage, state: oneOf('AWAITING_INITIAL_ATTEMPT', '
   state_version: count, source: text, passage: text, variable: id, question: text, choices: list(id, 2), evidence: text,
   selected_answer: nullable(text), evidence_selected: bool, deferred: bool, hint_level: count, hint: nullable(text), feedback: text,
   transfer_ready: bool, summary_ready: bool, completed: bool, summary: nullable(summary), reading_context: optional(reading),
-  context_selection: optional(nullable(selection)), profile_id: optional(id),
+  context_selection: optional(nullable(selection)), reasoning_graph: optional(nullable(graph)), profile_id: optional(id),
   lesson: optional(shape({ id, title: text, school_stage: optional(school), difficulty: optional(text), content_version: optional(text),
     review_status: optional(reviewStatus), reviewer: optional(nullable(text)), reviewed_at: optional(nullable(text)) })) })
 const training: Check = value => trainingFields(value) && record(value) && (!value.completed || summary(value.summary))
@@ -49,14 +51,18 @@ const achievements = shape({ achievements: list(shape({ id, label: text, descrip
   review_recommendation: nullable(shape({ kind: text, title: text, description: text, action_label: text })) })
 const mission = shape({ mission_date: text, target_completed_sessions: number, completed_sessions_today: count, completed: bool, recommended_lesson: nullable(lesson) })
 const plans = shape({ group_by: oneOf('theme', 'textbook_tag', 'reasoning_point'), plans: list(shape({ id, label: text, lesson_count: count, lessons: list(lesson) })) })
-const document = shape({ id, source: text, extent: optional(extent), indexed_positions: count, annotated_positions: count, total_annotations: count })
+const document = shape({ id, source: text, extent: optional(extent), indexed_positions: count, annotated_positions: count, total_annotations: count, approved_annotations: optional(count) })
 const annotation: Check = value => shape({ id, token: text, start: count, end: count, meaning: text, part_of_speech: text,
-  variability: oneOf('CONTEXTUAL', 'STABLE'), reasoning: text, sense_key: text, status: oneOf('DRAFT'), source_url: nullable(text) })(value)
+  variability: oneOf('CONTEXTUAL', 'STABLE'), reasoning: text, sense_key: text, status: oneOf('DRAFT', 'APPROVED'), source_url: nullable(text),
+  version: optional(count), reviewer: optional(nullable(text)), reviewed_at: optional(nullable(text)), citation: optional(text) })(value)
   && record(value) && (value.end as number) > (value.start as number)
 const related: Check = value => position(value) && shape({ source: text, token: text, meaning: text, sentence: text, source_url: nullable(text), relation: oneOf('SAME_SENSE', 'OTHER_SENSE') })(value)
 const lookup = shape({ document: nullable(document), selection: nullable(value => position(value) && shape({ token: text, sentence: text })(value)),
   annotations: list(annotation), related: shape({ total: count, items: list(related) }), status: oneOf('ANNOTATED', 'PENDING', 'UNAVAILABLE') })
-const coverage = shape({ documents: list(document), totals: shape({ documents: count, indexed_positions: count, annotated_positions: count, annotations: count }) })
+const coverage = shape({ documents: list(document), totals: shape({ documents: count, indexed_positions: count, annotated_positions: count, annotations: count, approved_annotations: optional(count) }) })
+const managedAnnotation: Check = value => annotation(value) && position(value) && shape({ document_id: id, source: text, sentence: text, version: count, citation: text })(value)
+const annotationDetail = shape({ annotation: managedAnnotation, history: list(shape({ version: count, action: oneOf('EDIT', 'REVIEW', 'SEED'), actor: id, note: id, created_at: text,
+  payload: shape({ meaning: id, part_of_speech: id, variability: oneOf('CONTEXTUAL', 'STABLE'), reasoning: id, citation: text, source_url: text, status: oneOf('DRAFT', 'APPROVED') }) })) })
 const sessions = shape({ sessions: list(shape({ session_id: id, source: text, stage, completed: bool, feedback: text, updated_at: nullable(text) })) })
 const mistakes = shape({ mistakes: list(shape({ lesson_id: id, title: text, source: text, variable: text, passage: text, wrong_attempts: count, latest_attempt_at: nullable(text), review_hint: text })) })
 
@@ -64,6 +70,9 @@ const mistakes = shape({ mistakes: list(shape({ lesson_id: id, title: text, sour
  * Never coerce invalid data to a success/empty state or change a saved snapshot. */
 export function validateResponse(path: string, value: unknown): boolean {
   const endpoint = path.split('?')[0]
+  if (endpoint === '/api/v1/admin/knowledge/annotations') return shape({ total: count, items: list(managedAnnotation) })(value)
+  if (/^\/api\/v1\/admin\/knowledge\/annotations\/[^/]+(?:\/review)?$/.test(endpoint)) return annotationDetail(value)
+  if (/^\/api\/v1\/training\/sessions\/[^/]+\/reasoning$/.test(endpoint)) return shape({ records: list(shape({ sequence_no: count, created_at: text, graph })) })(value)
   if (endpoint === '/api/knowledge/lookup') return lookup(value)
   if (endpoint === '/api/knowledge/coverage') return coverage(value)
   if (endpoint === '/api/v1/lessons') return shape({ lessons: list(lesson) })(value)

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { importSource } from './import-source.mjs'
 const { validateResponse: valid } = await importSource('contracts.ts')
+const { restoredAnswer } = await importSource('reasoning.ts')
 const lesson = { id: 'lesson-1', title: '假', source: '劝学', difficulty: '进阶', estimated_minutes: 10, summary: '借助语境判断' }
 const profile = { id: 'profile-1', display_name: '验收', school_stage: 'SENIOR', total_points: 0, completed_levels: 0 }
 const session = { stage: 'CORE', state: 'AWAITING_INITIAL_ATTEMPT', state_version: 0, source: '劝学', passage: '善假于物也。', variable: '假',
@@ -13,6 +14,38 @@ const annotation = { id: 'annotation-1', token: '假', start: 1, end: 2, meaning
 const lookup = { document, selection: { token: '假', paragraph_index: 0, start: 1, end: 2, sentence: '善假于物也。' }, annotations: [annotation], related: { total: 0, items: [] }, status: 'ANNOTATED' }
 const review = { status: 'UNREVIEWED', content_version: 'abc', reviewer: null, note: null, reviewed_at: null, issues: [] }
 const admin = { ...lesson, school_stage: 'SENIOR', status: 'DRAFT', textbook_tags: [], theme: '', accumulation_points: [], reasoning_points: [], reasoning_level: '' }
+
+test('saving a revised conclusion never restores an earlier wrong answer', () => {
+  assert.equal(restoredAnswer({ selected_answer: '假装', reasoning_graph: { conclusion: '借助' } }), '借助')
+  assert.equal(restoredAnswer({ selected_answer: '假装' }), '假装')
+  assert.equal(restoredAnswer({ selected_answer: null, reasoning_graph: null }), null)
+})
+
+test('versioned annotation queue and review history guard all rendered fields', () => {
+  const item = { ...annotation, document_id: 'doc-1', source: '劝学', paragraph_index: 0, sentence: '善假于物也。', version: 0, citation: '' }
+  const path = '/api/v1/admin/knowledge/annotations'
+  assert.equal(valid(path + '?status=DRAFT', { total: 1, items: [item] }), true)
+  assert.equal(valid(path + '/a', { annotation: item, history: [] }), true)
+  const revised = { ...item, status: 'APPROVED', version: 2, reviewer: '本地审核人' }
+  const history = [{ version: 2, action: 'REVIEW', actor: '本地审核人', note: '核对记录', created_at: '2026-10-07', payload: { ...revised, source_url: '' } }]
+  assert.equal(valid(path + '/a/review', { annotation: revised, history }), true)
+  for (const patch of [{ version: '2' }, { status: 'VERIFIED_AI' }, { sentence: null }, { document_id: '' }]) {
+    assert.equal(valid(path, { total: 1, items: [{ ...item, ...patch }] }), false)
+  }
+  assert.equal(valid(path + '/a', { annotation: item, history: [null] }), false)
+})
+
+test('reasoning paths preserve legacy sessions and require positioned unreviewed reasons', () => {
+  const graph = { schema_version: 1, stage: 'CORE', source: '劝学', text_version: 'v1', target: '假', evidence: { paragraph_index: 0, start: 2, end: 4, token: '于物', sentence: '善假于物也。', paragraph: '善假于物也。', scope: 'SENTENCE' }, reason: '动作借助物品', conclusion: '借助', evidence_rule_matched: true, reason_review_status: 'UNREVIEWED' }
+  assert.equal(valid('/api/v1/training/sessions/s', { session: { ...session, reasoning_graph: graph } }), true)
+  const path = '/api/v1/training/sessions/s/reasoning'
+  const record = { sequence_no: 2, created_at: '2026-10-07', graph }
+  assert.equal(valid(path, { records: [record] }), true)
+  for (const patch of [{ schema_version: 2 }, { reason: '' }, { evidence: null }, { reason_review_status: 'APPROVED' }, { evidence_rule_matched: 'yes' }]) {
+    assert.equal(valid(path, { records: [{ ...record, graph: { ...graph, ...patch } }] }), false)
+  }
+  assert.equal(valid(path, { records: null }), false)
+})
 
 test('missing envelopes, nonobjects and unknown contracts are rejected', () => {
   for (const value of [null, {}, [], 'ok', { profile: null }]) assert.equal(valid('/api/v1/profiles/p', value), false)

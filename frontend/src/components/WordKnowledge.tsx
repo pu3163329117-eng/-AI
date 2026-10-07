@@ -61,12 +61,13 @@ export function WordKnowledge({ sessionId, selection, stage }: {
       {data.status === 'UNAVAILABLE' && <p>这个历史原文版本尚未建库。保留原有语境，不将新版注释套入旧文。</p>}
       {data.status === 'PENDING' && <p>这个位置的释义尚未补齐。已保留原文定位，暂不提供未经整理的猜测。</p>}
       {data.annotations.map(annotation => <article className="word-annotation" key={annotation.id}>
-        <header><b>{annotation.token}</b><span>整理草稿 · 待教研核对</span></header>
+        <header><b>{annotation.token}</b><span>{annotation.status === 'APPROVED' ? `本地署名审核 · ${annotation.reviewer ?? ''}` : '整理草稿 · 待教研核对'}{annotation.version !== undefined && ` · v${annotation.version}`}</span></header>
         {(annotation.start !== selection.start || annotation.end !== selection.end) && <p className="knowledge-note">{annotation.start <= selection.start && annotation.end >= selection.end ? `所选字属于词组“${annotation.token}”，按词组解释。` : `所选范围内的词项 · 第 ${annotation.start + 1}–${annotation.end} 字`}</p>}
         <p className="word-meaning">{annotation.meaning}</p>
         <p>{annotation.part_of_speech}</p>
         <p className="word-variability">{annotation.variability === 'CONTEXTUAL' ? '变量 · 需结合语境辨义' : '无变量 · 本句相对确定'}</p>
         <p>{annotation.reasoning}</p>
+        {annotation.citation && <p className="knowledge-note">注释依据：{annotation.citation}{safeUrl(annotation.source_url) && <> · <a href={safeUrl(annotation.source_url)!} target="_blank" rel="noreferrer">核对注释来源</a></>}</p>}
       </article>)}
       {data.related.total > 0 && <details className="related-contexts" key={selectionKey}
         open={expandedFor.key === selectionKey && expandedFor.open}

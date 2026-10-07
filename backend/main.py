@@ -46,6 +46,13 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="文言·推理 API", version="0.1.0", lifespan=lifespan)
 
+# Separate local editorial endpoints from the learner's state machine.
+try:
+    from backend.knowledge_routes import router as knowledge_review_router
+except ModuleNotFoundError:
+    from knowledge_routes import router as knowledge_review_router
+app.include_router(knowledge_review_router)
+
 
 @app.exception_handler(HTTPException)
 async def api_error(_: Request, exc: HTTPException) -> JSONResponse:
@@ -944,3 +951,13 @@ def command(
             return raced_receipt.response
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT"})
     return response
+
+
+@app.get(f"{API_PREFIX}/training/sessions/{{session_id}}/reasoning")
+def reasoning_history(session_id: str, db: DbSession) -> dict:
+    if not db.get(TrainingSession, session_id):
+        raise HTTPException(404, detail={"code": "SESSION_NOT_FOUND"})
+    rows = db.scalars(select(TrainingEvent).where(TrainingEvent.session_id == session_id,
+        TrainingEvent.type == "training.reasoning_saved").order_by(TrainingEvent.sequence_no)).all()
+    return {"records": [{"sequence_no": row.sequence_no, "created_at": row.created_at.isoformat(),
+                         "graph": row.payload} for row in rows]}

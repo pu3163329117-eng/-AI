@@ -13,7 +13,8 @@ try:
 except ModuleNotFoundError:
     from domain.knowledge import corpus_hash, locate_annotation, selection_for, sentence_for
     from domain.reading_context import reading_context_for
-from .models import KnowledgeOccurrence, ReadingDocument
+from .models import AnnotationHead, KnowledgeOccurrence, ReadingDocument
+from .annotation_review import effective
 from .seed import SEEDS
 
 
@@ -130,10 +131,14 @@ def _document_payload(db: Session, document: ReadingDocument, annotations: list[
     covered = {(row.paragraph_index, index) for row in rows for index in range(row.start, row.end)
                if 0 <= row.paragraph_index < len(paragraphs) and 0 <= index < len(paragraphs[row.paragraph_index])
                and category(paragraphs[row.paragraph_index][index])[0] in "LN"}
+    approved_ids = set(db.scalars(select(AnnotationHead.annotation_id).join(KnowledgeOccurrence)
+        .where(KnowledgeOccurrence.document_id == document.id,
+               AnnotationHead.payload["status"].as_string() == "APPROVED")).all())
     return {
         "id": document.id, "source": document.source, "extent": document.context.get("extent", "EXCERPT"),
         "indexed_positions": sum(category(row.surface)[0] in "LN" for row in positions),
         "codepoint_positions": len(positions), "annotated_positions": len(covered), "total_annotations": len(rows),
+        "approved_annotations": len(approved_ids),
     }
 
 
@@ -149,6 +154,7 @@ def knowledge_coverage(db: Session) -> dict:
         "codepoint_positions": sum(item["codepoint_positions"] for item in documents),
         "annotated_positions": sum(item["annotated_positions"] for item in documents),
         "annotations": sum(item["total_annotations"] for item in documents),
+        "approved_annotations": sum(item["approved_annotations"] for item in documents),
     }}
 
 
@@ -167,7 +173,7 @@ def knowledge_lookup(db: Session, snapshot: dict, paragraph_index: int, start: i
     annotations = [{
         "id": row.id, "token": row.surface, "start": row.start, "end": row.end, "meaning": row.meaning,
         "part_of_speech": row.part_of_speech, "variability": row.variability, "reasoning": row.reasoning,
-        "sense_key": row.sense_key, "status": "DRAFT", "source_url": document.context.get("source_url", ""),
+        "sense_key": row.sense_key, **effective(db, row, document),
     } for row in hits]
     related_items = []
     related_total = 0
@@ -202,7 +208,7 @@ def knowledge_lookup(db: Session, snapshot: dict, paragraph_index: int, start: i
             related_items.append({
                 "source": related_document.source, "token": row.surface, "meaning": row.meaning, "sentence": row.sentence,
                 "paragraph_index": row.paragraph_index, "start": row.start, "end": row.end,
-                "source_url": related_document.context.get("source_url", ""), "relation": "SAME_SENSE" if same_sense else "OTHER_SENSE",
+                "relation": "SAME_SENSE" if same_sense else "OTHER_SENSE", **effective(db, row, related_document),
             })
     return {
         "document": _document_payload(db, document, rows), "selection": selected, "annotations": annotations,

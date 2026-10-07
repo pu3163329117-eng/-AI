@@ -1,6 +1,7 @@
 import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, KnowledgeCoverage, KnowledgeLookup, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
 import { RequestError, requestJson } from './http'
 import { validateResponse } from './contracts'
+import type { AnnotationDetail, AnnotationFields, ManagedAnnotation, ReasoningRecord } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -59,6 +60,7 @@ export const trainingApi = {
       }),
     }),
   getSession: (sessionId: string) => request<{ session: TrainingSession }>(`/api/v1/training/sessions/${sessionId}`),
+  reasoning: (sessionId: string, signal: AbortSignal) => request<{ records: ReasoningRecord[] }>(`/api/v1/training/sessions/${sessionId}/reasoning`, { signal }),
 }
 
 export const knowledgeApi = {
@@ -67,6 +69,16 @@ export const knowledgeApi = {
     const query = new URLSearchParams({ session_id: sessionId, paragraph_index: String(paragraphIndex), start: String(start), end: String(end), offset: String(offset), limit: '5' })
     return request<KnowledgeLookup>(`/api/knowledge/lookup?${query}`, { signal })
   },
+}
+
+export const annotationApi = {
+  list: (document: string, status: string, q: string, offset: number, signal: AbortSignal) =>
+    request<{ total: number; items: ManagedAnnotation[] }>(`/api/v1/admin/knowledge/annotations?${new URLSearchParams({ document, status, q, offset: String(offset) })}`, { signal }),
+  get: (id: string, signal?: AbortSignal) => request<AnnotationDetail>(`/api/v1/admin/knowledge/annotations/${id}`, { signal }),
+  edit: (id: string, expected_version: number, fields: AnnotationFields, actor: string, note: string) =>
+    request<AnnotationDetail>(`/api/v1/admin/knowledge/annotations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...fields, expected_version, actor, note }) }),
+  review: (id: string, expected_version: number, actor: string, note: string) =>
+    request<AnnotationDetail>(`/api/v1/admin/knowledge/annotations/${id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expected_version, actor, note }) }),
 }
 
 export const profileApi = {

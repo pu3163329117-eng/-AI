@@ -5,6 +5,9 @@ import { ConnectionStatus } from './components/ConnectionStatus'
 import { RenderBoundary } from './components/RenderBoundary'
 import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
+import { AdminWorkbench } from './components/KnowledgeWorkbench'
+import { ReasoningEditor, ReasoningHistory } from './components/ReasoningEditor'
+import { restoredAnswer } from './reasoning'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
 import { usePageRoute, type ExitRisk } from './usePageRoute'
 import './polish.css'
@@ -686,7 +689,7 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
 }
 
 
-function TrainingPage({ sessionId, session, busy, pendingCommand, error, recoveryNeeded, onRecover, onCommand, onReturnHome }: {
+function TrainingPage({ sessionId, session, busy, pendingCommand, error, recoveryNeeded, onRecover, onCommand, onReturnHome, onDirtyChange }: {
   sessionId: string
   session: TrainingSession
   busy: boolean
@@ -696,9 +699,12 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
   onRecover: () => void
   onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
   onReturnHome: () => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
-  const [answer, setAnswer] = useState<string | null>(session.selected_answer)
-  useEffect(() => setAnswer(session.selected_answer), [session.selected_answer, session.stage])
+  const [answer, setAnswer] = useState<string | null>(restoredAnswer(session))
+  useEffect(() => setAnswer(restoredAnswer(session)), [session.selected_answer, session.stage, session.reasoning_graph?.conclusion])
+  const [reasoningDirty, setReasoningDirty] = useState(false)
+  const reportReasoningDirty = useCallback((dirty: boolean) => { setReasoningDirty(dirty); onDirtyChange(dirty) }, [onDirtyChange])
   const lastStep = useRef({ stage: session.stage, completed: session.completed })
   useEffect(() => {
     if (lastStep.current.stage === session.stage && lastStep.current.completed === session.completed) return
@@ -708,6 +714,7 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
   }, [session.stage, session.completed])
   const pendingLabels: Partial<Record<CommandType, string>> = { SUBMIT_ATTEMPT: '正在核验判断…', REQUEST_MORE_CONTEXT: '正在保存点读位置与语境…', SELECT_EVIDENCE: '正在记录证据…', DEFER_VARIABLE: '正在暂放变量…', REVISIT_VARIABLE: '正在恢复判断…', REQUEST_HINT: '正在读取提示…', CONTINUE_TO_TRANSFER: '正在准备迁移挑战…', COMPLETE_SESSION: '正在保存本关总结…' }
   const locked = busy || recoveryNeeded
+  pendingLabels.SAVE_REASONING = '正在保存原文证据与推断理由…'
   useEffect(() => {
     if (!recoveryNeeded) return
     const frame = requestAnimationFrame(() => jumpTo('command-recovery-title'))
@@ -731,9 +738,9 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
         </aside>
         <aside className="evidence-panel" aria-label="推理工具">
           <b>证据板</b>
-          <button className={session.evidence_selected ? 'selected' : ''} onClick={() => onCommand('SELECT_EVIDENCE')} disabled={locked || session.completed}>
-            <span aria-hidden="true">“</span>{session.evidence}<span aria-hidden="true">”</span>
-          </button>
+          <p>从原文选取证据，写出它与词义的关系。</p>
+          <button onClick={() => jumpTo('fulltext-title')} disabled={session.completed}>在原文中找证据 ↓</button>
+          <p>{session.reasoning_graph ? '已有保存的证据链' : '尚未保存证据链'} · 理由待复核</p>
           <hr />
           <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={locked || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
           {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={locked || session.completed}>回看这个字，继续判断</button>}
@@ -754,11 +761,12 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
                 <h1 id="question-title">{session.question}</h1>
                 <div className="choice-list" role="radiogroup" aria-label="选择词义">
                   {session.choices.map(choice => <label key={choice} className={`choice-option${answer === choice ? ' selected' : ''}`}>
-                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={locked} onChange={() => setAnswer(choice)} />
+                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={locked || isTransferReady || isSummaryReady} onChange={() => setAnswer(choice)} />
                     <span>{choice}</span>
                   </label>)}
                 </div>
-                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked}>
+                <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
+                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked || reasoningDirty || !session.reasoning_graph || session.reasoning_graph.conclusion !== answer || isTransferReady || isSummaryReady}>
                   {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : '提交判断'}
                 </button>
               </div>
@@ -773,6 +781,7 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
               <nav className="reading-shortcuts" aria-label="训练页快捷操作"><button onClick={() => jumpTo('fulltext-title')}>阅读原文</button><button onClick={() => jumpTo('training-question')}>回到题目 ↑</button></nav>
             </>
           )}
+          <ReasoningHistory sessionId={sessionId} version={session.state_version} />
         </section>
       </div>
     </main>
@@ -783,7 +792,7 @@ function LessonSummary({ summary, onReturnHome }: { summary: NonNullable<Trainin
   return (
     <section className="lesson-summary" aria-labelledby="summary-title">
       <p className="stage-label">本关总结</p>
-      <h1 id="summary-title" tabIndex={-1}>你不是猜对，<br />是推出来的。</h1>
+      <h1 id="summary-title" tabIndex={-1}>词义判断已完成，<br />再回看推理路径。</h1>
       <div className="summary-lines">
         <article><b>积累</b><p>{summary.accumulation}</p></article>
         <article><b>推理</b><p>{summary.reasoning}</p></article>
@@ -852,6 +861,7 @@ export function App() {
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingCommand, setPendingCommand] = useState<CommandType | null>(null)
+  const [trainingDirty, setTrainingDirty] = useState(false)
   const [uncertainCommand, setUncertainCommand] = useState<PendingTrainingCommand | null>(null)
   const operationLock = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -862,8 +872,8 @@ export function App() {
   useLayoutEffect(() => {
     if (pendingCommand) exitRisk.current = 'working'
     else if (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId) exitRisk.current = 'uncertain'
-    else if (page !== 'admin') exitRisk.current = null
-  }, [pendingCommand, uncertainCommand, sessionId, page])
+    else if (page !== 'admin') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
+  }, [pendingCommand, uncertainCommand, sessionId, page, trainingDirty])
 
   useEffect(() => {
     document.title = `${pageLabels[page]} · 文言·推理`
@@ -1129,9 +1139,9 @@ export function App() {
     {page === 'review' && profile && <ReviewPage sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
-    {page === 'admin' && <ContentAdminPage onExitRiskChange={onExitRiskChange} />}
+    {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
-    {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
+    {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onDirtyChange={setTrainingDirty} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !route.sessionId && <EmptyPage onHome={() => setPage('home')} />}
     </RenderBoundary>
     </div>

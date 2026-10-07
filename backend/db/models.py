@@ -104,6 +104,27 @@ class KnowledgeOccurrence(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
 
 
+class AnnotationHead(Base):
+    """Mutable version pointer; seeded occurrences and revisions stay untouched."""
+    __tablename__ = "annotation_heads"
+    annotation_id: Mapped[str] = mapped_column(ForeignKey("knowledge_occurrences.id"), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class AnnotationRevision(Base):
+    __tablename__ = "annotation_revisions"
+    __table_args__ = (UniqueConstraint("annotation_id", "version", name="uq_annotation_revision"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    annotation_id: Mapped[str] = mapped_column(ForeignKey("knowledge_occurrences.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    note: Mapped[str] = mapped_column(String(2000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class TrainingSession(Base):
     __tablename__ = "training_sessions"
 

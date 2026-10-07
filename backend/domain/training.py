@@ -97,6 +97,18 @@ def _hint(snapshot: dict[str, Any], level: int) -> str:
     return hints[min(level, len(hints)) - 1]
 
 
+def _evidence_rule_matches(expected: str, selected: str) -> bool:
+    """A curriculum label may enumerate non-adjacent clues with 、.
+
+    This is coverage matching, never semantic assessment of a student's reason.
+    Require every listed fragment in the same selected span, not just one word.
+    """
+    normalize = lambda value: "".join(char for char in value if category(char)[0] in "LN")
+    fragments = [normalize(part) for part in expected.split("、")]
+    actual = normalize(selected)
+    return bool(fragments) and all(fragment and fragment in actual for fragment in fragments)
+
+
 def _context_selection(snapshot: dict[str, Any], payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Resolve codepoint offsets against this session's frozen reading text."""
     scope = payload.get("scope")
@@ -142,7 +154,29 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
     if snapshot["completed"]:
         raise ValueError("SESSION_COMPLETED")
 
-    if action == "SELECT_EVIDENCE":
+    if action == "SAVE_REASONING":
+        if snapshot["transfer_ready"] or snapshot["summary_ready"]:
+            raise ValueError("REASONING_STAGE_VALIDATED")
+        _, evidence_span = _context_selection(snapshot, {**payload, "scope": "SENTENCE"})
+        reason, conclusion = payload.get("reason"), payload.get("conclusion")
+        if not isinstance(reason, str) or not 5 <= len(reason.strip()) <= 2000:
+            raise ValueError("INVALID_REASONING_REASON")
+        if conclusion not in snapshot["choices"]:
+            raise ValueError("INVALID_ANSWER")
+        matches = _evidence_rule_matches(snapshot["evidence"], evidence_span["token"])
+        graph = {
+            "schema_version": 1, "stage": snapshot["stage"], "source": snapshot["source"],
+            "text_version": snapshot.get("reading_context", {}).get("text_version", "历史快照"),
+            "target": snapshot["variable"], "evidence": evidence_span,
+            "reason": reason.strip(), "conclusion": conclusion,
+            "evidence_rule_matched": matches, "reason_review_status": "UNREVIEWED",
+        }
+        next_snapshot.update(reasoning_graph=graph, evidence_selected=matches,
+                             feedback="已保存证据链；理由尚未人工审核。" + ("可提交词义判断。" if matches else "所选原文未覆盖课程预设线索，可修改证据或继续提交判断。"))
+        events.append({"type": "training.reasoning_saved", "payload": graph})
+    elif action == "SELECT_EVIDENCE":
+        if snapshot.get("reasoning_graph"):
+            raise ValueError("REASONING_RECORD_REQUIRED")
         next_snapshot["evidence_selected"] = True
         next_snapshot["feedback"] = "已记录证据。现在用它解释你的判断。"
         events.append({"type": "training.evidence_selected", "payload": {"evidence": snapshot["evidence"], "stage": snapshot["stage"]}})
@@ -173,7 +207,9 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         if answer not in snapshot["choices"]:
             raise ValueError("INVALID_ANSWER")
         next_snapshot["selected_answer"] = answer
-        if answer == snapshot["correct_answer"] and snapshot["evidence_selected"]:
+        graph = snapshot.get("reasoning_graph")
+        evidence_ready = snapshot["evidence_selected"] and (not graph or graph["conclusion"] == answer)
+        if answer == snapshot["correct_answer"] and evidence_ready:
             if snapshot["stage"] == "CORE":
                 next_snapshot.update(state="ANSWER_VALIDATED", transfer_ready=True)
                 events.append({"type": "training.answer_validated", "payload": {"label": "CORRECT_REASONING", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
@@ -181,6 +217,8 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
                 next_snapshot.update(state="TRANSFER_VALIDATED", summary_ready=True)
                 events.append({"type": "training.transfer_validated", "payload": {"label": "TRANSFER_CONFIRMED", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
             next_snapshot["feedback"] = snapshot["validated_feedback"]
+            if graph:
+                next_snapshot["feedback"] += "（词义与预设证据通过规则核验；你的理由尚未人工审核。）"
         elif answer == snapshot["correct_answer"]:
             next_snapshot.update(state="AWAITING_REASONING" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_REASONING", feedback="答案正确。请再选一句证据，说明你为什么这样判断。")
             events.append({"type": "training.attempt_evaluated", "payload": {"label": "CORRECT_BUT_GUESSING", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
@@ -206,6 +244,7 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
             raise ValueError("TRANSFER_NOT_READY")
         next_snapshot.update(stage="TRANSFER", state="AWAITING_TRANSFER_ATTEMPT", **_presentation(snapshot["transfer_content"]))
         next_snapshot.update(selected_answer=None, evidence_selected=False, deferred=False, hint_level=0, hint=None, transfer_ready=False, context_selection=None)
+        next_snapshot["reasoning_graph"] = None
         next_snapshot["feedback"] = f"迁移挑战：换到陌生句子，仍然先用前后关系判断“{next_snapshot['variable']}”。"
         events.append({"type": "training.transfer_started", "payload": {"source": next_snapshot["source"]}})
     elif action == "COMPLETE_SESSION":

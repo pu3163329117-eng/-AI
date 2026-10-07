@@ -187,6 +187,7 @@ export type Mistake = {
 }
 
 export type TrainingSession = {
+  reasoning_graph?: ReasoningGraph | null
   /** Frozen teaching attribution; older stored sessions may not have these fields. */
   lesson?: {
     id: string
@@ -223,6 +224,7 @@ export type TrainingSession = {
 }
 
 export type CommandType =
+  | 'SAVE_REASONING'
   | 'SELECT_EVIDENCE'
   | 'DEFER_VARIABLE'
   | 'REVISIT_VARIABLE'
@@ -233,6 +235,7 @@ export type CommandType =
   | 'COMPLETE_SESSION'
 
 export type KnowledgeDocument = {
+  approved_annotations?: number
   id: string
   source: string
   extent: ReadingContext['extent']
@@ -251,7 +254,11 @@ export type WordAnnotation = {
   variability: 'CONTEXTUAL' | 'STABLE'
   reasoning: string
   sense_key: string
-  status: 'DRAFT'
+  status: 'DRAFT' | 'APPROVED'
+  version?: number
+  reviewer?: string | null
+  reviewed_at?: string | null
+  citation?: string
   source_url: string | null
 }
 
@@ -277,5 +284,22 @@ export type KnowledgeLookup = {
 
 export type KnowledgeCoverage = {
   documents: KnowledgeDocument[]
-  totals: { documents: number; indexed_positions: number; annotated_positions: number; annotations: number }
+  totals: { documents: number; indexed_positions: number; annotated_positions: number; annotations: number; approved_annotations?: number }
 }
+
+export type ReasoningGraph = {
+  schema_version: number
+  stage: TrainingStage
+  source: string
+  text_version: string
+  target: string
+  evidence: ContextSelection
+  reason: string
+  conclusion: string
+  evidence_rule_matched: boolean
+  reason_review_status: 'UNREVIEWED'
+}
+export type ReasoningRecord = { sequence_no: number; created_at: string; graph: ReasoningGraph }
+export type ManagedAnnotation = WordAnnotation & { document_id: string; source: string; paragraph_index: number; sentence: string; version: number; citation: string }
+export type AnnotationFields = Pick<ManagedAnnotation, 'meaning' | 'part_of_speech' | 'variability' | 'reasoning' | 'citation'> & { source_url: string }
+export type AnnotationDetail = { annotation: ManagedAnnotation; history: { version: number; action: 'EDIT' | 'REVIEW' | 'SEED'; actor: string; note: string; created_at: string; payload: AnnotationFields & { status: 'DRAFT' | 'APPROVED' } }[] }
