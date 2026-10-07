@@ -230,3 +230,51 @@ export type CommandType =
   | 'SUBMIT_ATTEMPT'
   | 'CONTINUE_TO_TRANSFER'
   | 'COMPLETE_SESSION'
+
+export type KnowledgeDocument = {
+  id: string
+  source: string
+  extent: ReadingContext['extent']
+  indexed_positions: number
+  annotated_positions: number
+  total_annotations: number
+}
+
+export type WordAnnotation = {
+  id: string
+  token: string
+  start: number
+  end: number
+  meaning: string
+  part_of_speech: string
+  variability: 'CONTEXTUAL' | 'STABLE'
+  reasoning: string
+  sense_key: string
+  status: 'DRAFT'
+  source_url: string | null
+}
+
+export type RelatedContext = {
+  source: string
+  token: string
+  meaning: string
+  sentence: string
+  paragraph_index: number
+  start: number
+  end: number
+  source_url: string | null
+  relation: 'SAME_SENSE' | 'OTHER_SENSE'
+}
+
+export type KnowledgeLookup = {
+  document: KnowledgeDocument | null
+  selection: { token: string; paragraph_index: number; start: number; end: number; sentence: string } | null
+  annotations: WordAnnotation[]
+  related: { total: number; items: RelatedContext[] }
+  status: 'ANNOTATED' | 'PENDING' | 'UNAVAILABLE'
+}
+
+export type KnowledgeCoverage = {
+  documents: KnowledgeDocument[]
+  totals: { documents: number; indexed_positions: number; annotated_positions: number; annotations: number }
+}

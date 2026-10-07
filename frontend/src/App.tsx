@@ -670,7 +670,8 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
 }
 
 
-function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
+function TrainingPage({ sessionId, session, busy, error, onCommand, onReturnHome }: {
+  sessionId: string
   session: TrainingSession
   busy: boolean
   error: string | null
@@ -701,7 +702,7 @@ function TrainingPage({ session, busy, error, onCommand, onReturnHome }: {
             <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
           ) : (
             <>
-              <ContextReader key={session.stage} session={session} busy={busy} onCommand={onCommand} />
+              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={busy} onCommand={onCommand} />
               <p className="passage">{beforeVariable}{variableIndex >= 0 && <span>{session.variable}</span>}{afterVariable}</p>
               <div className="question-area">
                 <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
@@ -1036,7 +1037,7 @@ export function App() {
     {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
     {page === 'report' && profile && <LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} />}
     {page === 'admin' && <ContentAdminPage />}
-    {page === 'training' && session && <TrainingPage session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
+    {page === 'training' && session && sessionId && <TrainingPage sessionId={sessionId} session={session} busy={busy} error={error} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !session && <EmptyPage onHome={() => setPage('home')} />}
   </div>
 }

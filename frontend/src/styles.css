@@ -229,6 +229,38 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .context-layers strong { font-family: "Songti SC", STSong, SimSun, serif; font-size: 23px; font-weight: 500; }
 .context-layers p { margin: 0; color: #4e4e49; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
 .context-layers .stage-label { font-size: 11px; }.context-layers .reader-version { margin-top: 14px; font-size: 11px; }
+.word-knowledge { margin-top: 12px; padding-top: 18px; border-top: 2px solid #111; }
+.word-knowledge h3, .word-knowledge h4 { margin: 0 0 8px; color: #111; font-size: 16px; letter-spacing: 0; }
+.word-knowledge .knowledge-note, .word-knowledge .knowledge-coverage { color: #666; font-size: 12px; line-height: 1.8; }
+.word-knowledge .knowledge-coverage { margin: 12px 0; }
+.word-knowledge a { display: inline-flex; align-items: center; min-height: 44px; color: #222; text-underline-offset: 3px; }
+.word-knowledge a:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.word-annotation { padding: 16px 0; border-bottom: 1px solid #deded9; }
+.word-annotation header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.word-annotation header b { color: #111; font-size: 22px; font-family: "Songti SC", STSong, SimSun, serif; }
+.word-annotation header span { color: #666; font-size: 11px; }
+.word-annotation p { margin-top: 8px; }
+.word-annotation .word-meaning { color: #111; font-size: 16px; }
+.word-annotation .word-variability { color: #222; font-weight: 600; }
+.related-contexts { margin-top: 20px; }
+.related-contexts summary { min-height: 44px; padding: 10px 0; color: #111; font-size: 14px; cursor: pointer; }
+.related-contexts summary:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.related-contexts h4 span { margin-left: 5px; color: #666; font-size: 12px; font-weight: 400; }
+.related-contexts article { padding: 12px 0; border-bottom: 1px solid #deded9; }
+.related-contexts blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #888; color: #333; font-family: "Songti SC", STSong, SimSun, serif; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.related-contexts .related-relation { color: #222; font-size: 12px; font-weight: 600; }
+.related-pagination { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 12px; font-size: 12px; }
+.knowledge-action { min-height: 44px; padding: 8px 12px; border: 1px solid #bbb; border-radius: 4px; background: #fff; color: #111; cursor: pointer; }
+.knowledge-action:disabled { color: #888; cursor: default; }
+.knowledge-action:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.knowledge-overview { margin: 0 0 18px; color: #555; font-size: 12px; line-height: 1.8; }
+.knowledge-overview summary { min-height: 44px; padding: 10px 0; color: #222; cursor: pointer; }
+.knowledge-overview summary:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+.knowledge-overview > div { padding: 12px 0; border-block: 1px solid #deded9; }
+.knowledge-overview p { margin: 0 0 12px; }
+.knowledge-coverage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 0 24px; }
+.knowledge-coverage-list > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 10px 0; border-top: 1px solid #deded9; }
+.knowledge-coverage-list b { color: #222; font-weight: 500; }
 .revisit-action { font-weight: 700; }
 .editor-review { margin: 0 0 28px; padding: 22px 0; border-top: 1px solid #aaa; border-bottom: 1px solid #aaa; }
 .review-version-line { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; flex-wrap: wrap; }.review-version-line strong { font-size: 16px; }.review-version-line span { color: #666; font-family: monospace; font-size: 12px; }

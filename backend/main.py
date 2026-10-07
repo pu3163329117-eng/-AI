@@ -18,6 +18,7 @@ try:
     from backend.db.init import init_db
     from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from backend.db.session import get_db
+    from backend.db.knowledge import knowledge_coverage, knowledge_lookup
     from backend.domain.training import apply_command, initial_snapshot
     from backend.domain.reading_context import reading_context_for, validate_reading_context
     from backend.domain.editorial import content_fingerprint, review_readiness
@@ -28,6 +29,7 @@ except ModuleNotFoundError:
     from db.init import init_db
     from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from db.session import get_db
+    from db.knowledge import knowledge_coverage, knowledge_lookup
     from domain.training import apply_command, initial_snapshot
     from domain.reading_context import reading_context_for, validate_reading_context
     from domain.editorial import content_fingerprint, review_readiness
@@ -852,6 +854,30 @@ def get_session(session_id: str, db: DbSession) -> dict:
     if not record:
         raise HTTPException(status_code=404, detail={"code": "SESSION_NOT_FOUND"})
     return {"session": record.snapshot}
+
+
+@app.get("/api/knowledge/coverage")
+def get_knowledge_coverage(db: DbSession) -> dict:
+    return knowledge_coverage(db)
+
+
+@app.get("/api/knowledge/lookup")
+def lookup_knowledge(
+    db: DbSession,
+    session_id: str = Query(min_length=1, max_length=36),
+    paragraph_index: int = Query(ge=0),
+    start: int = Query(ge=0),
+    end: int = Query(ge=1),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=5, ge=1, le=25),
+) -> dict:
+    record = db.get(TrainingSession, session_id)
+    if not record:
+        raise HTTPException(status_code=404, detail={"code": "SESSION_NOT_FOUND"})
+    try:
+        return knowledge_lookup(db, record.snapshot, paragraph_index, start, end, offset, limit)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_KNOWLEDGE_SELECTION"}) from error
 
 
 @app.post(f"{API_PREFIX}/training/sessions/{{session_id}}/commands")

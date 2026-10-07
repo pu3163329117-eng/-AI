@@ -70,6 +70,40 @@ class LessonReview(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now(), nullable=False)
 
 
+class ReadingDocument(Base):
+    """Immutable source text versions; a new corpus never reuses old offsets."""
+
+    __tablename__ = "reading_documents"
+    __table_args__ = (UniqueConstraint("source", "corpus_hash", name="uq_reading_document_version"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    corpus_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    context: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class KnowledgeOccurrence(Base):
+    """POSITION rows index characters; only ANNOTATION rows assert a meaning."""
+
+    __tablename__ = "knowledge_occurrences"
+    __table_args__ = (UniqueConstraint("document_id", "occurrence_key", name="uq_knowledge_occurrence_key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("reading_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    occurrence_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    paragraph_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    start: Mapped[int] = mapped_column(Integer, nullable=False)
+    end: Mapped[int] = mapped_column(Integer, nullable=False)
+    surface: Mapped[str] = mapped_column(String(100), nullable=False)
+    sentence: Mapped[str] = mapped_column(String(20000), nullable=False)
+    sense_key: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    meaning: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    part_of_speech: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    variability: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reasoning: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
+
+
 class TrainingSession(Base):
     __tablename__ = "training_sessions"
 

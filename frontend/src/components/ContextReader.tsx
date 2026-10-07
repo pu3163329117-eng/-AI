@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { CommandType, ContextScope, ContextSelection, TrainingSession } from '../types'
+import { WordKnowledge } from './WordKnowledge'
+import { KnowledgeCoverage } from './KnowledgeCoverage'
 
 const layers: [ContextScope, string][] = [['WORD', '词'], ['SENTENCE', '句'], ['PARAGRAPH', '段'], ['WORK', '篇'], ['ERA', '时代']]
 const extentLabels = { FULL: '全文', CHAPTER: '完整章节', EXCERPT: '课内节选', PROMPT: '题目原文' }
@@ -33,6 +35,26 @@ function tokensFor(paragraph: string, terms: string[], characterMode: boolean) {
 }
 
 function defaultSelection(session: TrainingSession, paragraphs: string[]): ContextSelection | null {
+  // The same glyph may occur several times in one paragraph. Locate it inside
+  // the frozen prompt first, rather than taking the paragraph's first glyph.
+  const normalizedPassage = Array.from(session.passage).filter(char => /[\p{L}\p{N}]/u.test(char)).join('')
+  const normalizedVariable = Array.from(session.variable).filter(char => /[\p{L}\p{N}]/u.test(char)).join('')
+  const variableOffset = normalizedPassage.indexOf(normalizedVariable)
+  if (normalizedPassage && normalizedVariable && variableOffset >= 0) {
+    for (let paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+      const paragraph = paragraphs[paragraphIndex]
+      const positions = Array.from(paragraph).map((char, index) => ({ char, index })).filter(item => /[\p{L}\p{N}]/u.test(item.char))
+      const normalized = positions.map(item => item.char).join('')
+      const passageOffset = normalized.indexOf(normalizedPassage)
+      if (passageOffset < 0) continue
+      const before = Array.from(normalized.slice(0, passageOffset)).length
+      const within = Array.from(normalizedPassage.slice(0, variableOffset)).length
+      const length = Array.from(normalizedVariable).length
+      const start = positions[before + within].index
+      const end = positions[before + within + length - 1].index + 1
+      return { paragraph_index: paragraphIndex, start, end, token: Array.from(paragraph).slice(start, end).join(''), paragraph, sentence: sentenceAt(paragraph, start, end), scope: 'WORD' }
+    }
+  }
   const paragraphIndex = paragraphs.findIndex(paragraph => paragraph.includes(session.variable) && paragraph.includes(session.evidence))
   const index = paragraphIndex < 0 ? paragraphs.findIndex(paragraph => paragraph.includes(session.variable)) : paragraphIndex
   if (index < 0) return null
@@ -42,7 +64,8 @@ function defaultSelection(session: TrainingSession, paragraphs: string[]): Conte
   return { paragraph_index: index, start, end, token: session.variable, paragraph, sentence: sentenceAt(paragraph, start, end), scope: 'WORD' }
 }
 
-export function ContextReader({ session, busy, onCommand }: {
+export function ContextReader({ sessionId, session, busy, onCommand }: {
+  sessionId: string
   session: TrainingSession
   busy: boolean
   onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
@@ -75,7 +98,8 @@ export function ContextReader({ session, busy, onCommand }: {
       <button type="button" className="reader-range-toggle" aria-pressed={rangeMode} disabled={busy}
         onClick={() => { setRangeMode(!rangeMode); setAnchor(null); setRangeError('') }}>{rangeMode ? '取消词组选择' : '选择任意词组'}</button>
     </header>
-    <p className="reader-guide" aria-live="polite">{rangeError || (rangeMode ? (anchor ? '再点同段的结束字，选取整段词组。' : '先点词组起始字，再点结束字。') : '点击字词查看五层语境；选择任意词组可精确定位同段连续文字。')}</p>
+    <p className="reader-guide" aria-live="polite">{rangeError || (rangeMode ? (anchor ? '再点同段的结束字，选取整段词组。' : '先点词组起始字，再点结束字。') : '点击字词查看本句释义、变量判断和五层语境；词组可选择起止位置。')}</p>
+    <KnowledgeCoverage />
     <div className="fulltext-layout">
       <div className="fulltext-canvas" tabIndex={0} aria-label={`${session.source}${extent}`}>
         <p className="fulltext-source">{session.source} · {context?.work_note ?? '当前课内原文'}</p>
@@ -93,13 +117,15 @@ export function ContextReader({ session, busy, onCommand }: {
       </div>
       <aside className="context-layers" aria-live="polite" aria-label="当前字词的五层语境">
         <p className="stage-label">语境标尺 · {session.context_selection ? '已保存' : '点击后保存'}</p>
+        {session.context_selection ? <WordKnowledge sessionId={sessionId} selection={session.context_selection} stage={session.stage} /> :
+          <p className="reader-version">点击原文字词，查看本句解释与其他语境。释义按需展开，不在进入训练时自动揭示。</p>}
         <ol>{layers.map(([scope, label]) => <li key={scope} className={selection?.scope === scope ? 'active-layer' : ''}>
           <button type="button" aria-pressed={selection?.scope === scope} disabled={!selection || busy || rangeMode}
             onClick={() => selection && onCommand('REQUEST_MORE_CONTEXT', { paragraph_index: selection.paragraph_index, start: selection.start, end: selection.end, scope })}>{label}</button>
           <div>{scope === 'WORD' ? <><strong>“{selection?.token ?? '待选择'}”</strong><p>{selection ? `第 ${selection.paragraph_index + 1} 段 · 第 ${selection.start + 1}–${selection.end} 字` : '点击原文中的字词。'}</p></> :
             <p>{scope === 'SENTENCE' ? selection?.sentence ?? '选词后显示所在句。' : scope === 'PARAGRAPH' ? selection?.paragraph ?? '选词后显示所在段。' : scope === 'WORK' ? `${session.source} · ${extent}。${context?.work_note ?? '篇章信息待补充'}` : `${context?.author ?? '作者待补充'} · ${context?.era ?? '时代待补充'}`}</p>}</div>
         </li>)}</ol>
-        <p className="reader-version">语境提供阅读依据，不直接代替你的词义判断。</p>
+        <p className="reader-version">原典链接用于核对原文，不代表释义已经教师审定。</p>
       </aside>
     </div>
   </section>

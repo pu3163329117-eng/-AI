@@ -1,4 +1,4 @@
-import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
+import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, KnowledgeCoverage, KnowledgeLookup, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -60,6 +60,14 @@ export const trainingApi = {
       }),
     }),
   getSession: (sessionId: string) => request<{ session: TrainingSession }>(`/api/v1/training/sessions/${sessionId}`),
+}
+
+export const knowledgeApi = {
+  coverage: (signal: AbortSignal) => request<KnowledgeCoverage>('/api/knowledge/coverage', { signal }),
+  lookup: (sessionId: string, paragraphIndex: number, start: number, end: number, offset: number, signal: AbortSignal) => {
+    const query = new URLSearchParams({ session_id: sessionId, paragraph_index: String(paragraphIndex), start: String(start), end: String(end), offset: String(offset), limit: '5' })
+    return request<KnowledgeLookup>(`/api/knowledge/lookup?${query}`, { signal })
+  },
 }
 
 export const profileApi = {
