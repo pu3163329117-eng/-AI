@@ -176,14 +176,14 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
         if answer == snapshot["correct_answer"] and snapshot["evidence_selected"]:
             if snapshot["stage"] == "CORE":
                 next_snapshot.update(state="ANSWER_VALIDATED", transfer_ready=True)
-                events.append({"type": "training.answer_validated", "payload": {"label": "CORRECT_REASONING"}})
+                events.append({"type": "training.answer_validated", "payload": {"label": "CORRECT_REASONING", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
             else:
                 next_snapshot.update(state="TRANSFER_VALIDATED", summary_ready=True)
-                events.append({"type": "training.transfer_validated", "payload": {"label": "TRANSFER_CONFIRMED"}})
+                events.append({"type": "training.transfer_validated", "payload": {"label": "TRANSFER_CONFIRMED", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
             next_snapshot["feedback"] = snapshot["validated_feedback"]
         elif answer == snapshot["correct_answer"]:
             next_snapshot.update(state="AWAITING_REASONING" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_REASONING", feedback="答案正确。请再选一句证据，说明你为什么这样判断。")
-            events.append({"type": "training.attempt_evaluated", "payload": {"label": "CORRECT_BUT_GUESSING"}})
+            events.append({"type": "training.attempt_evaluated", "payload": {"label": "CORRECT_BUT_GUESSING", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
         else:
             next_snapshot.update(state="AWAITING_INITIAL_ATTEMPT" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_ATTEMPT", feedback=f"这条解释暂时无法和“{snapshot['evidence']}”形成关系。试着使用证据，或请求一条提示。")
             # Keep the minimal attempt context on the immutable event. A session

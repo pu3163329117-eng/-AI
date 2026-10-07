@@ -111,7 +111,7 @@ def test_achievements_use_real_sessions_events_streak_and_review_priority():
                     session_id=weak_record.id,
                     sequence_no=1,
                     type="training.attempt_evaluated",
-                    payload={"label": "WRONG_CONTEXT"},
+                    payload={"label": "WRONG_CONTEXT", "variable": "从", "stage": "CORE"},
                 )
             )
             db.commit()

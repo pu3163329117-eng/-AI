@@ -1,0 +1,111 @@
+/* This scoped layer owns the learner layout, navigation and motion. Legacy
+   editorial form styles remain in styles.css; no dependency or theme change. */
+.app-shell.polished { max-width: 1440px; overflow: clip; }
+.polished { --surface-padding: clamp(24px, 4vw, 56px); --motion-fast: 180ms; }
+.polished .app-header { position: sticky; top: 0; z-index: 20; height: 76px; padding-inline: 28px; gap: 24px; background: #fff; }
+.polished .brand { min-height: 44px; text-align: left; letter-spacing: -.06em; }
+.polished .account { width: 44px; height: 44px; flex-shrink: 0; font-size: 13px; }
+.polished .app-header nav { gap: 8px; }
+.polished .app-header nav a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px; color: #646460; font-size: 13px; text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; transition: color var(--motion-fast), border-color var(--motion-fast); }
+.polished .app-header nav a.is-active { color: #111; font-weight: 700; border-bottom-color: #111; }
+.polished .app-header nav a:hover { color: #111; }
+.polished .app-header nav a[aria-disabled] { opacity: .45; cursor: not-allowed; }
+.polished a:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+.skip-link { position: absolute; top: 12px; left: 20px; z-index: 40; transform: translateY(-180%); padding: 12px; background: #111; color: #fff; }
+.skip-link:focus { transform: none; }
+.page-view { animation: page-enter 200ms ease-out; }
+.page-view:focus { outline: none; }
+.page-view main:focus { outline: none; }
+.polished .hero { min-height: 360px; padding: 46px var(--surface-padding); gap: 36px; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); }
+.polished .hero h1 { margin: 18px 0; font-size: clamp(40px, 4.6vw, 68px); line-height: 1.08; letter-spacing: -.05em; text-wrap: balance; overflow-wrap: anywhere; }
+.polished .hero .intro { max-width: 520px; }
+.polished .lesson-catalog { padding: 32px var(--surface-padding) 48px; }
+.polished .lesson-grid { gap: 24px; }
+.polished .lesson-card { min-height: 210px; }
+.polished :is(.skills-page, .practice-page, .profile-page, .review-page, .learning-report-page, .content-admin-page) { width: 100%; max-width: 1200px; margin-inline: auto; padding: 44px var(--surface-padding) 64px; }
+.polished :is(.skills-page, .practice-page, .profile-page, .review-page, .learning-report-page, .content-admin-page) h1 { font-size: clamp(34px, 4vw, 56px); line-height: 1.12; letter-spacing: -.045em; text-wrap: balance; }
+.polished .practice-heading { gap: 32px; padding-bottom: 28px; }
+.polished .practice-plan-list { margin-top: 28px; }
+.polished .skill-list { margin-top: 32px; }
+.polished .skill-list > [role=status] { min-height: 180px; padding-top: 24px; }
+.polished .skill-row > b small { font-size: 15px; }
+.polished .text-button { display: inline-flex; align-items: center; min-height: 44px; }
+.polished .button:active:not(:disabled) { transform: scale(.98); }
+.polished .practice-state { min-height: 160px; }
+.polished .route-state { min-height: 55vh; display: grid; place-items: center; padding: 32px; }
+.polished .training-page { padding: 22px; }
+.polished .training-shell { grid-template-columns: minmax(0, 1fr) 210px; gap: 18px; }
+.polished .step-list { padding: 8px 18px; min-height: 48px; border-radius: 8px; }
+.polished .lesson { padding: 24px 28px; grid-column: 1; grid-row: 2; }
+.polished .lesson-meta { margin-bottom: 20px; }
+.polished .training-task { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid #aaa; scroll-margin-top: 100px; }
+.polished .training-task-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.polished .training-task-heading .stage-label { margin: 0; }
+.polished .training-task .passage { font-size: clamp(23px, 2.3vw, 32px); line-height: 1.8; letter-spacing: .015em; }
+.polished .training-task .question-area { margin-top: 16px; padding-top: 14px; }
+.polished .training-task .question-area h1 { font-size: 19px; line-height: 1.55; letter-spacing: 0; margin: 8px 0 14px; }
+.polished .choice-list { max-width: none; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 10px; }
+.polished .choice-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; color: #111; background: #fff; font-size: 14px; line-height: 1.5; cursor: pointer; transition: background var(--motion-fast), border-color var(--motion-fast); }
+.polished .choice-option.selected { background: #f1f1ee; border-color: #111; }
+.polished .choice-option input { margin: 0; width: 18px; height: 18px; flex-shrink: 0; accent-color: #111; }
+.polished .choice-option:focus-within { outline: 2px solid #111; outline-offset: 2px; }
+.polished .choice-option:has(input:disabled) { opacity: .55; cursor: wait; }
+.polished .training-task .submit { margin-top: 16px; min-height: 44px; }
+.polished .training-task .feedback { margin-top: 14px; min-height: 42px; }
+.polished .fulltext-reader { margin-bottom: 12px; border-bottom: 0; }
+.polished #fulltext-title { scroll-margin-top: 105px; }
+.polished .fulltext-layout { grid-template-columns: minmax(0, 1fr) minmax(260px, .72fr); gap: 22px; }
+.polished .fulltext-canvas, .polished .context-layers { max-height: min(68vh, 620px); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-color: #888 #f0f0ed; scrollbar-width: thin; }
+.polished .context-layers { padding: 0 10px 12px 16px; }
+.polished .context-layers > .stage-label { position: sticky; top: 0; z-index: 1; background: #fff; padding: 8px 0; }
+.polished .word-knowledge { margin-top: 6px; padding-top: 14px; }
+.polished .word-knowledge [role=status] { min-height: 100px; padding: 12px 0; }
+.polished .evidence-panel { grid-column: 2; grid-row: 2; position: sticky; top: 96px; align-self: start; }
+.polished .reading-shortcuts { display: flex; justify-content: flex-end; gap: 12px; padding-top: 12px; border-top: 1px solid #ddd; }
+.polished .reading-shortcuts button { min-height: 44px; padding: 10px 14px; border: 1px solid #aaa; border-radius: 6px; background: #fff; color: #111; cursor: pointer; }
+@keyframes page-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1100px) {
+  .polished .app-header { display: grid; grid-template-columns: 1fr auto; height: auto; min-height: 68px; gap: 0; padding-inline: 24px; }
+  .polished .brand { grid-column: 1; grid-row: 1; justify-self: start; }
+  .polished .account { grid-column: 2; grid-row: 1; }
+  .polished .app-header nav { grid-column: 1 / -1; grid-row: 2; width: 100%; overflow-x: auto; padding: 4px 0; border-top: 1px solid #eee; }
+  .polished .app-header nav a { flex-shrink: 0; }
+  .polished .lesson-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .polished .training-shell { grid-template-columns: minmax(0, 1fr); }
+  .polished .evidence-panel { grid-column: 1; grid-row: 2; position: static; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; }
+  .polished .evidence-panel b { width: 100%; font-size: 12px; }
+  .polished .evidence-panel hr { display: none; }
+  .polished .evidence-panel button { min-height: 44px; padding: 9px 12px; font-size: 13px; }
+  .polished .evidence-panel .hint { flex-basis: 100%; }
+  .polished .lesson { grid-row: 3; }
+  .polished .training-task, .polished #fulltext-title { scroll-margin-top: 135px; }
+}
+@container (max-width: 720px) {
+  .polished .fulltext-layout { grid-template-columns: 1fr; gap: 20px; }
+  .polished .context-layers { max-height: min(64vh, 540px); }
+}
+@media (max-width: 760px) {
+  .polished .hero { grid-template-columns: 1fr; gap: 20px; padding-block: 30px; }
+  .polished .hero h1 { font-size: clamp(34px, 9vw, 46px); }
+  .polished .daily-mission { margin-top: 0; }
+  .polished .lesson-grid { grid-template-columns: 1fr; gap: 12px; }
+  .polished .lesson-card { min-height: 170px; }
+  .polished .training-page { padding: 10px 0 84px; }
+  .polished .step-list { display: flex; gap: 4px 8px; padding: 8px 20px; border-radius: 0; }
+  .polished .step-list b { display: none; }
+  .polished .step-list span { padding: 6px 2px; font-size: 11px; }
+  .polished .lesson { padding: 20px; }
+  .polished .training-task-heading { align-items: start; }
+  .polished .training-task-heading .text-button { font-size: 12px; white-space: nowrap; }
+  .polished .choice-list { grid-template-columns: 1fr; }
+  .polished .fulltext-layout { grid-template-columns: 1fr; }
+  .polished .fulltext-canvas { max-height: 420px; }
+  .polished .context-layers { max-height: 480px; }
+  .polished .reading-shortcuts { position: fixed; bottom: 0; left: 0; right: 0; z-index: 25; justify-content: space-between; background: #fff; padding: 10px 20px max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 16px #00000008; }
+  .polished .reading-shortcuts button { flex: 1; }
+  .polished .practice-controls button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .polished .page-view { animation: none; }
+  .polished :is(.button, .choice-option, .app-header nav a) { transition: none; }
+}

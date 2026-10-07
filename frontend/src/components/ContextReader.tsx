@@ -94,7 +94,7 @@ export function ContextReader({ sessionId, session, busy, onCommand }: {
 
   return <section className="fulltext-reader" aria-labelledby="fulltext-title" aria-busy={busy}>
     <header className="fulltext-heading">
-      <div><p className="stage-label">原文点读 · {extent}</p><h2 id="fulltext-title">先在篇中读，再回到词上。</h2></div>
+      <div><p className="stage-label">原文点读 · {extent}</p><h2 id="fulltext-title" tabIndex={-1}>先在篇中读，再回到词上。</h2></div>
       <button type="button" className="reader-range-toggle" aria-pressed={rangeMode} disabled={busy}
         onClick={() => { setRangeMode(!rangeMode); setAnchor(null); setRangeError('') }}>{rangeMode ? '取消词组选择' : '选择任意词组'}</button>
     </header>

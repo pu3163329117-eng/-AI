@@ -43,6 +43,7 @@ def test_learning_summary_has_useful_zero_state_and_404():
                 "completed_sessions": 0,
                 "current_streak_days": 0,
                 "weak_skills": [],
+                "skill_statistics": [],
                 "recent_activity": [],
             }
         }
@@ -68,13 +69,36 @@ def test_learning_summary_aggregates_completion_points_streak_and_accuracy():
         assert response.status_code == 200
         summary = response.json()["summary"]
         assert set(summary) == {
-            "total_points", "completed_lessons", "completed_sessions", "current_streak_days", "weak_skills", "recent_activity"
+            "total_points", "completed_lessons", "completed_sessions", "current_streak_days", "weak_skills", "skill_statistics", "recent_activity"
         }
         assert summary["total_points"] == 20
         assert summary["completed_lessons"] == 1
         assert summary["completed_sessions"] == 1
         assert summary["current_streak_days"] == 1
         assert summary["weak_skills"] == [{"label": "词义判断·从", "attempts": 3, "accuracy": 0.667}]
+        assert summary["skill_statistics"] == summary["weak_skills"]
         assert summary["recent_activity"] == [
             {"date": date.today().isoformat(), "points": 20, "completed_sessions": 1}
         ]
+
+
+def test_skill_statistics_include_perfect_results_and_frozen_attempt_words():
+    from types import SimpleNamespace
+    from backend.main import _learning_summary
+    profile = SimpleNamespace(total_points=0)
+    records = [SimpleNamespace(id="s", snapshot={"completed": False, "variable": "与"})]
+    events = [SimpleNamespace(session_id="s", type="training.answer_validated", payload={"variable": "假", "stage": "CORE"}),
+              SimpleNamespace(session_id="s", type="training.transfer_validated", payload={"variable": "与", "stage": "TRANSFER"})]
+    result = _learning_summary(profile, records, events)
+    assert result["weak_skills"] == []
+    assert {item["label"] for item in result["skill_statistics"]} == {"词义判断·假", "词义判断·与"}
+    assert all(item["accuracy"] == 1 and item["attempts"] == 1 for item in result["skill_statistics"])
+
+
+def test_legacy_events_do_not_borrow_current_snapshot_word():
+    from types import SimpleNamespace
+    from backend.main import _learning_summary
+    result = _learning_summary(SimpleNamespace(total_points=0),
+        [SimpleNamespace(id="s", snapshot={"completed": False, "variable": "与"})],
+        [SimpleNamespace(session_id="s", type="training.answer_validated", payload={"label": "CORRECT_REASONING"})])
+    assert result["skill_statistics"] == [{"label": "历史判断·未记录目标词", "attempts": 1, "accuracy": 1.0}]

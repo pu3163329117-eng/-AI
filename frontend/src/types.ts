@@ -70,6 +70,7 @@ export type LearningSummary = {
   completed_sessions: number
   current_streak_days: number
   weak_skills: WeakSkill[]
+  skill_statistics?: WeakSkill[]
   recent_activity: RecentActivity[]
 }
 

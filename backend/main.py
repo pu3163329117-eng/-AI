@@ -139,9 +139,11 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
         record = records_by_id.get(event.session_id)
         if record is None:
             continue
-        snapshot = record.snapshot
-        variable = snapshot.get("variable")
-        label = f"词义判断·{variable}" if isinstance(variable, str) and variable.strip() else "语境推理"
+        # Stage transitions can change the snapshot's target word. Use the
+        # immutable attempt, not the latest displayed word. Older events are
+        # honestly grouped as unspecified instead of guessing their target.
+        variable = event.payload.get("variable")
+        label = f"词义判断·{variable}" if isinstance(variable, str) and variable.strip() else "历史判断·未记录目标词"
         stats = attempts_by_skill.setdefault(label, {"attempts": 0, "correct": 0})
         if event.type == "training.attempt_evaluated":
             stats["attempts"] += 1
@@ -151,15 +153,17 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
             stats["attempts"] += 1
             stats["correct"] += 1
 
-    weak_skills = [
+    skill_statistics = [
         {
             "label": label,
             "attempts": stats["attempts"],
             "accuracy": round(stats["correct"] / stats["attempts"], 3),
         }
         for label, stats in attempts_by_skill.items()
-        if stats["attempts"] and stats["correct"] < stats["attempts"]
+        if stats["attempts"]
     ]
+    skill_statistics.sort(key=lambda item: item["label"])
+    weak_skills = [item for item in skill_statistics if attempts_by_skill[item["label"]]["correct"] < item["attempts"]]
     weak_skills.sort(key=lambda item: (item["accuracy"], -item["attempts"], item["label"]))
 
     completed_lessons = {
@@ -177,6 +181,7 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
         "completed_sessions": len(completed),
         "current_streak_days": streak,
         "weak_skills": weak_skills,
+        "skill_statistics": skill_statistics,
         "recent_activity": recent_activity,
     }
 

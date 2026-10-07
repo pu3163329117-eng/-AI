@@ -26,6 +26,7 @@ npm run dev
 ```powershell
 python -m pytest backend/tests -q -p no:cacheprovider
 Set-Location frontend
+npm test
 npm run build
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/health
 ```
@@ -39,3 +40,5 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/health
 字词知识库按每次出现的位置保存本句义、词性、变量／本句相对确定的判断依据，点击词组内部字也能查看词项解释。其他语境来自已收录原文真实位置，支持分页；历史版本不会误用新版偏移。新增注释全部为草稿，不代表教师认证。各篇覆盖进度可在原文阅读器展开查看，架构与只读完整性审计见 [字词知识库](docs/knowledge-base.md)。
 
 目前 13 个原文单元已有 3,495 条注释草稿，覆盖 4,362 / 4,362 正文字位。97 项后端回归及前端生产构建通过，实际桌面／手机验收与内容边界见 [知识库验收记录](docs/knowledge-acceptance.md)。
+
+最新体验精磨包含可刷新导航、会话深链接、未保存编辑离页保护、黑白布局统一、阅读／题目快捷操作、手机布局与轻量过渡，以及真实作答统计。当前回归为 99 项后端、6 项前端和生产构建通过；四种屏宽实测及后续边界见 [体验精磨验收](docs/experience-polish-acceptance.md)。
