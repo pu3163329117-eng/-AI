@@ -17,6 +17,10 @@ test('invalid successful response is explicit, not a null UI snapshot', async ()
   globalThis.fetch = async () => new Response('<html>upstream error</html>', { status: 200 })
   await assert.rejects(requestJson('/api'), error => error.message === 'INVALID_RESPONSE' && uncertainWrite(error))
 })
+test('top-level arrays are not accepted as response envelopes', async () => {
+  globalThis.fetch = async () => new Response('[]', { status: 200 })
+  await assert.rejects(requestJson('/api'), error => error.message === 'INVALID_RESPONSE')
+})
 test('network failure does not automatically retry a mutation', async () => {
   let calls = 0
   globalThis.fetch = async () => { calls++; throw new TypeError('Failed to fetch') }

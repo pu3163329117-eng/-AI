@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { adminLessonApi, lessonApi, profileApi, requestId, trainingApi } from './api'
 import { errorMessage, uncertainWrite } from './http'
 import { ConnectionStatus } from './components/ConnectionStatus'
+import { RenderBoundary } from './components/RenderBoundary'
 import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
 import { jumpTo, optionIndex, pageLabels, readRoute, routeHash, type Page } from './navigation'
@@ -94,7 +95,7 @@ function CatalogLoading({ compact = false }: { compact?: boolean }) {
 }
 
 function CatalogError({ error, onRetry, compact = false }: { error: string; onRetry: () => void; compact?: boolean }) {
-  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} role="alert"><b>暂时无法读取关卡目录。</b><p>请检查本地服务后重试。错误代码：{error}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
+  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} role="alert"><b>暂时无法读取关卡目录。</b><p>{errorMessage(error)}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
 }
 
 function CatalogEmpty({ stageLabel, compact = false }: { stageLabel: string; compact?: boolean }) {
@@ -125,8 +126,8 @@ function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: strin
         <p>档案保存在本机学习服务中，这个浏览器会记住你的入口。目前尚未接入账号登录和跨设备找回。</p>
       </section>
       <form className="profile-form" onSubmit={submit}>
-        <label>怎么称呼你？<input value={name} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
-        <fieldset>
+        <label>怎么称呼你？<input type="text" autoComplete="nickname" value={name} maxLength={20} required disabled={busy} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
+        <fieldset disabled={busy}>
           <legend>你现在的学习阶段</legend>
           <label><input type="radio" name="stage" checked={stage === 'JUNIOR'} onChange={() => setStage('JUNIOR')} /> 初中</label>
           <label><input type="radio" name="stage" checked={stage === 'SENIOR'} onChange={() => setStage('SENIOR')} /> 高中</label>
@@ -869,7 +870,7 @@ export function App() {
     const frame = requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: 'auto' })
       const main = document.querySelector<HTMLElement>('.page-view main')
-      if (main) { main.tabIndex = -1; main.focus({ preventScroll: true }) }
+      if (main) { main.tabIndex = -1; (main.querySelector<HTMLElement>('#render-error-title') ?? main).focus({ preventScroll: true }) }
     })
     return () => cancelAnimationFrame(frame)
   }, [page, route.sessionId, profileLoading])
@@ -1120,6 +1121,7 @@ export function App() {
     <AppHeader page={page} profile={profile} onNavigate={navigate} />
     <ConnectionStatus />
     <div className="page-view" id="page-content" tabIndex={-1} key={`${page}:${route.sessionId ?? ''}`}>
+    <RenderBoundary onHome={() => navigate('home')}>
     {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
     {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'skills' && profile && <SkillsPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
@@ -1131,6 +1133,7 @@ export function App() {
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
     {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !route.sessionId && <EmptyPage onHome={() => setPage('home')} />}
+    </RenderBoundary>
     </div>
   </div>
 }

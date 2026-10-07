@@ -35,7 +35,7 @@ export async function requestJson<T>(url: string, init: RequestInit = {}, timeou
       return null
     })
     if (!response.ok) throw new RequestError(body?.error?.code ?? (response.status >= 500 ? 'SERVER_UNAVAILABLE' : 'REQUEST_FAILED'), response.status)
-    if (!body || typeof body !== 'object') throw new RequestError('INVALID_RESPONSE', response.status)
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RequestError('INVALID_RESPONSE', response.status)
     return body as T
   } catch (error) {
     if (external?.aborted) throw external.reason ?? new DOMException('Request cancelled', 'AbortError')

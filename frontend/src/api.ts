@@ -1,5 +1,6 @@
 import type { Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, KnowledgeCoverage, KnowledgeLookup, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlanGroupBy, PracticePlans, ReviewSession, SchoolStage, TrainingSession } from './types'
-import { requestJson } from './http'
+import { RequestError, requestJson } from './http'
+import { validateResponse } from './contracts'
 
 type SessionResponse = { session_id: string; session: TrainingSession }
 
@@ -32,7 +33,9 @@ export function requestId() {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  return requestJson<T>(`${apiRoot}${path}`, init)
+  const data = await requestJson<T>(`${apiRoot}${path}`, init)
+  if (!validateResponse(path, data)) throw new RequestError('INVALID_RESPONSE', 200)
+  return data
 }
 
 export const trainingApi = {
