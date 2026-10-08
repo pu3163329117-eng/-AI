@@ -2,6 +2,8 @@
 
 日期：2026-10-08。对应总指南 P0 AI 能力、原始工程规格 T04 的第一部分。用户决定继续保留正式定级门槛；本轮不补造审核人、不把试测改成正式结果，也不启动登录、生产发布或自动调级。
 
+后续进展：用户已选择 DeepSeek 并同意最小范围数据发送，真实 HTTP 适配器、后端配置及独立影子联调命令已实现，见 [DeepSeek 接入](deepseek-shadow-integration.md)。下文“没有真实适配器”是第一阶段记录；当前缺少本机密钥及真实语义验收，学生端尚未开放。
+
 ## 已实现
 
 - `backend/ai/providers.py`：厂商无关 `ModelProvider.generate_structured` 协议、版本化请求、统一错误及明确标为模拟的 FakeProvider。默认不配置运行模型。

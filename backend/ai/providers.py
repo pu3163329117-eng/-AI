@@ -1,4 +1,4 @@
-"""Vendor-neutral adapter boundary. Only an explicitly labelled offline fake ships here."""
+"""Vendor-neutral boundary and offline fake; the real adapter lives in deepseek.py."""
 from collections import deque
 from dataclasses import dataclass
 import json
