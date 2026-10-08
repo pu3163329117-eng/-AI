@@ -79,6 +79,12 @@ except ModuleNotFoundError:
     from observation_routes import router as observation_router
 app.include_router(observation_router)
 
+try:
+    from backend.ai_routes import router as ai_router
+except ModuleNotFoundError:
+    from ai_routes import router as ai_router
+app.include_router(ai_router)
+
 
 @app.exception_handler(HTTPException)
 async def api_error(_: Request, exc: HTTPException) -> JSONResponse:
