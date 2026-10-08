@@ -62,6 +62,12 @@ except ModuleNotFoundError:
 app.include_router(assessment_router)
 
 try:
+    from backend.assessment_editorial_routes import router as assessment_editorial_router
+except ModuleNotFoundError:
+    from assessment_editorial_routes import router as assessment_editorial_router
+app.include_router(assessment_editorial_router)
+
+try:
     from backend.ability_routes import router as ability_router
 except ModuleNotFoundError:
     from ability_routes import router as ability_router

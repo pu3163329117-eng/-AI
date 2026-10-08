@@ -1,6 +1,10 @@
 # 文言·推理
 
+2026-10-08：仓库已按用户要求设为私有。公开源码历史不等于服务可公网开放；本地教研接口仍无认证。
+
 真实全栈 Demo，通过证据、判断、回溯和迁移进行文言实词训练。
+
+最新增加“内容管理 → 评测题审核”：逐题校订、追加版本、署名通过/退回、来源核验和原标识恢复；旧试卷冻结，坏来源可退回但不能批准。实际教师审核仍为 0，正式测评仍未开放。后端 281 项、前端 82 项及生产构建通过，见 [本轮验收](docs/assessment-editorial-acceptance.md)。
 
 ## 本地启动
 
@@ -10,6 +14,7 @@ React / Vite / TypeScript 前端使用 5173；FastAPI / SQLAlchemy 后端使用 
 
 ```powershell
 python -m pip install -r backend/requirements.txt
+python -m pip install pytest httpx
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 

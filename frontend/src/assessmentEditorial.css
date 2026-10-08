@@ -1,0 +1,30 @@
+.assessment-question-workbench { color: #111; }
+.assessment-question-workbench .annotation-list button { min-height: 88px; text-align: left; grid-template-columns: minmax(0, 1fr); }
+.assessment-question-workbench .annotation-list :is(b, span, small),
+.assessment-question-workbench .annotation-editor :is(p, h2, h3, small, a) { overflow-wrap: anywhere; }
+.assessment-question-workbench .annotation-editor h2 { font-size: clamp(1.25rem, 2.2vw, 1.65rem); scroll-margin-top: 8rem; }
+.assessment-question-workbench .annotation-editor h3 { font-size: 1rem; line-height: 1.5; }
+.assessment-question-workbench .assessment-editorial-source { padding-block: 1rem; margin-block: 1rem; border-block: 1px solid #dededb; }
+.assessment-question-workbench .assessment-editorial-source blockquote { white-space: pre-wrap; max-height: 24rem; overflow-y: auto; font-family: "Songti SC", "SimSun", serif; font-size: 1.1rem; line-height: 2; }
+.assessment-question-workbench .assessment-editorial-options { margin-block: 1.2rem; }
+.assessment-question-workbench .assessment-editorial-options small { color: #555; font-size: .75rem; font-weight: 400; }
+.assessment-question-workbench .assessment-editorial-options textarea { min-height: 4rem; }
+.assessment-question-workbench .assessment-editorial-paging { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+.assessment-question-workbench .annotation-actions { flex-wrap: wrap; gap: .65rem; }
+.assessment-question-workbench .annotation-actions button { white-space: normal; height: auto; min-height: 44px; }
+.assessment-question-workbench .assessment-editorial-recovery { padding: clamp(1rem, 2vw, 1.5rem); margin-block: 1.5rem; border: 2px solid #111; background: #fff; }
+.assessment-question-workbench .assessment-editorial-recovery h2 { font-size: 1.2rem; }
+.assessment-question-workbench .assessment-editorial-recovery :is(p, button) { overflow-wrap: anywhere; }
+.assessment-question-workbench .assessment-editorial-issues { padding-left: 1.2rem; line-height: 1.8; }
+.assessment-question-workbench .annotation-history article { padding-block: 1rem; border-bottom: 1px solid #dededb; }
+.assessment-question-workbench .annotation-history summary { min-height: 44px; padding-block: .6rem; cursor: pointer; overflow-wrap: anywhere; }
+.assessment-question-workbench :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.assessment-question-workbench a { text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 30rem) {
+  .assessment-question-workbench .assessment-editorial-recovery button { width: 100%; white-space: normal; height: auto; min-height: 44px; }
+  .assessment-question-workbench .annotation-editor { padding: 1rem; }
+  .assessment-question-workbench .annotation-history ol { padding-left: 1.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assessment-question-workbench * { transition: none; animation: none; scroll-behavior: auto; }
+}

@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from .assessment_models import AssessmentQuestionRevision, AssessmentSession, AssessmentReceipt, AssessmentResult
+from .assessment_editorial_models import AssessmentQuestionHead
 from .models import LearnerProfile
 try:
     from backend.domain import assessment as domain
@@ -86,7 +87,8 @@ def bank_questions(db, bank):
     """Current bank identifies versions; persisted revisions are authoritative."""
     result = []
     for question in domain.candidate_questions(bank):
-        revision = db.get(AssessmentQuestionRevision, (question["id"], str(question["version"])))
+        head = db.get(AssessmentQuestionHead, question["id"], populate_existing=True)
+        revision = db.get(AssessmentQuestionRevision, (question["id"], head.revision_version if head else str(question["version"])))
         if revision is not None:
             result.append(deepcopy(revision.payload))
     return result
@@ -98,10 +100,14 @@ def create(db, request, bank, bank_version):
     existing = db.scalar(select(AssessmentSession).where(AssessmentSession.active_key == active_key))
     if existing:
         return existing, False
+    effective_bank = bank_questions(db, bank)
     try:
-        questions = domain.select_questions(bank_questions(db, bank), request.mode == "FORMAL")
+        questions = domain.select_questions(effective_bank, request.mode == "FORMAL")
     except ValueError as exc:
         fail(str(exc))
+    if any(q.get("editorial") for q in effective_bank):
+        identity = json.dumps(sorted((q["id"], str(q["version"])) for q in effective_bank), separators=(",", ":"))
+        bank_version = f"{bank_version}:{hashlib.sha256(identity.encode()).hexdigest()[:12]}"
     snapshot = {"mode": request.mode, "status": "IN_PROGRESS", "bank_version": bank_version,
         "scoring_version": domain.SCORING_VERSION, "scoring_config": deepcopy(domain.SCORING_CONFIG), "self_level": request.self_level,
         "self_answers": request.self_answers, "questions": questions, "answers": {}, "current_index": 0, "result": None}

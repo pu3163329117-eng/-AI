@@ -39,7 +39,8 @@ def candidate_questions(bank, formal=False):
     for q in bank:
         if isinstance(q, dict):
             counts[q.get("id")] = counts.get(q.get("id"), 0) + 1
-    return [q for q in bank if valid_question(q) and counts[q["id"]] == 1 and (not formal or audited(q))]
+    return [q for q in bank if valid_question(q) and counts[q["id"]] == 1
+            and q.get("review_status") != "REJECTED" and (not formal or audited(q))]
 
 
 def ready(questions):
