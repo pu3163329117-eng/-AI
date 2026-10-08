@@ -7,6 +7,7 @@ import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
 import { AdminWorkbench } from './components/KnowledgeWorkbench'
 import { ReasoningEditor, ReasoningHistory } from './components/ReasoningEditor'
+import { ReasonFeedback } from './components/ReasonFeedback'
 import { AssessmentPage } from './components/AssessmentPage'
 import { CourseAbilityWorkbench } from './components/CourseAbilityWorkbench'
 import { AssessmentQuestionWorkbench } from './components/AssessmentQuestionWorkbench'
@@ -790,6 +791,7 @@ function TrainingPage({ sessionId, session, busy, pendingCommand, error, recover
                   {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : firstJudgment ? '提交首次词义判断' : '提交判断'}
                 </button>
                 <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
+                <ReasonFeedback key={`${sessionId}-${session.stage}-${session.state_version}`} sessionId={sessionId} session={session} disabled={locked} dirty={reasoningDirty} />
               </div>
               <div className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
                 {busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `${recoveryNeeded ? '操作结果未确认' : '操作未完成'}：${error}` : session.feedback}

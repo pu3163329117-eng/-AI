@@ -37,7 +37,7 @@ export function ReasoningEditor({ session, answer, busy, onCommand, onDirtyChang
       <button type="button" className="button button-secondary" disabled={!evidence || !answer || Array.from(reason.trim()).length < 5 || !dirty} onClick={() => evidence && answer && onCommand('SAVE_REASONING', { paragraph_index: evidence.paragraph_index, start: evidence.start, end: evidence.end, reason: reason.trim(), conclusion: answer })}>保存证据与理由</button>
     </fieldset>
     {graph && <><p role="status">{dirty ? '有未保存改动，请保存后提交判断。' : '证据链已保存，可刷新恢复。'}</p><details><summary>查看已保存的证据链</summary><ReasoningPath graph={graph} /></details></>}
-    <p className="knowledge-note">系统只核验选项和预设证据覆盖，不对开放理由作语义评分。保存证据链不发积分。</p>
+    <p className="knowledge-note">训练规则只核验选项和预设证据覆盖，不证明开放理由正确。下方模型反馈仅供试用、待审核；保存证据链不发积分。</p>
   </section>
 }
 
