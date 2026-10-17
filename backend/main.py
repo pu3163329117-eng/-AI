@@ -43,7 +43,15 @@ DbSession = Annotated[Session, Depends(get_db)]
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
-    yield
+    try:
+        try:
+            from backend.collaboration import controller as collaboration_controller
+        except ModuleNotFoundError:
+            from collaboration import controller as collaboration_controller
+        collaboration_controller.startup()
+        yield
+    finally:
+        collaboration_controller.shutdown()
 
 
 app = FastAPI(title="文言·推理 API", version="0.1.0", lifespan=lifespan)
@@ -84,6 +92,18 @@ try:
 except ModuleNotFoundError:
     from ai_routes import router as ai_router
 app.include_router(ai_router)
+
+try:
+    from backend.ai_review_routes import router as ai_review_router
+except ModuleNotFoundError:
+    from ai_review_routes import router as ai_review_router
+app.include_router(ai_review_router)
+
+try:
+    from backend.collaboration.routes import router as collaboration_router
+except ModuleNotFoundError:
+    from collaboration.routes import router as collaboration_router
+app.include_router(collaboration_router)
 
 
 @app.exception_handler(HTTPException)

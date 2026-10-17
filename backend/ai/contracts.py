@@ -90,6 +90,8 @@ class EvaluatorOutput(ClosedModel):
         if self.label == "UNSCORABLE":
             if self.score is not None or self.evidence_quality is not None or self.matched_rubric_items:
                 raise ValueError("Unscorable feedback cannot claim a score or matched rubric")
+            if self.next_action_recommendation != "HUMAN_REVIEW":
+                raise ValueError("Unscorable feedback requires human review")
         elif self.score is None or self.confidence is None or self.evidence_quality is None or not self.evidence_ids:
             raise ValueError("Scored feedback requires confidence and cited evidence")
         if self.label == "CORRECT_REASONING" and (self.score != 1 or not self.matched_rubric_items):

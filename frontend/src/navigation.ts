@@ -33,3 +33,15 @@ export function jumpTo(id: string) {
   target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   target.focus({ preventScroll: true })
 }
+
+/** Reveal the current route inside the horizontal navigation, not the page. */
+export function revealCurrentNavigation(nav: HTMLElement | null) {
+  const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+  if (!nav || !active || !nav.clientWidth) return
+  const container = nav.getBoundingClientRect()
+  const item = active.getBoundingClientRect()
+  const delta = item.left < container.left ? item.left - container.left
+    : item.right > container.right ? item.right - container.right : 0
+  if (!delta) return
+  nav.scrollTo({ left: Math.max(0, Math.min(nav.scrollWidth - nav.clientWidth, nav.scrollLeft + delta)), behavior: 'auto' })
+}

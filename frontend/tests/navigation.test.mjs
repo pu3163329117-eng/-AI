@@ -5,7 +5,7 @@ import ts from 'typescript'
 
 const source = await readFile(new URL('../src/navigation.ts', import.meta.url), 'utf8')
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } })
-const { readRoute, routeHash, optionIndex, jumpTo, pageLabels } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const { readRoute, routeHash, optionIndex, jumpTo, revealCurrentNavigation, pageLabels } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 
 test('all ordinary pages round-trip to distinct bookmarks', () => {
   for (const page of Object.keys(pageLabels).filter(page => page !== 'training')) {
@@ -47,4 +47,35 @@ test('reading shortcuts focus their target and respect reduced motion', () => {
     jumpTo('reader'); reduced = true; jumpTo('reader'); jumpTo('absent')
     assert.deepEqual(calls, [{ behavior: 'smooth', block: 'start' }, { preventScroll: true }, { behavior: 'auto', block: 'start' }, { preventScroll: true }])
   } finally { delete globalThis.window; delete globalThis.document }
+})
+
+test('current navigation is revealed horizontally without moving the document', () => {
+  const calls = []
+  const nav = {
+    clientWidth: 280, scrollWidth: 570, scrollLeft: 0,
+    getBoundingClientRect: () => ({ left: 24, right: 304 }),
+    querySelector: () => ({ getBoundingClientRect: () => ({ left: 432, right: 500 }) }),
+    scrollTo: options => calls.push(options),
+  }
+  revealCurrentNavigation(nav)
+  assert.deepEqual(calls, [{ left: 196, behavior: 'auto' }])
+  nav.scrollLeft = 196
+  nav.querySelector = () => ({ getBoundingClientRect: () => ({ left: -172, right: -104 }) })
+  revealCurrentNavigation(nav)
+  assert.deepEqual(calls[1], { left: 0, behavior: 'auto' })
+})
+
+test('visible, absent or unrendered navigation needs no scroll', () => {
+  const nav = {
+    clientWidth: 280, scrollWidth: 570, scrollLeft: 0,
+    getBoundingClientRect: () => ({ left: 24, right: 304 }),
+    querySelector: () => ({ getBoundingClientRect: () => ({ left: 32, right: 100 }) }),
+    scrollTo: () => assert.fail('already visible navigation must not scroll'),
+  }
+  revealCurrentNavigation(nav)
+  revealCurrentNavigation(null)
+  nav.querySelector = () => null
+  revealCurrentNavigation(nav)
+  nav.clientWidth = 0
+  revealCurrentNavigation(nav)
 })

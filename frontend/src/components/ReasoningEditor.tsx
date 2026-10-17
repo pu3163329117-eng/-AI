@@ -27,7 +27,7 @@ export function ReasoningEditor({ session, answer, busy, onCommand, onDirtyChang
   const frozen = session.transfer_ready || session.summary_ready
   const selection = session.context_selection
   return <section className="reasoning-editor" aria-labelledby="reasoning-title">
-    <h2 id="reasoning-title">把判断的依据写下来。</h2>
+    <h2 id="reasoning-title" tabIndex={-1}>把判断的依据写下来。</h2>
     <p>在下方原文选择证据的起止字，再回到这里；点读语境不会自动记为证据。</p>
     <fieldset disabled={busy || frozen}><legend>原文证据 → 推断理由 → 词义结论</legend>
       <div className="evidence-capture"><button type="button" className="knowledge-action" disabled={!selection} onClick={() => setEvidence(selection ?? null)}>将当前原文选段记为证据</button><button type="button" className="knowledge-action" onClick={() => jumpTo('fulltext-title')}>去原文选择证据 ↓</button></div>

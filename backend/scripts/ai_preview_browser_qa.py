@@ -1,21 +1,28 @@
-"""Disposable UI QA server. Memory DB, synthetic key, mock vendor only.
+"""Disposable UI QA server. Temporary DB, synthetic key, mock vendor only.
 
 Run separately on 8001 with a QA frontend on 5174. Never use as a deployment.
 """
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 def main():
-    os.environ["WENYAN_DATABASE_URL"] = "sqlite:///:memory:"
+    qa_output = Path(__file__).resolve().parents[2] / "output"
+    qa_output.mkdir(exist_ok=True)
+    qa_directory = TemporaryDirectory(prefix="wenyan-browser-qa-", dir=qa_output)
+    qa_database_url = "sqlite:///" + (Path(qa_directory.name) / "qa.db").as_posix()
+    os.environ["WENYAN_DATABASE_URL"] = qa_database_url
     import json
     import httpx2 as httpx
     import uvicorn
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
     import backend.db.session as database
     database.engine.dispose()
-    database.engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    # Concurrent UI reads need separate connections, not a shared StaticPool
+    # connection. This remains separate from the user's learning database.
+    database.engine = create_engine(qa_database_url, connect_args={"check_same_thread": False})
     database.SessionLocal = sessionmaker(bind=database.engine, expire_on_commit=False)
     from fastapi.middleware.cors import CORSMiddleware
     from backend.main import app
@@ -37,7 +44,11 @@ def main():
     ai_routes.runtime = PreviewRuntime(lambda settings: DeepSeekProvider(settings, transport=httpx.MockTransport(response)))
     app.dependency_overrides[ai_routes.local_preview_only] = lambda: None
     app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5174"], allow_methods=["*"], allow_headers=["*"])
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=8001)
+    finally:
+        database.engine.dispose()
+        qa_directory.cleanup()
 
 
 if __name__ == "__main__":

@@ -8,15 +8,43 @@ data/
 *.db
 *.db-*
 .env
+.env.*
+!backend/.env.example
+# Reviewed public build routing only; never put credentials in this file.
+!frontend/.env.production
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db3
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.jsonl
+logs/
+secrets/
+credentials/
+.venv/
+venv/
 
 # JavaScript
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 
 # Local tooling and generated assets
 .playwright-cli/
 output/
+.vercel/
+.cache/
+.pytest-*/
+pytest-cache-files-*/
+.coverage
+htmlcov/
+*.zip
 transcripts/
 UI设计图/
 *.m4a

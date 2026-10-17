@@ -1,0 +1,36 @@
+async (page) => {
+  const assert = (value, label) => { if (!value) throw new Error(label) }
+  assert(await page.evaluate(() => localStorage.getItem('wenyan.profile-id')) === '87ea4e45-33a4-45a6-98a0-0667723c84e7', 'Dedicated QA browser')
+  const errors = []; page.on('pageerror', error => errors.push(error.message))
+  await page.goto('http://127.0.0.1:5173/#/training/fb9865eb-af67-4de1-b60d-58537449dff7')
+  await page.getByRole('heading', { name: '先看首次判断，再看后续完成。', exact: true }).waitFor()
+  const summaries = page.getByText('查看本阶段记录依据', { exact: true })
+  assert(await summaries.count() === 2, 'Secondary provenance collapsed')
+  for (const width of [1440, 820, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.locator('.session-observations').scrollIntoViewIfNeeded()
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `Compact overflow ${width}`)
+    await page.locator('.session-observations').screenshot({ path: `output/playwright/observations-compact-${width}.png` })
+  }
+  await summaries.first().focus(); await page.keyboard.press('Enter')
+  assert(await summaries.first().evaluate(node => node.parentElement.open), 'Keyboard opens source record')
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.locator('.session-observations').screenshot({ path: 'output/playwright/observations-compact-expanded-390.png' })
+  await page.getByRole('link', { name: '学习报告', exact: true }).click()
+  await page.getByText('查看最近来源记录（2 条，最多 50 条）', { exact: true }).waitFor()
+  await page.locator('.observation-report').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'output/playwright/observations-report-viewport-390.png' })
+  const path = '**/api/v1/profiles/87ea4e45-33a4-45a6-98a0-0667723c84e7/observations/report'
+  await page.route(path, route => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"QA_SERVER_FAILURE"}}' }))
+  await page.reload()
+  await page.getByRole('button', { name: '重新读取行为报告', exact: true }).waitFor()
+  assert(await page.locator('.observation-group').count() === 0, '500 hides stale successful data')
+  await page.unroute(path)
+  await page.getByRole('button', { name: '重新读取行为报告', exact: true }).click()
+  await page.locator('.observation-group').first().waitFor()
+  const response = await page.request.get('http://127.0.0.1:5173/api/v1/profiles/87ea4e45-33a4-45a6-98a0-0667723c84e7/observations/report')
+  assert((await response.json()).report.totals.observed_stages === 2, 'Recovery and GET do not append')
+  assert(errors.length === 0, `Uncaught browser errors: ${errors}`)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  console.log('FINAL_COMPACT_KEYBOARD_500_RECOVERY_NO_PAGEERROR_OK')
+}

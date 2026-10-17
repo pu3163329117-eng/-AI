@@ -61,6 +61,12 @@ def parse_json(raw):
 def validate_output(task, raw, data, answer_aliases):
     try:
         output = OUTPUTS[task].model_validate(parse_json(raw))
+        # Validate the original candidate before confidence/abstention
+        # normalization can remove malformed duplicate references.
+        for key in ("focus_span_ids", "evidence_ids", "matched_rubric_items", "supporting_observation_ids", "misconception_codes"):
+            values = getattr(output, key, [])
+            if len(values) != len(set(values)):
+                raise ValueError("duplicate references")
         if task == "teacher":
             if not set(output.focus_span_ids) <= unique_ids(data.visible_evidence):
                 raise ValueError("unknown evidence")
@@ -90,10 +96,6 @@ def validate_output(task, raw, data, answer_aliases):
                     "diagnosis_code": "INSUFFICIENT_DATA", "confidence": None,
                     "supporting_observation_ids": [], "recommended_hint_skill": "HUMAN_REVIEW",
                 })
-        for key in ("focus_span_ids", "evidence_ids", "matched_rubric_items", "supporting_observation_ids", "misconception_codes"):
-            values = getattr(output, key, [])
-            if len(values) != len(set(values)):
-                raise ValueError("duplicate references")
         return output.model_dump()
     except (ValidationError, ValueError, TypeError, RecursionError):
         raise ProviderError("INVALID_OUTPUT") from None
