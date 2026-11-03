@@ -14,6 +14,11 @@ from fastapi.testclient import TestClient
 assert not (ROOT/'backend'/'.env').exists()
 os.environ.update({'WENYAN_ENV':'production','WENYAN_ACCESS_MODE':'invite','WENYAN_AUTH_ORIGINS':'https://testserver','WENYAN_AUTH_COOKIE_SECURE':'true','WENYAN_AUTH_LOGIN_METHOD':'password'})
 persistent=WORK/'persistent'/'synthetic-persistent.sqlite'
+# Fail with a clear fixture error if a test checkout itself is in a temporary
+# root. Product guards must continue rejecting /tmp and /var/tmp on Linux.
+temporary_roots=preflight._temporary_roots()
+assert not any(persistent == root or root in persistent.parents for root in temporary_roots), 'synthetic accepted-path fixture is inside a temporary root'
+assert any((WORK/'transient') == root or root in (WORK/'transient').parents for root in temporary_roots), 'synthetic rejected-path fixture must be temporary'
 os.environ['WENYAN_DATABASE_URL']='sqlite:///'+persistent.as_posix()
 assert TestClient(main.app).get('/api/health').status_code==200
 os.environ['VERCEL']='synthetic-nonempty'
