@@ -12,7 +12,7 @@ import sys
 from pathlib import PurePosixPath
 
 ROOTS = {"backend", "frontend", "domain", "storage", "web", "docs", "deploy", "scripts", ".github"}
-ROOT_FILES = {"README.md", "README.demo.md", "AGENTS.md", "server.py", "vercel.json"}
+ROOT_FILES = {"README.md", "README.demo.md", "DEPLOYMENT.md", "AGENTS.md", "server.py", "vercel.json"}
 TEXT_EXTENSIONS = {".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".yml", ".yaml", ".md", ".txt", ".html", ".css", ".sh", ".toml", ".conf", ".service", ".timer"}
 # Exact public templates included in the existing release tooling allowlist.
 # No general exception for .env.example or other private-looking paths.

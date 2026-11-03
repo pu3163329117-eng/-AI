@@ -53,6 +53,21 @@ class GuardTests(unittest.TestCase):
         self.assertIn("github-token", result.stdout)
         self.assertNotIn(token, result.stdout + result.stderr)
 
+    def test_root_deployment_document_is_scanned_without_widening_scope(self):
+        self.write("DEPLOYMENT.md", "Synthetic deployment documentation.\n")
+        safe = self.commit()
+        self.assertEqual(self.scan(self.base, safe).returncode, 0)
+        token = "ghp_" + "a" * 36
+        self.write("DEPLOYMENT.md", token + "\n")
+        result = self.scan(safe, self.commit())
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("github-token", result.stdout)
+        self.assertNotIn(token, result.stdout + result.stderr)
+        self.write("UNREVIEWED.md", "Unrelated root file.\n")
+        result = self.scan(safe, self.commit())
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("outside-scope", result.stdout)
+
     def test_rename_is_scanned_as_add_and_deleted_file_is_not_read(self):
         token = "sk-" + "a" * 40
         self.write("backend/old.py", token + "\n")
