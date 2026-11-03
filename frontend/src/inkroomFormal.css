@@ -1,0 +1,110 @@
+/* The approved reading-room direction, scoped to migrated surfaces. Contracts,
+   route guards, API clients and server-owned learning state stay unchanged. */
+.app-shell.inkroom-formal {
+  --inkroom-ink: #202421; --inkroom-muted: #626761; --inkroom-paper: #f6f7f3;
+  --inkroom-surface: #fff; --inkroom-line: #dfe3da; --inkroom-line-strong: #c0c9bd;
+  --inkroom-ease: cubic-bezier(.2,.8,.2,1);
+  max-width: 1440px; min-height: 100dvh; margin: 0 auto; border: 0; border-radius: 0;
+  color: var(--inkroom-ink); background: var(--inkroom-paper); box-shadow: none;
+}
+.inkroom-formal :is(h1,h2,h3,p,.brand,.stage-label) { letter-spacing: 0; }
+.inkroom-formal .page-view { animation: inkroom-page-in 200ms var(--inkroom-ease); }
+.inkroom-formal .app-header { background: var(--inkroom-paper); border-color: var(--inkroom-line); }
+.inkroom-formal .brand { font-size: 21px; }
+.inkroom-formal .app-header nav a { color: var(--inkroom-muted); }
+.inkroom-formal .app-header nav a.is-active { color: var(--inkroom-ink); border-color: var(--inkroom-ink); }
+.inkroom-formal .account { background: var(--inkroom-surface); border-color: var(--inkroom-line-strong); }
+.inkroom-formal .header-more-panel { background: #fcfdf9; border-color: var(--inkroom-line); border-radius: 14px; box-shadow: 0 14px 40px #20242112; }
+.inkroom-formal .auth-account-bar { color: var(--inkroom-muted); border-color: var(--inkroom-line); background: var(--inkroom-paper); }
+.inkroom-formal :is(.button,.text-button,.knowledge-action,.quiet-action) { min-height: 44px; white-space: normal; }
+.inkroom-formal .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 20px; border: 1px solid var(--inkroom-line-strong); border-radius: 10px; font-size: 15px; font-weight: 600; line-height: 1.5; transition: background 120ms, border-color 120ms, transform 120ms var(--inkroom-ease); }
+.inkroom-formal .button-primary { background: var(--inkroom-ink); color: #fff; border-color: var(--inkroom-ink); }
+.inkroom-formal .button-secondary { background: #fff; color: var(--inkroom-ink); }
+.inkroom-formal .button span { margin-left: 0; }
+.inkroom-formal .button:not(:disabled):active { transform: scale(.985); }
+.inkroom-formal :is(button,a,input,textarea,select,summary):focus-visible { outline: 2px solid var(--inkroom-ink); outline-offset: 4px; }
+@media (hover:hover) {
+  .inkroom-formal .button-primary:not(:disabled):hover { transform: none; background: #353b36; }
+  .inkroom-formal .button-secondary:not(:disabled):hover { background: #ecefe7; }
+}
+.inkroom-formal .inkroom-training { padding: 24px clamp(16px,3vw,44px) 48px; background: var(--inkroom-paper); }
+.inkroom-formal .training-shell { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; max-width: 1280px; }
+.inkroom-formal .step-list { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; min-height: 56px; padding: 8px 0 16px; border-bottom: 1px solid var(--inkroom-line); border-radius: 0; background: transparent; }
+.inkroom-formal .step-list b { margin: 0 auto 0 0; color: var(--inkroom-muted); font-size: 12px; }
+.inkroom-formal .step-list span { padding: 8px 12px; border-radius: 7px; font-size: 13px; color: var(--inkroom-muted); }
+.inkroom-formal .step-list .current { background: #e8ece2; color: var(--inkroom-ink); }
+.inkroom-formal .lesson { grid-column: 1; grid-row: 2; min-width: 0; min-height: 0; padding: 0; border-radius: 0; background: transparent; }
+.inkroom-formal .lesson-meta { margin: 0 0 24px; padding: 0 0 16px; border-bottom: 1px solid var(--inkroom-line); color: var(--inkroom-muted); font-size: 13px; }
+.inkroom-formal .training-workspace { display: grid; grid-template-columns: minmax(0,1.12fr) minmax(0,.88fr); gap: 32px; align-items: start; }
+.inkroom-formal .training-task { min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; border-radius: 0; }
+.inkroom-formal .training-task-heading { align-items: start; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.inkroom-formal .training-task-heading .stage-label { line-height: 1.8; }
+.inkroom-formal .training-task .passage { font-size: clamp(24px,2vw,30px); line-height: 1.85; letter-spacing: 0; }
+.inkroom-formal .training-task .passage span { padding-inline: 2px; outline-width: 1px; }
+.inkroom-formal .training-task .question-area { margin-top: 24px; padding-top: 24px; border-color: var(--inkroom-line); }
+.inkroom-formal .training-task .question-area h1 { margin: 12px 0 24px; font-size: clamp(21px,2.2vw,28px); line-height: 1.6; }
+.inkroom-formal .choice-list { grid-template-columns: minmax(0,1fr); gap: 10px; }
+.inkroom-formal .choice-option { min-height: 60px; padding: 16px; border-color: var(--inkroom-line-strong); border-radius: 10px; color: var(--inkroom-ink); font-size: 16px; }
+.inkroom-formal .choice-option.selected { border-color: var(--inkroom-ink); background: #e9ede4; }
+.inkroom-formal .training-task .submit { width: 100%; min-height: 48px; margin-top: 20px; }
+.inkroom-formal .training-task .knowledge-note { color: var(--inkroom-muted); font-size: 13px; }
+.inkroom-formal .fulltext-reader { min-width: 0; margin: 0; padding: clamp(20px,2.4vw,32px); border: 1px solid var(--inkroom-line); border-radius: 16px; background: var(--inkroom-surface); }
+.inkroom-formal .fulltext-heading { flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.inkroom-formal #fulltext-title { margin: 8px 0 0; font-size: clamp(22px,2.2vw,28px); line-height: 1.5; text-wrap: balance; }
+.inkroom-formal .reader-range-toggle { min-height: 44px; padding: 10px 14px; border: 1px solid var(--inkroom-line-strong); border-radius: 8px; background: #fff; font-size: 13px; }
+.inkroom-formal .reader-guide, .inkroom-formal .reader-keyboard-guide { color: var(--inkroom-muted); font-size: 13px; line-height: 1.8; }
+.inkroom-formal .fulltext-layout { grid-template-columns: minmax(0,1fr); gap: 24px; }
+.inkroom-formal .fulltext-canvas { max-height: min(65vh,560px); padding-right: 8px; }
+.inkroom-formal .fulltext-paragraph { font-size: 24px; line-height: 2; letter-spacing: 0; }
+.inkroom-formal .text-token { min-width: 24px; min-height: 44px; padding-inline: 0; line-height: 1.8; border-radius: 3px; }
+.inkroom-formal .text-token.is-selected { background: var(--inkroom-ink); color: #fff; }
+.inkroom-formal .context-layers { max-height: none; overflow: visible; margin: 0; padding: 24px 0 0; border-top: 1px solid var(--inkroom-line); border-left: 0; }
+.inkroom-formal .context-disclosure { min-width: 0; padding-top: 20px; border-top: 1px solid var(--inkroom-line); }
+.inkroom-formal .context-disclosure > summary { min-height: 44px; padding-block: 10px; font-size: 14px; font-weight: 600; line-height: 1.8; cursor: pointer; }
+.inkroom-formal .context-disclosure > summary span { display: block; padding-left: 18px; color: var(--inkroom-muted); font-size: 12px; font-weight: 400; }
+.inkroom-formal .context-disclosure[open] .context-layers { border-top: 0; padding-top: 16px; }
+.inkroom-formal .context-panel-heading { position: static; flex-wrap: wrap; gap: 8px; background: #fff; }
+.inkroom-formal .context-layers li { grid-template-columns: 44px minmax(0,1fr); gap: 16px; padding-block: 16px; border-color: var(--inkroom-line); }
+.inkroom-formal .context-layers li > button { width: 44px; min-height: 44px; padding: 0; border-color: var(--inkroom-line-strong); border-radius: 6px; font-size: 14px; }
+.inkroom-formal .context-layers li.active-layer > button { background: var(--inkroom-ink); color: #fff; }
+.inkroom-formal .context-layers p { font-size: 14px; line-height: 1.85; }
+.inkroom-formal .reader-return-actions { flex-direction: column; align-items: stretch; border-color: var(--inkroom-line); }
+.inkroom-formal .reader-return-actions > button { flex: 0 0 auto; width: 100%; min-height: 44px; }
+.inkroom-formal .meaning-access-gate { padding: 16px; border-color: var(--inkroom-line); border-radius: 10px; background: var(--inkroom-paper); }
+.inkroom-formal .training-task .reasoning-editor { border-top: 1px solid var(--inkroom-line); }
+.inkroom-formal .reasoning-editor textarea { font-size: 16px; background: #fff; border-color: var(--inkroom-line-strong); border-radius: 10px; line-height: 1.8; }
+.inkroom-formal .reasoning-save-hint, .inkroom-formal .feedback { padding: 14px 16px; border-inline-start: 2px solid #8c9984; background: #edf0e8; border-radius: 0 8px 8px 0; }
+.inkroom-formal .feedback p { margin: 8px 0 0; }
+.inkroom-formal .evidence-panel { grid-column: 1; grid-row: 3; position: static; width: 100%; padding: 20px 24px; margin: 0; border: 1px solid var(--inkroom-line); border-radius: 12px; background: #fff; }
+.inkroom-formal .reasoning-tools { width: 100%; }
+.inkroom-formal .reasoning-tools summary { min-height: 44px; cursor: pointer; font-weight: 600; }
+.inkroom-formal .reasoning-tools-content { display: flex; align-items: start; flex-wrap: wrap; gap: 12px; }
+.inkroom-formal .reasoning-tools-content p { flex-basis: 100%; font-size: 14px; line-height: 1.8; }
+.inkroom-formal .reasoning-tools-content hr { display: none; }
+.inkroom-formal .reasoning-tools-content button { min-height: 44px; border-color: var(--inkroom-line-strong); border-radius: 8px; background: var(--inkroom-paper); }
+.inkroom-formal .reading-shortcuts { margin-top: 24px; border-color: var(--inkroom-line); }
+.inkroom-formal .reading-shortcuts button { border-color: var(--inkroom-line-strong); border-radius: 8px; font-size: 14px; }
+.inkroom-formal .lesson-summary { max-width: 760px; padding: 16px 0 32px; }
+.inkroom-formal .lesson-summary h1 { font-size: clamp(30px,4vw,46px); line-height: 1.4; letter-spacing: 0; }
+.inkroom-formal .training-records, .inkroom-formal .reasoning-history { margin-top: 24px; border-color: var(--inkroom-line); }
+@keyframes inkroom-page-in { from { opacity: .7; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 62rem) { .inkroom-formal .training-workspace { grid-template-columns: minmax(0,1fr); gap: 32px; } }
+@media (max-width: 42rem) {
+  .inkroom-formal .brand { font-size: 19px; }
+  .inkroom-formal .inkroom-training { padding: 12px 16px 100px; }
+  .inkroom-formal .training-shell { gap: 20px; }
+  .inkroom-formal .step-list { display: flex; justify-content: space-between; gap: 4px; padding-bottom: 12px; }
+  .inkroom-formal .step-list b { display: none; }
+  .inkroom-formal .step-list span { padding: 8px 2px; font-size: 12px; }
+  .inkroom-formal .lesson-meta { font-size: 12px; }
+  .inkroom-formal .fulltext-reader { padding: 20px 16px; }
+  .inkroom-formal .fulltext-canvas { max-height: 440px; }
+  .inkroom-formal .training-task-heading .text-button { white-space: normal; font-size: 13px; }
+  .inkroom-formal .evidence-panel { padding: 16px; }
+  .inkroom-formal .reading-shortcuts { background: #fcfdf9; }
+  .inkroom-formal .reading-shortcuts button { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inkroom-formal *, .inkroom-formal *::before, .inkroom-formal *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .inkroom-formal .button:active:not(:disabled) { transform: none; }
+}

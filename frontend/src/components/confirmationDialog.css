@@ -1,0 +1,24 @@
+html:has(.confirmation-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
+.confirmation-dialog { --confirmation-ink: #202421; --confirmation-muted: #626761; position: fixed; inset: 0; width: min(500px, calc(100% - 32px)); max-width: calc(100% - 32px); max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); box-sizing: border-box; margin: auto; padding: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #d2d8cc; border-radius: 18px; background: #fcfdf9; color: var(--confirmation-ink); box-shadow: 0 22px 90px #20242124; overflow-wrap: anywhere; }
+.confirmation-dialog::backdrop { background: #20242155; }
+.confirmation-dialog[open][data-phase='open'] { animation: confirmation-ink-enter 220ms cubic-bezier(.2,.8,.2,1); }
+.confirmation-dialog[open][data-phase='open']::backdrop { animation: confirmation-backdrop-enter 220ms ease; }
+.confirmation-dialog[open][data-phase='closing'] { animation: confirmation-ink-exit 180ms ease-in forwards; pointer-events: none; }
+.confirmation-dialog[open][data-phase='closing']::backdrop { animation: confirmation-backdrop-exit 180ms ease-in forwards; }
+.confirmation-content { padding: clamp(24px, 5vw, 32px); }
+.confirmation-eyebrow { display: block; margin: 0 0 12px; color: var(--confirmation-muted); font-size: 12px; font-weight: 600; line-height: 1.7; letter-spacing: 0; }
+.confirmation-dialog h2 { margin: 0 0 16px; font-size: clamp(21px, 3vw, 23px); font-weight: 600; line-height: 1.55; letter-spacing: 0; }
+.confirmation-dialog p { margin: 0; color: var(--confirmation-muted); font-size: 16px; line-height: 1.85; letter-spacing: 0; white-space: pre-line; }
+.confirmation-actions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 22px; margin-top: 24px; border-top: 1px solid #dfe3da; }
+.confirmation-actions button { flex: 1 1 170px; min-height: 48px; min-width: 44px; padding: 12px 14px; border: 1px solid #c0c9bd; border-radius: 9px; background: #fff; color: var(--confirmation-ink); cursor: pointer; font: inherit; font-size: 15px; font-weight: 500; line-height: 1.6; transition: background-color 120ms ease, border-color 120ms ease; }
+.confirmation-actions .confirmation-accept { background: var(--confirmation-ink); border-color: var(--confirmation-ink); color: #fff; }
+.confirmation-actions button:disabled { cursor: default; opacity: .72; }
+.confirmation-actions button:focus-visible { outline: 2px solid var(--confirmation-ink); outline-offset: 3px; }
+@media (hover: hover) { .confirmation-actions button:not(:disabled):hover { background: #f0f2eb; border-color: var(--confirmation-ink); } .confirmation-actions .confirmation-accept:not(:disabled):hover { background: #353b36; } }
+@keyframes confirmation-ink-enter { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes confirmation-ink-exit { to { opacity: 0; transform: translateY(4px) scale(.99); } }
+@keyframes confirmation-backdrop-enter { from { background: transparent; } }
+@keyframes confirmation-backdrop-exit { to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .confirmation-dialog, .confirmation-dialog::backdrop, .confirmation-actions button { animation: none !important; transition: none !important; }
+}

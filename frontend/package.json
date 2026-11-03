@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/navigation.test.mjs tests/http.test.mjs tests/reader.test.mjs tests/contracts.test.mjs tests/assessment.test.mjs tests/courseAbility.test.mjs tests/learningPath.test.mjs tests/observations.test.mjs tests/assessmentEditorial.test.mjs tests/aiFeedback.test.mjs tests/aiReasonReview.test.mjs tests/aiReasonReviewExport.test.mjs tests/reviewRecall.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "typecheck:release": "tsc --project tsconfig.production.json --noEmit",
+    "build:release": "npm run typecheck:release && vite build --config vite.production.config.mjs",
+    "test:release": "node --test release-tests/*.test.mjs",
+    "test:ux": "node --test ux-tests/guidedTraining.test.mjs ux-tests/trainingDraft.test.mjs ux-tests/trainingFeedbackFlow.test.mjs ux-tests/guidedSubmission.test.mjs ux-tests/trainingCommandOutcome.test.mjs ux-tests/guidedEditorSubmission.test.mjs ux-tests/trainingReaderDialog.test.mjs ux-tests/dual-access.test.mjs ux-tests/integratedBaseline.test.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "4.3.4",

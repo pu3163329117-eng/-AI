@@ -1,0 +1,31 @@
+/* One scenic workbench heading; dense queues, revisions and forms stay paper. */
+.waterink-theme[data-surface='admin'] { --inkroom-ink: var(--waterink-ink); --inkroom-muted: var(--waterink-muted); }
+.waterink-theme[data-surface='admin'] :is(.content-admin-page,.knowledge-workbench,.ai-review-workbench) { min-width: 0; color: var(--waterink-ink); background: var(--waterink-surface); }
+.waterink-theme[data-surface='admin'] :is(h1,h2,h3) { font-family: var(--waterink-serif); line-height: 1.55; letter-spacing: 0; }
+.waterink-theme[data-surface='admin'] h1 { font-size: clamp(27px,3vw,40px); }
+.waterink-theme[data-surface='admin'] :is(.content-admin-page,.knowledge-workbench,.ai-review-workbench) > header { padding: clamp(20px,2.5vw,32px); margin-bottom: 24px; border: 1px solid var(--waterink-line); border-radius: 12px; background-color: var(--waterink-paper); background-image: var(--waterink-heading-wash),var(--waterink-art,none); background-size: 100% 100%,auto 100%; background-position: center,right center; background-repeat: no-repeat; }
+.waterink-theme[data-surface='admin'] :is(.content-admin-page,.knowledge-workbench,.ai-review-workbench) > header :is(p,.knowledge-note,.eyebrow) { color: var(--waterink-ink); }
+.waterink-theme[data-surface='admin'] :is(button,summary,input,select) { min-height: 44px; }
+.waterink-theme[data-surface='admin'] :is(button,summary) { min-width: 44px; }
+.waterink-theme[data-surface='admin'] :is(input,select,textarea) { min-width: 0; max-width: 100%; border-color: #818a7c; border-radius: 7px; padding: 10px 12px; color: var(--waterink-ink); background: #fff; font-size: 16px; line-height: 1.7; }
+.waterink-theme[data-surface='admin'] :is(input[type='checkbox'],input[type='radio']) { width: 18px; min-height: 18px; }
+.waterink-theme[data-surface='admin'] button { border-radius: 7px; line-height: 1.6; }
+.waterink-theme[data-surface='admin'] .editor-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 16px; border-color: var(--waterink-line); }
+.waterink-theme[data-surface='admin'] .editor-tabs button { padding: 10px 16px; }
+.waterink-theme[data-surface='admin'] :is(.admin-form,.annotation-editor,.knowledge-editor,.editorial-form) { border-color: var(--waterink-line); background: var(--waterink-surface); }
+.waterink-theme[data-surface='admin'] :is(.annotation-quality,.annotation-comparison,.knowledge-coverage,.review-notice) { border-color: var(--waterink-line); border-radius: 10px; background: #f8f7f3; }
+.waterink-theme[data-surface='admin'] :is(.annotation-quality,.annotation-comparison,.annotation-packet,.knowledge-evidence,.knowledge-coverage) { background-image: none; border-inline-start: 2px solid var(--waterink-seal); }
+.waterink-theme[data-surface='admin'] :is(.admin-form,.annotation-editor,.knowledge-editor,.editorial-form,.knowledge-queue,.knowledge-layout aside,table,textarea,input,select) { background-image: none; }
+.waterink-theme[data-surface='admin'] :is(.knowledge-note,.annotation-quality-note,.annotation-packet-note,.annotation-comparison-note) { line-height: 1.85; }
+.waterink-theme[data-surface='admin'] :is(code,pre) { max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; }
+.waterink-theme[data-surface='admin'] :is(.editorial-table-wrap,.table-scroll) { max-width: 100%; overflow-x: auto; }
+.waterink-theme[data-surface='admin'] table { width: 100%; border-collapse: collapse; }
+.waterink-theme[data-surface='admin'] :is(th,td) { border-color: var(--waterink-line); padding: 12px; text-align: left; }
+.waterink-theme[data-surface='admin'] :is(p,li,dd,label) { overflow-wrap: anywhere; }
+.waterink-theme[data-surface='admin'] [role='alert'] { border-inline-start-color: var(--waterink-seal); }
+@media (max-width:44rem) {
+  .waterink-theme[data-surface='admin'] :is(.content-admin-page,.knowledge-workbench,.ai-review-workbench) { padding-inline: 16px; }
+  .waterink-theme[data-surface='admin'] :is(.content-admin-page,.knowledge-workbench,.ai-review-workbench) > header { padding: 20px 16px; }
+  .waterink-theme[data-surface='admin'] .editor-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .waterink-theme[data-surface='admin'] .editor-tabs button { min-width: 0; white-space: normal; }
+}

@@ -1,0 +1,71 @@
+.guided-training .training-shell { display: block; max-width: 900px; margin-inline: auto; }
+.guided-training .lesson { width: 100%; min-width: 0; }
+.guided-training .guided-screen[hidden] { display: none; }
+.guided-step-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--waterink-line, #c7c9c1); }
+.guided-step-nav button { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 48px; padding: 8px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; background: var(--waterink-surface, #fffefb); color: var(--waterink-ink, #252624); font-size: 16px; line-height: 1.5; cursor: pointer; }
+.guided-step-nav button[aria-current='step'] { border-color: var(--waterink-ink, #252624); background: var(--waterink-ink, #252624); color: var(--waterink-surface, #fffefb); }
+.guided-step-nav button span { font-variant-numeric: tabular-nums; }
+.guided-task-heading { padding-block: 24px 12px; }
+.guided-task-heading h1 { margin: 10px 0 18px; font-size: clamp(28px, 3vw, 38px); line-height: 1.45; letter-spacing: 0; }
+.guided-training .guided-screen { min-width: 0; padding-bottom: 24px; }
+.guided-training .guided-screen > p { font-size: 16px; line-height: 1.85; }
+.guided-training .guided-screen .passage { margin: 16px 0 24px; font-family: "Songti SC", SimSun, serif; font-size: clamp(24px, 3vw, 32px); line-height: 1.9; }
+.guided-training .guided-screen .button { min-height: 48px; font-size: 16px; white-space: normal; }
+.guided-training .training-task { padding: 0; border: 0; background: transparent; }
+.guided-training #question-title { font-size: 22px; line-height: 1.7; }
+.guided-adjust-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.guided-training :is(.guided-reader,.reasoning-tools,.guided-ai) { margin-block: 20px; padding: 0 16px 12px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; background: var(--waterink-surface, #fffefb); }
+.guided-training :is(.guided-reader,.reasoning-tools,.guided-ai) > summary { min-height: 48px; padding-block: 12px; font-size: 16px; line-height: 1.6; cursor: pointer; }
+.guided-training .guided-reader .fulltext-reader { margin-top: 16px; }
+.guided-training .guided-reader .fulltext-layout { grid-template-columns: minmax(0, 1fr); }
+.guided-training .guided-reader .fulltext-canvas { max-height: 60vh; }
+.guided-training .guided-reader .context-layers { max-height: none; }
+.guided-training .reasoning-tools-content { display: grid; gap: 12px; }
+.guided-training .guided-return { margin-top: 12px; }
+.guided-training :is(button, summary):focus-visible { outline: 2px solid var(--waterink-ink, #252624); outline-offset: 3px; }
+.guided-training #guided-task-title { scroll-margin-top: 110px; }
+/* One working question, not four separate task pages. The original text lives
+   in TrainingReaderDialog; secondary tools stay available without dominating. */
+.guided-training .lesson-meta { margin-bottom: 12px; padding-bottom: 12px; }
+.guided-training .guided-task-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding-block: 12px; }
+.guided-training .guided-task-heading > div { min-width: 0; flex: 1 1 260px; }
+.guided-training .guided-task-heading h1 { margin: 6px 0 10px; font-size: clamp(24px, 3vw, 32px); line-height: 1.5; }
+.guided-training .guided-progress { margin: 0; color: var(--waterink-muted, #666b63); font-size: 14px; line-height: 1.6; }
+.guided-training .guided-reader-trigger { min-height: 44px; padding: 10px 14px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; background: var(--waterink-surface, #fffefb); color: inherit; font: inherit; font-size: 16px; line-height: 1.5; white-space: normal; cursor: pointer; }
+.guided-training .guided-task-card { min-width: 0; max-width: 780px; margin-inline: auto; }
+.guided-training .guided-task-card .passage { margin: 12px 0 18px; font-size: clamp(23px, 3vw, 30px); line-height: 1.85; overflow-wrap: anywhere; }
+.guided-training .guided-task-card #question-title { margin: 12px 0; font-size: clamp(18px, 2vw, 22px); line-height: 1.65; }
+.guided-training .guided-task-card .choice-list { gap: 8px; }
+.guided-training .guided-task-card .choice-option { min-height: 48px; padding: 10px 14px; font-size: 16px; line-height: 1.65; }
+.guided-training .guided-task-primary { position: sticky; bottom: 0; z-index: 12; display: grid; gap: 8px; margin-top: 18px; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--waterink-line, #c7c9c1); background: var(--waterink-paper, #f6f7f3); }
+.guided-training .guided-task-primary > .button { width: 100%; min-height: 48px; margin: 0; }
+.guided-training .guided-task-primary > p { margin: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.guided-training .guided-task-card :is(input, select, textarea) { font-size: 16px; }
+.guided-training .guided-task-card :is(button, summary, .choice-option) { min-height: 44px; }
+.guided-training .guided-secondary { margin-block: 16px; padding-block: 10px; border-top: 1px solid var(--waterink-line, #c7c9c1); }
+.guided-training .guided-secondary > summary { min-height: 44px; padding-block: 10px; font-size: 16px; line-height: 1.5; cursor: pointer; }
+.guided-training .guided-secondary .reasoning-tools { margin-block: 12px; }
+.guided-training .guided-optional-reason { margin-block: 16px; }
+.guided-training .guided-optional-reason > summary { min-height: 44px; padding-block: 10px; cursor: pointer; font-size: 16px; }
+.guided-training .guided-optional-reason textarea { width: 100%; box-sizing: border-box; min-height: 120px; margin-top: 10px; }
+.guided-training :is(.guided-task-card, .guided-secondary) { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .waterink-theme.inkroom-formal .guided-training .lesson { padding: 18px 16px 26px; }
+  .guided-step-nav { gap: 5px; }
+  .guided-step-nav button { padding: 8px 4px; font-size: 16px; }
+  .guided-task-heading { padding-top: 20px; }
+  .guided-training .guided-screen .button { width: 100%; }
+  .guided-training :is(.guided-reader,.reasoning-tools,.guided-ai) { padding-inline: 12px; }
+  .guided-training .guided-reader .context-layers { padding-inline: 0; }
+  .guided-training .guided-task-heading { gap: 8px; padding-top: 8px; }
+  .guided-training .guided-task-heading > div { flex-basis: 100%; }
+  .guided-training .guided-reader-trigger { width: 100%; }
+  .guided-training .guided-task-primary { bottom: calc(76px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+  /* When typing, return the action to normal flow rather than covering the
+     optional reason field or assuming a particular software-keyboard height. */
+  .guided-training:has(textarea:focus, input:not([type='radio']):not([type='checkbox']):focus, select:focus) .guided-task-primary { position: static; }
+  .waterink-root:has(.waterink-mobile-nav[data-focused='true']) .guided-training .guided-task-primary { bottom: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guided-training *, .guided-training *::before, .guided-training *::after { animation: none; transition: none; scroll-behavior: auto; }
+}

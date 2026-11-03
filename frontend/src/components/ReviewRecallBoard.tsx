@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import type { Mistake } from '../types'
 import { reviewAttemptLabel, reviewContentKey, selectReviewItems, type ReviewOrder } from '../reviewRecall'
 import './reviewRecall.css'
+import './inkroomAbilityRecall.css'
 
 function RecallCard({ item, busy, onStart }: { item: Mistake; busy: boolean; onStart: (id: string) => void }) {
   const [revealed, setRevealed] = useState(false)
@@ -33,7 +34,7 @@ export function ReviewRecallBoard({ items, busy, onStart }: { items: Mistake[]; 
       <label htmlFor={orderId}>排列方式<select id={orderId} value={order} onChange={event => { setOrder(event.target.value as ReviewOrder); setLimit(10) }}><option value="recent">最近作答优先</option><option value="frequent">累计错答较多优先</option><option value="oldest">较久未作答优先</option></select></label>
     </div>
     <p className="recall-result-count" role="status">当前错题本共 {items.length} 项，匹配 {selected.length} 项{selected.length > limit ? `，先展示 ${limit} 项` : ''}。排序不代表记忆强度或到期安排。</p>
-    {selected.length === 0 ? <div className="review-state"><b>没有找到匹配的错题。</b><p>试试篇目名或原句中的字词。</p><button type="button" className="text-button" onClick={clearSearch}>清空搜索 →</button></div>
+    {selected.length === 0 ? <div className="review-state"><b>{items.length === 0 ? '当前还没有错题记录。' : '没有找到匹配的错题。'}</b><p>{items.length === 0 ? '完成训练后，实际答错的题目会出现在这里；没有记录不代表已经掌握。' : '试试篇目名或原句中的字词。'}</p>{query.length > 0 && <button type="button" className="text-button" onClick={clearSearch}>清空搜索 →</button>}</div>
       : <div className="recall-list">{selected.slice(0, limit).map(item => <RecallCard key={reviewContentKey(item)} item={item} busy={busy} onStart={onStart} />)}</div>}
     {selected.length > limit && <button type="button" className="button button-secondary recall-more" onClick={() => setLimit(value => value + 10)}>再展示 {Math.min(10, selected.length - limit)} 项 <span aria-hidden="true">↓</span></button>}
   </div>

@@ -1,0 +1,37 @@
+/* Keep report structure local: training/recommendation components share base styles. */
+.report-polish .report-page-intro { max-width: 48rem; margin: 10px 0 0; color: #555; font-size: 15px; line-height: 1.8; }
+.report-polish .report-header-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; flex: 0 0 auto; max-width: 20rem; }
+.report-polish .report-heading-row { display: flex; justify-content: space-between; align-items: start; gap: 24px; padding-bottom: 22px; }
+.report-polish .report-heading-row > .button { flex: 0 0 auto; }
+.report-polish .report-boundary-note { padding: 16px 20px; margin: 20px 0; border-left: 3px solid #222; background: #f5f5f3; }
+.report-polish .report-boundary-note p:first-child { margin-top: 0; }
+.report-polish .report-boundary-note p:last-child { margin-bottom: 0; }
+.report-polish .path-formal-profile { margin-top: 24px; padding: 20px 24px; border: 1px solid #d4d4cf; border-radius: 12px; }
+.report-polish .path-formal-profile > h3 { margin-top: 0; }
+.report-polish .path-dimension-list article > div { flex-wrap: wrap; }
+.report-polish .path-dimension-list article > div span { white-space: nowrap; }
+.report-polish .path-pilot-reference { margin-top: 24px; padding: 20px 24px; background: #f6f6f4; border: 1px solid #d4d4cf; border-left: 3px solid #111; border-radius: 0 12px 12px 0; }
+.report-polish .path-ability-history, .report-polish .observation-trend, .report-polish .observation-sources { border: 1px solid #d4d4cf; border-radius: 10px; padding: 0 18px; }
+.report-polish summary { min-height: 48px; font-weight: 600; }
+.report-polish summary:focus-visible { outline-offset: 2px; }
+.report-polish .report-next-step { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 0; border-top: 1px solid #aaa; }
+.report-polish .report-next-step h3 { margin: 0 0 8px; }
+.report-polish .report-next-step p { margin: 0; color: #555; }
+.report-polish .report-next-step .button { flex: 0 0 auto; }
+.report-polish .observation-group { padding: 16px; background: #f6f6f4; border: 1px solid #ddd; border-radius: 8px; }
+.report-polish .observation-group h4 { margin-bottom: 8px; }
+.report-polish .observation-empty { margin: 20px 0; padding: 20px; background: #f6f6f4; border: 1px solid #d4d4cf; border-radius: 10px; }
+.report-polish .observation-empty h3 { margin-top: 0; }
+.report-polish .observation-record-heading > span { flex-shrink: 1; text-align: end; }
+@media (max-width: 48rem) {
+  .report-polish .report-heading-row, .report-polish .report-next-step { flex-direction: column; align-items: stretch; gap: 14px; }
+  .report-polish .report-header-actions { max-width: none; justify-content: flex-start; }
+  .report-polish .observation-record-heading > span { text-align: start; }
+}
+@media (max-width: 32rem) {
+  .report-polish .path-formal-profile, .report-polish .path-pilot-reference { padding: 16px; }
+  .report-polish .report-boundary-note { padding: 14px; }
+  .report-polish .report-header-actions { width: 100%; }
+  .report-polish .report-header-actions .button, .report-polish .report-heading-row > .button, .report-polish .observation-empty .button { width: 100%; }
+  .report-polish .path-ability-history, .report-polish .observation-trend, .report-polish .observation-sources { padding-inline: 14px; }
+}

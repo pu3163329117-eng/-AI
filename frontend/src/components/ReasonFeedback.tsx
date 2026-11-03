@@ -5,8 +5,8 @@ import { errorMessage } from '../http'
 import { jumpTo } from '../navigation'
 import type { TrainingSession } from '../types'
 
-export function ReasonFeedback({ sessionId, session, disabled, dirty }: {
-  sessionId: string; session: TrainingSession; disabled: boolean; dirty: boolean
+export function ReasonFeedback({ sessionId, session, disabled, dirty, onRequestContext }: {
+  sessionId: string; session: TrainingSession; disabled: boolean; dirty: boolean; onRequestContext?: () => void
 }) {
   const [available, setAvailable] = useState<boolean | null>(null)
   const [statusError, setStatusError] = useState('')
@@ -24,7 +24,8 @@ export function ReasonFeedback({ sessionId, session, disabled, dirty }: {
   }, [statusAttempt])
   useEffect(() => () => { active.current?.abort() }, [])
   const firstAttempt = session.learning_trace?.stages[session.stage].first_attempt
-  const canRequest = available && consent && session.reasoning_graph && firstAttempt && !disabled && !dirty && !loading
+  const hasOwnReason = Boolean(session.reasoning_graph?.reason.trim())
+  const canRequest = available && consent && hasOwnReason && session.reasoning_graph && firstAttempt && !disabled && !dirty && !loading
   async function requestFeedback() {
     if (!canRequest || active.current) return
     const controller = new AbortController(); active.current = controller
@@ -45,7 +46,7 @@ export function ReasonFeedback({ sessionId, session, disabled, dirty }: {
   return <section className="reason-feedback" aria-labelledby="reason-feedback-title" aria-busy={loading}>
     <div className="reason-feedback-heading"><h2 id="reason-feedback-title">理由反馈</h2><span className="stage-label">本机影子试用 · 非正式评分</span></div>
     <p className="knowledge-note">只分析当前已保存的理由；量表尚未教师审核，模型意见可能有误。不改变训练进度、积分或能力等级，也不将理由标为已复核。</p>
-    {statusError ? <p role="alert">{statusError} <button className="knowledge-action" onClick={() => setStatusAttempt(value => value + 1)}>重新检查可用性</button></p> : available === null ? <p role="status">正在检查本机模型配置…</p> : available === false ? <p>模型试用尚未启用，可以继续原有训练。</p> : <>
+    {!hasOwnReason ? <p>本次未填写选填理由，不请求模型反馈，也不影响继续训练。</p> : statusError ? <p role="alert">{statusError} <button className="knowledge-action" onClick={() => setStatusAttempt(value => value + 1)}>重新检查可用性</button></p> : available === null ? <p role="status">正在检查本机模型配置…</p> : available === false ? <p>模型试用尚未启用，可以继续原有训练。</p> : <>
       {!firstAttempt ? <p>先提交本阶段首次词义判断，再保存证据与理由。</p> : !session.reasoning_graph ? <p>保存证据与理由后，即可手动请求一次反馈。</p> : dirty ? <p role="status">有未保存改动，请先保存；旧反馈不适用于新的理由。</p> : null}
       <label className="reason-feedback-consent"><input type="checkbox" checked={consent} disabled={loading} onChange={event => setConsent(event.target.checked)} /><span>允许将当前题目原文、所选证据、已保存的理由与结论及试用量表发送给 DeepSeek。不会发送昵称、档案 ID 或其他学习记录；理由中请勿填写个人信息。调用可能产生 API 费用。</span></label>
       <button type="button" className="button button-secondary" disabled={!canRequest} onClick={() => void requestFeedback()}>{loading ? '正在获取候选反馈…' : feedback ? '重新读取本条反馈' : '请求理由反馈（试用）'}</button>
@@ -56,7 +57,7 @@ export function ReasonFeedback({ sessionId, session, disabled, dirty }: {
       {feedback && !dirty && <div className="reason-feedback-result"><p className="eyebrow">{feedback.status === 'OK' ? '模型候选意见 · 未审核' : '本次反馈不可用'}{feedback.cached ? ' · 本机缓存' : ''}</p><p>{feedback.summary}</p>
         {feedback.matched_criteria.length > 0 && <><h3>模型认为具备的表达要素</h3><ul>{feedback.matched_criteria.map(item => <li key={item}>{item}</li>)}</ul></>}
         {feedback.cited_evidence.length > 0 && <><h3>模型引用的原文</h3>{feedback.cited_evidence.map(item => <blockquote key={item.id}>{item.text}</blockquote>)}</>}
-        <p>{feedback.next_step}</p><button className="knowledge-action" onClick={() => jumpTo('fulltext-title')}>回到原文核对 ↓</button>
+        <p>{feedback.next_step}</p><button className="knowledge-action" disabled={disabled} onClick={() => { if (onRequestContext) onRequestContext(); else jumpTo('fulltext-title') }}>回到原文核对</button>
       </div>}
     </div>
   </section>

@@ -1,0 +1,19 @@
+.recommendation-queue .path-level-choice { padding: 20px; border: 1px solid #d3d3d0; border-radius: 10px; background: #f6f6f3; margin-bottom: 20px; }
+.recommendation-queue .path-level-choice legend { padding-inline: 8px; line-height: 1.6; }
+.recommendation-queue .path-level-choice label { min-width: 0; line-height: 1.7; }
+.recommendation-queue .path-plan-meta { padding: 20px; margin-top: 20px; border: 1px solid #d3d3d0; border-left: 3px solid #171717; background: #fafaf8; }
+.recommendation-queue .path-plan-meta p:first-child { margin-top: 0; font-weight: 700; }
+.recommendation-queue .path-task-groups > section > h3 { margin-block: 18px 12px; }
+.recommendation-queue .path-task-groups li { padding: 24px; margin-bottom: 14px; border: 1px solid #d3d3d0; border-radius: 10px; background: #fff; }
+.recommendation-queue .path-task-heading > div { min-width: 0; }
+.recommendation-queue .path-task-heading > span { padding: 4px 10px; border: 1px solid #ddd; border-radius: 4px; background: #f6f6f3; }
+.recommendation-queue .path-task-footer { border-top: 1px solid #e1e1dd; padding-top: 16px; margin-top: 18px; }
+.path-confirmation { margin-block: 20px; padding: 20px; border: 2px solid #171717; border-radius: 10px; background: #f4f4f1; }
+.path-confirmation h3 { margin-top: 0; }
+.path-confirmation p { margin-block: 12px 20px; }
+@media (max-width: 32rem) {
+  .recommendation-queue .path-level-choice, .recommendation-queue .path-plan-meta, .recommendation-queue .path-task-groups li, .path-confirmation { padding: 16px; }
+  .recommendation-queue .path-level-choice label { flex-basis: 100%; }
+  .recommendation-queue .path-task-heading > span { align-self: flex-start; }
+  .recommendation-queue .path-task-footer small { overflow-wrap: anywhere; }
+}

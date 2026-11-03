@@ -1,0 +1,74 @@
+/* FEEDBACK-ACTION-20261026: learner-only density and shared control rhythm.
+   Import after the existing water-ink skin. No DOM, auth or motion changes. */
+.waterink-theme.inkroom-formal {
+  --feedback-work-width: 1280px;
+  --feedback-gutter: clamp(16px,2.5vw,40px);
+  --feedback-control-radius: 8px;
+  --feedback-panel-radius: 12px;
+}
+.waterink-theme.inkroom-formal.app-shell { max-width: 1560px; }
+.waterink-theme.inkroom-formal.inkroom-pages { --inkroom-page-width: var(--feedback-work-width); }
+.waterink-theme.inkroom-formal :is(.practice-page,.review-page,.skills-page,.profile-page,.about-page,.learning-report-page) {
+  max-width: var(--feedback-work-width);
+  padding: 32px var(--feedback-gutter) 56px;
+}
+.waterink-theme.inkroom-formal .reading-home { width: min(100%,var(--feedback-work-width)); padding: 28px var(--feedback-gutter) 48px; }
+.waterink-theme.inkroom-formal .report-overview { max-width: var(--feedback-work-width); padding: 28px var(--feedback-gutter) 24px; }
+.waterink-theme.inkroom-formal .ability-report-container { max-width: var(--feedback-work-width); padding-inline: var(--feedback-gutter); }
+.waterink-theme.inkroom-formal .onboarding-page { max-width: var(--feedback-work-width); padding: 32px var(--feedback-gutter) 48px; }
+.waterink-theme.inkroom-formal .training-page { padding-inline: var(--feedback-gutter); }
+.waterink-theme.inkroom-formal .training-shell { width: 100%; max-width: 1360px; }
+.waterink-theme.inkroom-formal :is(.reading-home,.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.onboarding-page) { min-width: 0; }
+.waterink-theme.inkroom-formal .training-page .training-workspace { gap: clamp(20px,2.5vw,32px); }
+.waterink-theme.inkroom-formal .training-page .fulltext-paragraph { max-width: 34em; }
+.waterink-theme.inkroom-formal :is(.reading-home,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page) :is(.intro,.knowledge-note,.path-note,.assessment-note) { max-width: 46em; line-height: 1.85; }
+
+/* Utility text stays sans-serif; chapter headings and original text retain the
+   existing serif role. Selected/disabled/error semantics are never restyled. */
+.waterink-theme.inkroom-formal :is(.reading-home,.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.onboarding-page) :is(.button,.text-button,.knowledge-action,.reader-range-toggle,.quiet-action) {
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  border-radius: var(--feedback-control-radius);
+  font-size: 16px;
+  line-height: 1.65;
+  white-space: normal;
+}
+.waterink-theme.inkroom-formal :is(.reading-home,.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.onboarding-page) .button { min-height: 48px; }
+.waterink-theme.inkroom-formal :is(.reading-home,.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.onboarding-page) :is(input:not([type='radio']):not([type='checkbox']),textarea,select) {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 16px;
+  line-height: 1.8;
+  border-radius: var(--feedback-control-radius);
+  color: var(--waterink-ink,#252624);
+  background-color: var(--waterink-surface,#fffefb);
+}
+.waterink-theme.inkroom-formal :is(.reading-home,.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.onboarding-page) :is(.reading-home-today,.reading-home-mission,.reading-home-course,.fulltext-reader,.profile-form,.practice-signal,.review-empty,.report-empty) { border-radius: var(--feedback-panel-radius); }
+.waterink-theme.inkroom-formal .training-page :is(.reasoning-save-hint,.feedback,.hint) { padding: 14px 16px; line-height: 1.85; }
+.waterink-theme.inkroom-formal .training-page .question-area { margin-top: 24px; padding-top: 20px; }
+.waterink-theme.inkroom-formal .training-page .question-area h1 { margin-block: 12px 20px; }
+.waterink-theme.inkroom-formal .training-page .choice-option { border-radius: var(--feedback-control-radius); }
+.waterink-theme.inkroom-formal :is(.profile-stats,.report-totals) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.waterink-theme.inkroom-formal :is(.profile-stats,.report-totals,.reading-home-courses) > * { min-width: 0; }
+
+@media (min-width: 60rem) {
+  .waterink-theme.inkroom-formal .reading-home-courses { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 44rem) {
+  .waterink-theme.inkroom-formal :is(.practice-page,.review-page,.skills-page,.profile-page,.about-page,.learning-report-page) { padding: 24px 16px 40px; }
+  .waterink-theme.inkroom-formal .reading-home { padding: 20px 16px 40px; }
+  .waterink-theme.inkroom-formal .report-overview { padding: 20px 16px; }
+  .waterink-theme.inkroom-formal .ability-report-container { padding-inline: 16px; }
+  .waterink-theme.inkroom-formal .onboarding-page { padding: 24px 16px 40px; gap: 20px; }
+  .waterink-theme.inkroom-formal .training-page { padding-inline: 16px; }
+  .waterink-theme.inkroom-formal .reading-home-current { padding: 20px 16px; }
+  .waterink-theme.inkroom-formal .reading-home-mission { margin-inline: 16px; padding: 16px; }
+  .waterink-theme.inkroom-formal .reading-home-course { padding: 20px 16px; }
+  .waterink-theme.inkroom-formal .training-page .fulltext-reader { padding: 20px 16px; }
+  .waterink-theme.inkroom-formal .training-page .training-workspace { gap: 24px; }
+  .waterink-theme.inkroom-formal .training-page .context-layers li { gap: 12px; }
+  .waterink-theme.inkroom-formal .training-page .reasoning-editor textarea { padding: 12px; }
+  .waterink-theme.inkroom-formal :is(.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page) :is(.intro,.practice-lesson p,.review-list p,.path-note) { font-size: 15px; line-height: 1.85; }
+  .waterink-theme.inkroom-formal :is(.profile-stats,.report-totals) { grid-template-columns: minmax(0,1fr); }
+}

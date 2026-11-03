@@ -8,9 +8,23 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+try:
+    from backend.access import authorize_request, require_production_storage, security_headers, student_response
+    from backend.auth.models import ProfileOwner
+    from backend.auth.routes import router as auth_router
+    from backend.auth.settings import load_access_settings
+    from backend.concurrency import BetaConcurrencyLimit
+except ModuleNotFoundError:
+    from access import authorize_request, require_production_storage, security_headers, student_response
+    from auth.models import ProfileOwner
+    from auth.routes import router as auth_router
+    from auth.settings import load_access_settings
+    from concurrency import BetaConcurrencyLimit
 
 try:
     # Local development imports the backend package from the repository root.
@@ -19,6 +33,7 @@ try:
     from backend.db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from backend.db.session import get_db
     from backend.db.knowledge import knowledge_coverage, knowledge_lookup
+    from backend.db.evidence_basis import resolve_annotation_basis
     from backend.db.observations import persist_observations
     from backend.domain.training import apply_command, initial_snapshot
     from backend.domain.reading_context import reading_context_for, validate_reading_context
@@ -31,6 +46,7 @@ except ModuleNotFoundError:
     from db.models import CommandReceipt, LearnerProfile, Lesson, LessonContent, LessonReview, TrainingEvent, TrainingSession
     from db.session import get_db
     from db.knowledge import knowledge_coverage, knowledge_lookup
+    from db.evidence_basis import resolve_annotation_basis
     from db.observations import persist_observations
     from domain.training import apply_command, initial_snapshot
     from domain.reading_context import reading_context_for, validate_reading_context
@@ -42,6 +58,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Production configuration must fail closed before any worker/tool starts.
+    require_production_storage(load_access_settings())
     init_db()
     try:
         try:
@@ -54,7 +72,35 @@ async def lifespan(_: FastAPI):
         collaboration_controller.shutdown()
 
 
-app = FastAPI(title="文言·推理 API", version="0.1.0", lifespan=lifespan)
+def require_guided_training_contract(request: Request) -> None:
+    # This is not a permission grant: the app-wide auth/owner/CSRF guard runs first.
+    if request.headers.get('X-Wenyan-Training-Contract') != 'guided-v1':
+        raise HTTPException(status_code=409, detail='网站已更新，本次未新增提交。请先复制未保存的内容，再刷新页面核对已保存进度；此前未确认的提交可能已经保存，请勿重复提交。')
+
+
+app = FastAPI(title="文言·推理 API", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authorize_request)])
+app.middleware('http')(security_headers)
+app.add_middleware(BetaConcurrencyLimit)
+app.include_router(auth_router)
+try:
+    from backend.experience_routes import router as experience_router
+except ModuleNotFoundError:
+    from experience_routes import router as experience_router
+app.include_router(experience_router)
+try:
+    from backend.support_admin_routes import router as support_admin_router
+except ModuleNotFoundError:
+    from support_admin_routes import router as support_admin_router
+app.include_router(support_admin_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    # Pydantic's default diagnostics may echo submitted passwords/invites.
+    if request.url.path.startswith(('/api/v1/auth/', '/api/v1/support/', '/api/v1/experience/', '/api/v1/admin/support/')):
+        code = 'SUPPORT_ADMIN_INVALID_INPUT' if request.url.path.startswith('/api/v1/admin/support/') else 'AUTH_INVALID_INPUT' if request.url.path.startswith('/api/v1/auth/') else 'EXPERIENCE_INVALID_INPUT'
+        return JSONResponse({'error': {'code': code}}, status_code=422, headers={'Cache-Control': 'no-store'})
+    return await request_validation_exception_handler(request, exc)
 
 # Separate local editorial endpoints from the learner's state machine.
 try:
@@ -85,7 +131,7 @@ try:
     from backend.observation_routes import router as observation_router
 except ModuleNotFoundError:
     from observation_routes import router as observation_router
-app.include_router(observation_router)
+app.include_router(observation_router, dependencies=[Depends(require_guided_training_contract)])
 
 try:
     from backend.ai_routes import router as ai_router
@@ -110,11 +156,11 @@ app.include_router(collaboration_router)
 async def api_error(_: Request, exc: HTTPException) -> JSONResponse:
     """Keep API errors stable for web and mobile clients rather than exposing FastAPI's `detail` envelope."""
     error = exc.detail if isinstance(exc.detail, dict) else {"code": str(exc.detail)}
-    return JSONResponse(status_code=exc.status_code, content={"error": error})
+    return JSONResponse(status_code=exc.status_code, content={"error": error}, headers=exc.headers)
 
 
 def _session_payload(record: TrainingSession) -> dict:
-    return {"session_id": record.id, "session": record.snapshot}
+    return student_response({"session_id": record.id, "session": record.snapshot})
 
 
 def _hash_request(command: CommandRequest) -> str:
@@ -245,6 +291,42 @@ def _learning_summary(profile: LearnerProfile, records: list[TrainingSession], e
     }
 
 
+def _saved_evidence_count(records: list[TrainingSession], events: list[TrainingEvent]) -> int:
+    """Count saved positions, not reason edits, clicks or semantic correctness."""
+    record_ids = {record.id for record in records}
+    anchors = set()
+    positioned_stages = set()
+    legacy_stages = set()
+    for event in events:
+        if event.session_id not in record_ids or not isinstance(event.payload, dict):
+            continue
+        payload = event.payload
+        stage = payload.get("stage")
+        if event.type == "training.evidence_selected":
+            # Old preset events had no offsets. At most one per frozen stage;
+            # a positioned save in that stage supersedes this uncertain anchor.
+            legacy_stages.add((event.session_id, stage if stage in ("CORE", "TRANSFER") else "UNKNOWN"))
+        elif event.type == "training.reasoning_saved":
+            evidence = payload.get("evidence")
+            if stage not in ("CORE", "TRANSFER") or type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1 or not isinstance(evidence, dict):
+                continue
+            version, source = payload.get("text_version"), payload.get("source")
+            paragraph, token = evidence.get("paragraph"), evidence.get("token")
+            paragraph_index, start, end = (evidence.get(key) for key in ("paragraph_index", "start", "end"))
+            if (not isinstance(version, str) or not version.strip() or not isinstance(source, str) or not source.strip()
+                or any(type(value) is not int for value in (paragraph_index, start, end))
+                or paragraph_index < 0 or not isinstance(paragraph, str) or not isinstance(token, str)
+                or not 0 <= start < end <= len(paragraph) or end - start > 80 or paragraph[start:end] != token or not token.strip()):
+                continue
+            anchors.add((event.session_id, stage, source, version, paragraph_index, start, end))
+            positioned_stages.add((event.session_id, stage))
+    known_stage_sessions = {session_id for session_id, _ in positioned_stages} | {session_id for session_id, stage in legacy_stages if stage != "UNKNOWN"}
+    # An unlabelled old event may be the same action as a labelled preset or
+    # positioned save. Never invent an additional distinct evidence position.
+    unpositioned = {key for key in legacy_stages - positioned_stages if key[1] != "UNKNOWN" or key[0] not in known_stage_sessions}
+    return len(anchors) + len(unpositioned)
+
+
 def _achievements_payload(profile: LearnerProfile, records: list[TrainingSession], events: list[TrainingEvent]) -> dict:
     """Derive small, explainable milestones from the immutable learning record.
 
@@ -254,12 +336,12 @@ def _achievements_payload(profile: LearnerProfile, records: list[TrainingSession
     """
     summary = _learning_summary(profile, records, events)
     completed_sessions = max(0, int(summary["completed_sessions"]))
-    evidence_selected = max(0, sum(1 for event in events if event.type == "training.evidence_selected"))
+    evidence_selected = _saved_evidence_count(records, events)
     current_streak = max(0, int(summary["current_streak_days"]))
 
     definitions = (
         ("FIRST_COMPLETION", "首次完成", "完成 1 次完整的语境推理训练。", completed_sessions, 1),
-        ("EVIDENCE_KEEPER", "证据守护者", "在判断前累计选出 3 条文本证据。", evidence_selected, 3),
+        ("EVIDENCE_KEEPER", "证据守护者", "累计保存 3 处原文证据（记录行为，不代表理由审核通过）。", evidence_selected, 3),
         ("STEADY_READER", "稳定阅读", "连续 3 天完成学习训练。", current_streak, 3),
         ("PERSISTENT_READER", "坚持阅读", "累计完成 5 次完整训练。", completed_sessions, 5),
     )
@@ -319,11 +401,39 @@ def _mistake_review_hint(variable: str, evidence: str | None) -> str:
 def _mistakes_payload(db: Session, records: list[TrainingSession], events: list[TrainingEvent]) -> dict:
     """Project WRONG_CONTEXT events into a deduplicated targeted-review list.
 
-    New events record their variable directly. Earlier records did not, so frozen
-    session snapshots remain the backwards-compatible source of truth. The snapshot
-    also keeps review data available if an editorial lesson is later removed.
+    Resolve the wrong attempt's stage, never the session's final display stage.
+    Earlier command receipts retain frozen CORE text after transfer overwrites the
+    current presentation. Live editorial content must not repair missing history.
     """
     records_by_id = {record.id: record for record in records}
+    transfer_sequences: dict[str, list[int]] = {}
+    for event in events:
+        if event.type == "training.transfer_started":
+            transfer_sequences.setdefault(event.session_id, []).append(event.sequence_no)
+    frozen_contexts: dict[tuple[str, str], dict | None] = {}
+
+    def wrong_context(record: TrainingSession, event: TrainingEvent) -> dict | None:
+        snapshot = record.snapshot
+        stage = event.payload.get("stage")
+        if stage not in ("CORE", "TRANSFER"):
+            transitions = transfer_sequences.get(record.id, [])
+            if transitions:
+                stage = "TRANSFER" if any(sequence < event.sequence_no for sequence in transitions) else "CORE"
+            elif snapshot.get("stage") == "CORE":
+                stage = "CORE"  # The one-way state machine has not transferred.
+            else:
+                return None
+        key = (record.id, stage)
+        if key not in frozen_contexts:
+            context = snapshot if snapshot.get("stage") == stage else snapshot.get("transfer_content") if stage == "TRANSFER" else None
+            if not isinstance(context, dict) or not _snapshot_text(context, "passage"):
+                receipt = db.scalar(select(CommandReceipt.response).where(
+                    CommandReceipt.session_id == record.id,
+                    CommandReceipt.response["session"]["stage"].as_string() == stage,
+                ).order_by(CommandReceipt.created_at, CommandReceipt.id).limit(1))
+                context = receipt.get("session") if isinstance(receipt, dict) else None
+            frozen_contexts[key] = context if isinstance(context, dict) and _snapshot_text(context, "passage") else None
+        return frozen_contexts[key]
     lesson_ids = {
         record.lesson_id
         for record in records
@@ -349,19 +459,25 @@ def _mistakes_payload(db: Session, records: list[TrainingSession], events: list[
         if not isinstance(lesson_id, str) or not lesson_id:
             # A malformed legacy session cannot form the documented lesson key.
             continue
+        context = wrong_context(record, event)
         variable = event.payload.get("variable")
         if not isinstance(variable, str) or not variable.strip():
-            variable = _snapshot_text(snapshot, "variable")
+            variable = _snapshot_text(context, "variable") if context else "目标词未记录"
         if not isinstance(variable, str) or not variable:
             continue
 
         lesson = lessons.get(lesson_id)
         title = _snapshot_text(lesson_meta, "title") or (lesson.title if lesson else None) or "未命名课程"
-        source = _snapshot_text(snapshot, "source") or (lesson.source if lesson else None) or ""
-        passage = _snapshot_text(snapshot, "passage") or ""
-        evidence = _snapshot_text(snapshot, "evidence")
+        source = _snapshot_text(context, "source") if context else None
+        passage = _snapshot_text(context, "passage") if context else None
+        evidence = _snapshot_text(context, "evidence") if context else None
+        source = source or "历史错答语境未完整保存"
+        passage = passage or "该次错答的原文或阶段未完整保存，请回看历史训练核对。"
+        review_hint = _mistake_review_hint(variable, evidence) if context else "这条历史错答的语境归属待核对，不将当前题文或新版课程当作当时的错答原文。"
         key = (lesson_id, variable)
         latest_at = event.created_at
+        utc_at = latest_at.replace(tzinfo=timezone.utc) if latest_at and latest_at.tzinfo is None else latest_at
+        latest_order = (utc_at.timestamp() if utc_at else 0, event.session_id, event.sequence_no)
         current = grouped.get(key)
         if current is None:
             grouped[key] = {
@@ -372,18 +488,20 @@ def _mistakes_payload(db: Session, records: list[TrainingSession], events: list[
                 "passage": passage,
                 "wrong_attempts": 1,
                 "latest_attempt_at": latest_at,
-                "review_hint": _mistake_review_hint(variable, evidence),
+                "review_hint": review_hint,
+                "_latest_order": latest_order,
             }
             continue
 
         current["wrong_attempts"] += 1
-        if latest_at and (current["latest_attempt_at"] is None or latest_at > current["latest_attempt_at"]):
+        if latest_order > current["_latest_order"]:
             current.update(
                 title=title,
                 source=source,
                 passage=passage,
                 latest_attempt_at=latest_at,
-                review_hint=_mistake_review_hint(variable, evidence),
+                review_hint=review_hint,
+                _latest_order=latest_order,
             )
 
     mistakes = sorted(
@@ -776,12 +894,23 @@ def publish_editorial_lesson(lesson_id: str, request: ContentVersionRequest, db:
 
 
 @app.post(f"{API_PREFIX}/profiles", status_code=status.HTTP_201_CREATED)
-def create_profile(request: CreateProfileRequest, db: DbSession) -> dict:
+def create_profile(request: CreateProfileRequest, db: DbSession, http_request: Request) -> dict:
+    user_id = getattr(http_request.state, 'auth_user_id', None)
+    if user_id and db.scalar(select(ProfileOwner).where(ProfileOwner.user_id == user_id)):
+        raise HTTPException(409, detail={'code': 'PROFILE_ALREADY_EXISTS'})
     profile = LearnerProfile(display_name=request.display_name.strip(), school_stage=request.school_stage)
     if not profile.display_name:
         raise HTTPException(status_code=422, detail={"code": "DISPLAY_NAME_REQUIRED"})
     db.add(profile)
-    db.commit()
+    if user_id:
+        # Ownership and the new profile commit atomically; never claim a legacy UUID.
+        db.flush()
+        db.add(ProfileOwner(profile_id=profile.id, user_id=user_id))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'PROFILE_ALREADY_EXISTS'}) from None
     return {"profile": _profile_payload(profile)}
 
 
@@ -885,7 +1014,7 @@ def list_profile_sessions(profile_id: str, db: DbSession) -> dict:
     return {"sessions": [_review_session_payload(record) for record in records]}
 
 
-@app.post(f"{API_PREFIX}/training/sessions", status_code=status.HTTP_201_CREATED)
+@app.post(f"{API_PREFIX}/training/sessions", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_guided_training_contract)])
 def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
     profile = db.get(LearnerProfile, request.profile_id)
     if not profile:
@@ -912,12 +1041,12 @@ def create_session(request: CreateSessionRequest, db: DbSession) -> dict:
     return _session_payload(record)
 
 
-@app.get(f"{API_PREFIX}/training/sessions/{{session_id}}")
+@app.get(f"{API_PREFIX}/training/sessions/{{session_id}}", dependencies=[Depends(require_guided_training_contract)])
 def get_session(session_id: str, db: DbSession) -> dict:
     record = db.get(TrainingSession, session_id)
     if not record:
         raise HTTPException(status_code=404, detail={"code": "SESSION_NOT_FOUND"})
-    return {"session": record.snapshot}
+    return student_response({"session": record.snapshot})
 
 
 @app.get("/api/knowledge/coverage")
@@ -944,7 +1073,7 @@ def lookup_knowledge(
         raise HTTPException(status_code=422, detail={"code": "INVALID_KNOWLEDGE_SELECTION"}) from error
 
 
-@app.post(f"{API_PREFIX}/training/sessions/{{session_id}}/commands")
+@app.post(f"{API_PREFIX}/training/sessions/{{session_id}}/commands", dependencies=[Depends(require_guided_training_contract)])
 def command(
     session_id: str,
     request: CommandRequest,
@@ -959,7 +1088,7 @@ def command(
     if receipt:
         if receipt.request_hash != request_hash:
             raise HTTPException(status_code=409, detail={"code": "IDEMPOTENCY_KEY_REUSED"})
-        return receipt.response
+        return student_response(receipt.response)
 
     record = db.get(TrainingSession, session_id)
     if not record:
@@ -968,7 +1097,8 @@ def command(
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "current_state_version": record.state_version})
 
     try:
-        result = apply_command(record.snapshot, request.model_dump())
+        annotation = resolve_annotation_basis(db, record.snapshot, request.payload) if request.type == "SAVE_REASONING" and request.payload.get("basis_kind") == "ANNOTATION" else None
+        result = apply_command(record.snapshot, request.model_dump(), resolved_annotation=annotation)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail={"code": str(exc)}) from exc
 
@@ -1008,12 +1138,12 @@ def command(
         db.rollback()
         raced_receipt = db.scalar(select(CommandReceipt).where(CommandReceipt.session_id == session_id, CommandReceipt.idempotency_key == idempotency_key))
         if raced_receipt and raced_receipt.request_hash == request_hash:
-            return raced_receipt.response
+            return student_response(raced_receipt.response)
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT"})
-    return response
+    return student_response(response)
 
 
-@app.get(f"{API_PREFIX}/training/sessions/{{session_id}}/reasoning")
+@app.get(f"{API_PREFIX}/training/sessions/{{session_id}}/reasoning", dependencies=[Depends(require_guided_training_contract)])
 def reasoning_history(session_id: str, db: DbSession) -> dict:
     if not db.get(TrainingSession, session_id):
         raise HTTPException(404, detail={"code": "SESSION_NOT_FOUND"})

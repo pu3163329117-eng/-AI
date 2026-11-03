@@ -1,0 +1,42 @@
+.support-inbox { color: var(--waterink-ink,#252624); padding: clamp(20px,3vw,40px); min-width: 0; }
+.support-inbox :is(h1,h2,h3,p,button,label,time,dd) { letter-spacing: normal; overflow-wrap: anywhere; }
+.support-inbox :is(h1,h2,h3) { font-family: var(--waterink-serif,SimSun,serif); }
+.support-inbox :is(button,input,textarea,select) { min-width: 44px; min-height: 44px; font: inherit; font-size: 16px; }
+.support-inbox :is(button,input,textarea,select):focus-visible { outline: 2px solid var(--waterink-seal,#9e4439); outline-offset: 3px; }
+.support-inbox button { border: 1px solid #818a7c; border-radius: 8px; padding: 10px 16px; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); cursor: pointer; }
+.support-inbox button:disabled { cursor: not-allowed; opacity: .6; }
+.support-inbox :is(input,textarea,select) { max-width: 100%; width: 100%; padding: 10px 12px; border: 1px solid #818a7c; border-radius: 8px; background: var(--waterink-surface,#fffefb); color: inherit; }
+.support-inbox label { display: grid; gap: 8px; min-width: 0; }
+.support-inbox-filters { display: grid; grid-template-columns: minmax(220px,2fr) repeat(2,minmax(130px,1fr)) auto auto; gap: 12px; align-items: end; margin-block: 24px; }
+.support-inbox-columns { display: grid; grid-template-columns: minmax(260px,.8fr) minmax(0,1.6fr); gap: 24px; align-items: start; }
+.support-inbox-list,.support-inbox-detail { min-width: 0; border: 1px solid var(--waterink-line,#dcded7); border-radius: 12px; background: var(--waterink-surface,#fffefb); padding: 24px; }
+.support-inbox h2 { font-size: 24px; margin: 0 0 16px; scroll-margin-top: 110px; }
+.support-inbox h3 { font-size: 19px; margin: 24px 0 12px; }
+.support-inbox p { line-height: 1.85; }
+.support-inbox-hint,.support-inbox time { color: var(--waterink-muted,#62645f); font-size: 14px; }
+.support-inbox-list ul { padding: 0; margin: 20px 0; list-style: none; }
+.support-inbox-list li + li { margin-top: 10px; }
+.support-inbox-list li button { display: grid; width: 100%; gap: 8px; text-align: left; }
+.support-inbox-list li button[aria-current='true'] { border-inline-start: 3px solid var(--waterink-seal,#9e4439); background: var(--waterink-paper,#f8f7f3); color: var(--waterink-ink,#252624); }
+.support-inbox-list nav { display: flex; flex-wrap: wrap; gap: 10px; }
+.support-inbox-plain { white-space: pre-wrap; overflow-wrap: anywhere; }
+.support-inbox-meta { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; padding-block: 20px; border-bottom: 1px solid var(--waterink-line,#dcded7); }
+.support-inbox-meta dt { color: var(--waterink-muted,#62645f); font-size: 14px; }
+.support-inbox-meta dd { margin: 6px 0 0; }
+.support-inbox-replies { padding-inline-start: 20px; }
+.support-inbox-replies li { padding-block: 12px; border-bottom: 1px solid var(--waterink-line,#dcded7); }
+.support-inbox-reply,.support-inbox-status { display: grid; gap: 16px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--waterink-line,#dcded7); }
+.support-inbox-reply textarea { resize: vertical; }
+.support-inbox-reply p,.support-inbox-status p { margin: 0; color: var(--waterink-muted,#62645f); font-size: 14px; }
+.support-inbox-reply button { justify-self: start; background: var(--waterink-ink,#252624); color: var(--waterink-surface,#fffefb); }
+.support-inbox-notice,.support-inbox-error,.support-inbox-unknown { padding: 16px 20px; border-inline-start: 3px solid var(--waterink-seal,#9e4439); background: var(--waterink-paper,#f8f7f3); margin-block: 20px; }
+.support-inbox-unknown button { margin: 6px 10px 6px 0; }
+@media (max-width:70rem) { .support-inbox-filters { grid-template-columns: repeat(2,minmax(0,1fr)); } .support-inbox-filters label:first-child { grid-column: 1/-1; } }
+@media (max-width:48rem) {
+  .support-inbox { padding: 20px 16px; }
+  .support-inbox-columns,.support-inbox-meta { grid-template-columns: minmax(0,1fr); }
+  .support-inbox-filters { grid-template-columns: minmax(0,1fr); }
+  .support-inbox-list,.support-inbox-detail { padding: 20px 16px; }
+  .support-inbox h2 { scroll-margin-top: 86px; }
+}
+@media (prefers-reduced-motion:reduce) { .support-inbox * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

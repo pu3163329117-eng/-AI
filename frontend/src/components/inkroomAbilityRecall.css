@@ -1,0 +1,82 @@
+/* Reading-room presentation only. Identity, data, sorting and disclosures stay
+   owned by the existing components. No styles escape these two surfaces. */
+.inkroom-formal .ability-profile-panel,
+.inkroom-formal .recall-board { min-width: 0; color: var(--inkroom-ink, #202421); }
+.inkroom-formal .ability-profile-panel :is(h2, h3, p, li, b, span, summary),
+.inkroom-formal .recall-board :is(h3, p, label, span, blockquote, button) { letter-spacing: normal; overflow-wrap: anywhere; }
+.inkroom-formal .ability-profile-panel p,
+.inkroom-formal .ability-profile-panel li,
+.inkroom-formal .recall-board .recall-guide p,
+.inkroom-formal .recall-board .recall-question,
+.inkroom-formal .recall-board .recall-hint p { font-size: 16px; line-height: 1.85; }
+.inkroom-formal .ability-profile-panel .eyebrow,
+.inkroom-formal .recall-board .eyebrow { font-size: 13px; line-height: 1.7; font-weight: 600; color: var(--inkroom-muted, #626761); }
+.inkroom-formal .ability-profile-panel .path-section-heading { flex-wrap: wrap; gap: 20px 28px; padding-bottom: 24px; border-bottom-color: var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .path-section-heading > div:first-child { flex: 1 1 30rem; min-width: 0; }
+.inkroom-formal .ability-profile-panel h2 { margin-block: 10px 12px; font-size: clamp(24px, 2.7vw, 32px); line-height: 1.5; font-weight: 600; }
+.inkroom-formal .ability-profile-panel h3 { font-size: 20px; line-height: 1.65; font-weight: 600; }
+.inkroom-formal .ability-profile-panel .report-page-intro { color: var(--inkroom-muted, #626761); }
+.inkroom-formal .ability-profile-panel .report-header-actions { max-width: none; justify-content: flex-start; }
+.inkroom-formal .ability-profile-panel :is(.path-formal-profile, .path-pilot-reference) { margin-top: 24px; padding: 24px; background: var(--inkroom-surface, #fff); border: 1px solid var(--inkroom-line, #dfe3da); border-radius: 16px; }
+.inkroom-formal .ability-profile-panel .path-pilot-reference > .eyebrow { padding-bottom: 12px; border-bottom: 1px solid var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .report-boundary-note { margin-block: 20px; padding: 16px 18px; border-left: 2px solid var(--inkroom-ink, #202421); background: var(--inkroom-paper, #f6f7f3); color: var(--inkroom-ink, #202421); border-radius: 0 10px 10px 0; }
+.inkroom-formal .ability-profile-panel .path-dimension-list { gap: 0 28px; }
+.inkroom-formal .ability-profile-panel .path-dimension-list article { padding-block: 20px; border-color: var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .path-dimension-list article > div { align-items: baseline; }
+.inkroom-formal .ability-profile-panel .path-dimension-list article > div span { font-size: 16px; color: var(--inkroom-ink, #202421); }
+.inkroom-formal .ability-profile-panel :is(.path-note, .path-dimension-list article p, .path-ability-history li p) { font-size: 14px; color: var(--inkroom-muted, #626761); }
+.inkroom-formal .ability-profile-panel .path-dimension-list meter { height: 9px; border-radius: 8px; accent-color: var(--inkroom-ink, #202421); }
+.inkroom-formal .ability-profile-panel meter::-webkit-meter-bar { background: var(--inkroom-line, #dfe3da); border-radius: 8px; }
+.inkroom-formal .ability-profile-panel meter::-webkit-meter-optimum-value { background: var(--inkroom-ink, #202421); }
+.inkroom-formal .ability-profile-panel meter::-moz-meter-bar { background: var(--inkroom-ink, #202421); }
+.inkroom-formal .ability-profile-panel .path-pilot-dimensions li { justify-content: space-between; gap: 8px 20px; padding-block: 12px; border-bottom: 1px solid var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .path-ability-history { margin-block: 24px; padding-inline: 20px; background: var(--inkroom-surface, #fff); border: 1px solid var(--inkroom-line, #dfe3da); border-radius: 12px; }
+.inkroom-formal .ability-profile-panel .path-ability-history summary { min-height: 48px; padding-block: 14px; font-size: 16px; line-height: 1.65; }
+.inkroom-formal .ability-profile-panel .path-ability-history li { border-color: var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .report-next-step { gap: 20px; padding-block: 24px; border-color: var(--inkroom-line, #dfe3da); }
+.inkroom-formal .ability-profile-panel .report-next-step p { color: var(--inkroom-muted, #626761); }
+.inkroom-formal .ability-profile-panel .path-message { padding: 20px; border-color: var(--inkroom-line-strong, #c0c9bd); border-radius: 12px; background: var(--inkroom-surface, #fff); }
+.inkroom-formal .ability-profile-panel > p[role='status'] { padding: 20px; background: var(--inkroom-surface, #fff); border: 1px solid var(--inkroom-line, #dfe3da); border-radius: 12px; }
+.inkroom-formal .recall-board .recall-guide { gap: 20px; padding: 24px; background: var(--inkroom-surface, #fff); border: 1px solid var(--inkroom-line, #dfe3da); border-radius: 16px; }
+.inkroom-formal .recall-board .recall-guide > span { color: var(--inkroom-muted, #626761); font-variant-numeric: tabular-nums; }
+.inkroom-formal .recall-board .recall-guide > div { min-width: 0; }
+.inkroom-formal .recall-board .recall-guide h3 { margin-bottom: 10px; font-size: 22px; line-height: 1.6; font-weight: 600; }
+.inkroom-formal .recall-board .recall-guide p { color: var(--inkroom-muted, #626761); }
+.inkroom-formal .recall-board .recall-toolbar { gap: 16px 20px; padding-top: 24px; }
+.inkroom-formal .recall-board .recall-toolbar label { gap: 10px; color: var(--inkroom-muted, #626761); font-size: 14px; line-height: 1.7; }
+.inkroom-formal .recall-board .recall-toolbar :is(input, select) { min-height: 48px; font-size: 16px; line-height: 1.6; padding: 12px 14px; border-color: var(--inkroom-line-strong, #c0c9bd); border-radius: 10px; color: var(--inkroom-ink, #202421); background: var(--inkroom-surface, #fff); }
+.inkroom-formal .recall-board .recall-result-count { margin-block: 16px 0; padding-bottom: 20px; color: var(--inkroom-muted, #626761); font-size: 14px; }
+.inkroom-formal .recall-board .recall-list { gap: 20px; }
+.inkroom-formal .recall-board .recall-card { padding: 28px; border-color: var(--inkroom-line, #dfe3da); border-radius: 16px; background: var(--inkroom-surface, #fff); }
+.inkroom-formal .recall-board .recall-card-heading { gap: 8px 20px; color: var(--inkroom-muted, #626761); font-size: 13px; line-height: 1.7; }
+.inkroom-formal .recall-board .recall-card h3 { font-size: 22px; line-height: 1.65; font-weight: 600; }
+.inkroom-formal .recall-board .recall-card blockquote { padding: 16px 20px; border-left-color: var(--inkroom-ink, #202421); border-radius: 0 10px 10px 0; color: var(--inkroom-ink, #202421); background: var(--inkroom-paper, #f6f7f3); }
+.inkroom-formal .recall-board .recall-question { color: var(--inkroom-muted, #626761); }
+.inkroom-formal .recall-board .recall-question strong { color: var(--inkroom-ink, #202421); }
+.inkroom-formal .recall-board .recall-actions { margin-top: 24px; padding-top: 20px; border-color: var(--inkroom-line, #dfe3da); }
+.inkroom-formal .recall-board .recall-actions button[aria-expanded='true'] { color: var(--inkroom-ink, #202421); background: var(--inkroom-paper, #f6f7f3); border: 1px solid var(--inkroom-line-strong, #c0c9bd); }
+.inkroom-formal .recall-board .recall-hint { padding: 20px; border-left: 2px solid var(--inkroom-ink, #202421); border-radius: 0 10px 10px 0; color: var(--inkroom-ink, #202421); background: var(--inkroom-paper, #f6f7f3); }
+.inkroom-formal .recall-board .recall-hint .eyebrow { font-size: 13px; color: var(--inkroom-muted, #626761); }
+.inkroom-formal .recall-board .review-state { padding: 24px; border: 1px solid var(--inkroom-line, #dfe3da); border-radius: 12px; background: var(--inkroom-surface, #fff); }
+.inkroom-formal .ability-profile-panel .button,
+.inkroom-formal .recall-board :is(.button, .text-button) { min-width: 44px; min-height: 48px; padding: 12px 20px; font-size: 16px; line-height: 1.6; border-radius: 10px; white-space: normal; }
+.inkroom-formal .ability-profile-panel :is(button, summary):focus-visible,
+.inkroom-formal .recall-board :is(button, input, select):focus-visible { outline: 2px solid var(--inkroom-ink, #202421); outline-offset: 4px; }
+@media (max-width: 48rem) {
+  .inkroom-formal .ability-profile-panel .path-section-heading > div:first-child { flex-basis: auto; }
+  .inkroom-formal .ability-profile-panel .report-header-actions { width: 100%; }
+  .inkroom-formal .ability-profile-panel .report-next-step { align-items: stretch; }
+}
+@media (max-width: 37.5rem) {
+  .inkroom-formal .ability-profile-panel :is(.path-formal-profile, .path-pilot-reference),
+  .inkroom-formal .recall-board :is(.recall-guide, .recall-card, .review-state) { padding: 20px; }
+  .inkroom-formal .recall-board .recall-guide { flex-direction: column; gap: 10px; }
+  .inkroom-formal .recall-board .recall-guide > span { padding-top: 0; font-size: 12px; }
+  .inkroom-formal .recall-board .recall-hint { padding: 16px; }
+  .inkroom-formal .recall-board .recall-card blockquote { padding: 14px 16px; }
+  .inkroom-formal .recall-board .recall-more { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inkroom-formal .ability-profile-panel *,
+  .inkroom-formal .recall-board * { animation: none !important; transition: none !important; }
+}

@@ -1,0 +1,21 @@
+.annotation-quality { min-width: 0; padding: 24px; margin-block: 24px 32px; border: 1px solid #d5d5cf; border-top: 3px solid #111; border-radius: 8px; background: #fafaf8; }
+.annotation-quality > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.annotation-quality h2 { margin: 8px 0 12px; font-size: clamp(22px, 2.5vw, 29px); line-height: 1.45; }
+.annotation-quality p { margin: 12px 0; color: #535350; font-size: 15px; line-height: 1.8; }
+.annotation-quality .knowledge-action { min-height: 44px; min-width: 44px; padding: 10px 14px; border: 1px solid #888; border-radius: 6px; background: #fff; color: #111; font: inherit; font-size: 14px; cursor: pointer; }
+.annotation-quality .knowledge-action:disabled { opacity: .55; cursor: not-allowed; }
+.annotation-quality .quality-gap-action { min-height: 44px; font-size: 16px; white-space: nowrap; text-underline-offset: 3px; }
+.annotation-quality :is(button, [tabindex]):focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.quality-totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 22px 0; padding: 0; border-block: 1px solid #d5d5cf; }
+.quality-totals > div { min-width: 0; padding: 18px 12px; }
+.quality-totals dt { font-size: 14px; line-height: 1.6; color: #535350; overflow-wrap: anywhere; }
+.quality-totals dd { margin: 8px 0 0; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.quality-table-scroll { width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; border: 1px solid #d5d5cf; border-radius: 6px; background: #fff; }
+.annotation-quality table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; font-size: 14px; line-height: 1.6; }
+.annotation-quality caption { padding: 14px; text-align: left; font-weight: 700; border-bottom: 1px solid #d5d5cf; }
+.annotation-quality :is(th, td) { padding: 12px; border-bottom: 1px solid #e1e1dc; vertical-align: middle; }
+.annotation-quality thead { background: #f3f3ef; }
+.annotation-quality tbody th { max-width: 260px; overflow-wrap: anywhere; }
+.annotation-quality tbody tr:last-child :is(th, td) { border-bottom: 0; }
+@media (max-width: 760px) { .annotation-quality { padding: 18px; } .quality-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .annotation-quality { padding: 14px; } .quality-totals > div { padding: 14px 6px; } }

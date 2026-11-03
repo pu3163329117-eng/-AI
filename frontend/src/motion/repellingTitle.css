@@ -1,0 +1,15 @@
+/* Transform a separate, empty paint layer; the real heading text owns layout,
+   selection, copy, semantics and hit testing throughout. */
+.repelling-title { position: relative; }
+.repelling-title__text { user-select: text; -webkit-user-select: text; }
+.repelling-title__decoration { position: absolute; inset: 0; visibility: hidden; pointer-events: none; user-select: none; -webkit-user-select: none; color: inherit; }
+.repelling-title__glyph { position: absolute; display: block; margin: 0; padding: 0; border: 0; font: inherit; line-height: inherit; white-space: pre; pointer-events: none; transition: transform 140ms cubic-bezier(.2,.75,.25,1); }
+.repelling-title__glyph::before { content: attr(data-title-glyph); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .repelling-title[data-motion-enabled='true'][data-motion-active='true'] > .repelling-title__text { color: transparent; }
+  .repelling-title[data-motion-enabled='true'][data-motion-active='true'] > .repelling-title__decoration { visibility: visible; }
+  .repelling-title[data-motion-resting='true'] .repelling-title__glyph { transition-duration: 320ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .repelling-title__glyph { transition: none; }
+}

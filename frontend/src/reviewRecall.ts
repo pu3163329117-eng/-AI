@@ -3,7 +3,10 @@ import type { Mistake } from './types'
 export type ReviewOrder = 'recent' | 'frequent' | 'oldest'
 function attemptTime(value: string | null): number | null {
   if (!value) return null
-  const time = Date.parse(value)
+  // SQLite's timezone-naive full ISO timestamps are UTC by backend contract.
+  // Preserve explicit offsets and date-only values rather than assuming local time.
+  const utcValue = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value) ? `${value}Z` : value
+  const time = Date.parse(utcValue)
   return Number.isFinite(time) ? time : null
 }
 /** Search visible prompts only: concealed hints must not leak through search. */

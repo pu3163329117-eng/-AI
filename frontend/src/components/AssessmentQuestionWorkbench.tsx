@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { assessmentEditorialApi, editorialRequestId } from '../assessmentEditorialApi'
 import { editorialDimensions, editorialDimensionLabels, editorialStates, editorialStatusLabels, editorialSourceUrl, fieldsForQuestion, sameFields, validEditorialWrite, editorialDraftIssues, type EditorialFields, type EditorialWrite, type QuestionDetail, type QuestionList } from '../assessmentEditorial'
-import { errorMessage, uncertainWrite } from '../http'
+import { authResponseCheckpoint, errorMessage, RequestError, uncertainWrite } from '../http'
 import type { ExitRisk } from '../usePageRoute'
 import '../assessmentEditorial.css'
+import { useConfirmationDialog } from './ConfirmationDialog'
 
 const pendingStorage = 'wenyan-assessment-editorial-pending-v1'
+const unknownResult = (reason: unknown) => !(reason instanceof RequestError) || uncertainWrite(reason) || reason.status === 408 || reason.status === 429
 function readPending(): EditorialWrite | null {
   try { const stored = JSON.parse(sessionStorage.getItem(pendingStorage) ?? 'null'); return validEditorialWrite(stored) ? stored : null } catch { return null }
 }
@@ -40,6 +42,8 @@ export function AssessmentQuestionWorkbench({ onExitRiskChange }: { onExitRiskCh
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
   const [pending, setPending] = useState<EditorialWrite | null>(readPending)
+  const pendingRef = useRef<EditorialWrite | null>(pending)
+  const setPendingNow = (value: EditorialWrite | null) => { pendingRef.current = value; setPending(value) }
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [durable, setDurable] = useState(true)
@@ -52,6 +56,7 @@ export function AssessmentQuestionWorkbench({ onExitRiskChange }: { onExitRiskCh
   const issues = fields ? editorialDraftIssues(fields) : []
   const invalidSource = detail?.validation_valid === false
   const blocked = busy || !!pending
+  const confirmation = useConfirmationDialog(JSON.stringify([detail?.question.id, detail?.version, fields, actor, note, busy, pending]))
   useEffect(() => { onExitRiskChange(busy ? 'working' : pending ? 'uncertain' : dirty ? 'dirty' : null) }, [busy, pending, dirty, onExitRiskChange])
   useEffect(() => () => onExitRiskChange(null), [onExitRiskChange])
   useEffect(() => { alive.current = true; return () => { alive.current = false; readController.current?.abort() } }, [])
@@ -66,9 +71,12 @@ export function AssessmentQuestionWorkbench({ onExitRiskChange }: { onExitRiskCh
   const accept = useCallback((next: QuestionDetail) => {
     setDetail(next); setFields(fieldsForQuestion(next.question)); setTagText(next.question.tags.join(', ')); setActor(''); setNote('')
   }, [])
-  const mayDiscard = () => !dirty || window.confirm('本题有未保存的校订或审核说明，确定放弃吗？请先复制需要保留的内容。')
-  async function open(id: string) {
-    if (lock.current || pending || !mayDiscard()) return
+  async function open(id: string, confirmed = false) {
+    if (lock.current || pending) return
+    if (dirty && !confirmed) {
+      confirmation.ask({ title: '放弃本题未保存内容？', message: '本题有未保存的校订或审核说明，确定放弃吗？请先复制需要保留的内容。', confirmLabel: '放弃修改并重新读取', onConfirm: () => void open(id, true) })
+      return
+    }
     lock.current = true; setBusy(true); setReading(true); setError(''); setNotice('')
     const controller = new AbortController(); readController.current = controller
     try {
@@ -82,25 +90,43 @@ export function AssessmentQuestionWorkbench({ onExitRiskChange }: { onExitRiskCh
     } catch (reason) { if (alive.current && !controller.signal.aborted) setError(editorialError(reason)) }
     finally { lock.current = false; if (alive.current) { setBusy(false); setReading(false) } }
   }
-  async function send(operation: EditorialWrite) {
-    if (lock.current) return
+  async function send(operation: EditorialWrite, recovery = false) {
+    if (lock.current || (recovery ? pendingRef.current !== operation : !!pendingRef.current)) return
+    const sameIdentity = authResponseCheckpoint()
     lock.current = true; setBusy(true); setError(''); setNotice('')
-    setPending(operation); setDurable(rememberPending(operation))
+    setPendingNow(operation); setDurable(rememberPending(operation))
     try {
       const next = await assessmentEditorialApi.write(operation)
-      rememberPending(null)
+      sameIdentity()
       if (!alive.current) return
-      setPending(null); accept(next); setRefresh(value => value + 1)
+      rememberPending(null); setPendingNow(null); accept(next); setRefresh(value => value + 1)
       setNotice(operation.method === 'PATCH' ? '草稿新版本已保存，原审核失效，须重新人工核对。旧试卷不被覆盖。' : operation.body.decision === 'APPROVE' ? '已记录当前版本的人工署名审核。署名未经登录认证；不代表题库已完成正式分级校准。' : '当前版本已退回，退回依据已保留。后续修改后须重新审核。')
     } catch (reason) {
-      if (!uncertainWrite(reason)) rememberPending(null)
-      if (alive.current) { if (!uncertainWrite(reason)) setPending(null); setError(editorialError(reason)) }
+      try { sameIdentity() } catch { return }
+      if (alive.current) {
+        if (!recovery && !unknownResult(reason)) { rememberPending(null); setPendingNow(null) }
+        setError(recovery ? '本次恢复未得到有效回执；原提交结果仍未知，请使用原标识继续核对。' : editorialError(reason))
+      }
     } finally { lock.current = false; if (alive.current) setBusy(false) }
   }
-  function write(action: 'EDIT' | 'APPROVE' | 'REJECT') {
+  function releasePending() {
+    const operation = pendingRef.current
+    if (!operation || lock.current) return
+    const sameIdentity = authResponseCheckpoint()
+    confirmation.ask({ title: '结束未确认提交的核对？', message: '原提交可能已经保存，也可能稍后保存。结束核对不会撤销服务器写入；重新提交可能重复。请先复制需要保留的意见。', confirmLabel: '了解风险，结束核对', onConfirm: () => {
+      if (!alive.current || lock.current || pendingRef.current !== operation) return
+      try { sameIdentity() } catch { return }
+      if (!rememberPending(null)) { setDurable(false); setError('浏览器无法清除原核对信息，请保留本页并恢复存储后再操作。'); return }
+      setDurable(true); setPendingNow(null); setError(''); setNotice('原提交结果仍未知，结束核对没有撤销服务端写入；重新提交可能重复。')
+    } })
+  }
+  function write(action: 'EDIT' | 'APPROVE' | 'REJECT', confirmed = false) {
     if (lock.current || pending || !detail || !fields || !actor.trim() || !note.trim() || (action !== 'REJECT' && (issues.length || invalidSource))) return
     if (action === 'EDIT' && !questionChanged || action !== 'EDIT' && questionChanged) return
-    if (action !== 'EDIT' && !window.confirm(action === 'APPROVE' ? '请确认你已实际核对原文版本、题干、选项、答案与解析，并填写核验来源。记录此版本的人工署名审核吗？' : '确认退回当前版本并记录你的核验依据吗？')) return
+    if (action !== 'EDIT' && !confirmed) {
+      confirmation.ask({ title: action === 'APPROVE' ? '记录当前版本的署名审核？' : '退回当前题目版本？', message: action === 'APPROVE' ? '请确认你已实际核对原文版本、题干、选项、答案与解析，并填写核验来源。记录此版本的人工署名审核吗？' : '确认退回当前版本并记录你的核验依据吗？', confirmLabel: action === 'APPROVE' ? '记录署名审核' : '退回并记录依据', onConfirm: () => write(action, true) })
+      return
+    }
     const body: EditorialWrite['body'] = { expected_version: detail.version, actor: actor.trim(), note: note.trim() }
     if (action === 'EDIT') body.question = fields
     else body.decision = action
@@ -110,8 +136,9 @@ export function AssessmentQuestionWorkbench({ onExitRiskChange }: { onExitRiskCh
   const q = detail?.question
   const safeSource = q ? editorialSourceUrl(q.source_url) : null
   return <main className="knowledge-workbench assessment-question-workbench">
+    {confirmation.modal}
     <header><p className="eyebrow">评测题审核工作台</p><h1>先核对题目，再讨论分级。</h1><p>逐题校订候选题干、稳定选项、答案和解析。保存草稿与人工审核分开，改稿后必须重新审核。</p><p className="knowledge-note">仅供可信本地教研使用。审核人由实际核对者填写，署名未经登录认证；候选题不等于已校准的正式测评。</p></header>
-    {pending && <section className="assessment-editorial-recovery" aria-label="未确认的教研操作"><h2>上次操作的结果尚未确认</h2><p>题目 {pending.id} · {pending.method === 'PATCH' ? '保存草稿' : pending.body.decision === 'APPROVE' ? '审核通过' : '退回'}。已暂停其他写入，系统不会自动重放。</p><p>恢复会使用原提交标识和原内容，查询或确认同一笔操作，不会创建另一条修订。</p><button type="button" className="button button-primary" disabled={busy} onClick={() => void send(pending)}>{busy ? '正在确认…' : '使用原提交标识恢复结果'}</button>{!durable && <p role="alert">浏览器未能保存恢复标识。请留在此页完成确认，刷新可能丢失本地标识。</p>}</section>}
+    {pending && <section className="assessment-editorial-recovery" aria-label="未确认的教研操作"><h2>上次操作的结果尚未确认</h2><p>题目 {pending.id} · {pending.method === 'PATCH' ? '保存草稿' : pending.body.decision === 'APPROVE' ? '审核通过' : '退回'}。已暂停其他写入，系统不会自动重放。</p><p>恢复会使用原提交标识和原内容；恢复失败不代表原提交失败。</p><button type="button" className="button button-primary" disabled={busy} onClick={() => void send(pending, true)}>{busy ? '正在确认…' : '使用原提交标识恢复结果'}</button><button type="button" className="button button-secondary" disabled={busy} onClick={releasePending}>结束核对</button>{!durable && <p role="alert">浏览器未能保存恢复标识。请留在此页完成确认，刷新可能丢失本地标识。</p>}</section>}
     {error && <p role="alert" className="request-error">{error}</p>}{notice && <p role="status">{notice}</p>}
     <div className="knowledge-editor-layout">
       <aside className="annotation-queue" aria-label="候选评测题列表">

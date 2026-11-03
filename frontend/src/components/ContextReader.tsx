@@ -4,7 +4,10 @@ import { WordKnowledge } from './WordKnowledge'
 import { KnowledgeCoverage } from './KnowledgeCoverage'
 import { readingIndex, sentenceAt, tokensFor } from '../reader'
 import { meaningMayBeShown, type MeaningMode } from '../observations'
+import { jumpTo } from '../navigation'
+import type { AnnotationBasisSelection, ContextBasisSelection } from '../evidenceBasis'
 import '../observations.css'
+import './readerInteraction.css'
 
 const layers: [ContextScope, string][] = [['WORD', '词'], ['SENTENCE', '句'], ['PARAGRAPH', '段'], ['WORK', '篇'], ['ERA', '时代']]
 const extentLabels = { FULL: '全文', CHAPTER: '完整章节', EXCERPT: '课内节选', PROMPT: '题目原文' }
@@ -39,7 +42,7 @@ function defaultSelection(session: TrainingSession, paragraphs: string[]): Conte
   return { paragraph_index: index, start, end, token: session.variable, paragraph, sentence: sentenceAt(paragraph, start, end), scope: 'WORD' }
 }
 
-export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAllowed = false, onRevealMeaning, meaningMode = 'LEGACY' }: {
+export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAllowed = false, onRevealMeaning, meaningMode = 'LEGACY', onUseAnnotation, annotationDisabled = false, onUseContext, onReturnToReasoning, onReturnToQuestion, reasoningReturnDisabled = false, reasoningReturnHint, questionReturnDisabled = false, questionReturnHint, questionReturnLabel = '回到题目 ↑' }: {
   sessionId: string
   session: TrainingSession
   busy: boolean
@@ -47,6 +50,16 @@ export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAl
   isMeaningAllowed?: boolean
   onRevealMeaning?: (selection: ContextSelection) => void
   meaningMode?: MeaningMode
+  onUseAnnotation?: (selection: AnnotationBasisSelection) => void
+  annotationDisabled?: boolean
+  onUseContext?: (selection: ContextBasisSelection) => void
+  onReturnToReasoning?: () => void
+  onReturnToQuestion?: () => void
+  reasoningReturnDisabled?: boolean
+  reasoningReturnHint?: string
+  questionReturnDisabled?: boolean
+  questionReturnHint?: string
+  questionReturnLabel?: string
 }) {
   const context = session.reading_context
   const paragraphs = context?.paragraphs?.length ? context.paragraphs : [session.passage]
@@ -57,6 +70,7 @@ export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAl
   const [focusKey, setFocusKey] = useState('')
   const canvasRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
+  const disclosureRef = useRef<HTMLDetailsElement>(null)
   const requested = useRef<string | null>(null)
   const tokenParagraphs = useMemo(() => paragraphs.map(paragraph => tokensFor(paragraph, context?.terms ?? [], rangeMode)), [paragraphs, context?.terms, rangeMode])
   const targets = tokenParagraphs.flatMap((tokens, paragraph) => tokens.filter(token => token.clickable).map(token => ({ paragraph, start: token.start })))
@@ -65,6 +79,7 @@ export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAl
   useEffect(() => {
     if (!selectionKey || requested.current !== selectionKey) return
     requested.current = null
+    if (disclosureRef.current) disclosureRef.current.open = true
     const panel = panelRef.current; const canvas = canvasRef.current
     if (!panel || !canvas) return
     panel.scrollTop = 0
@@ -122,21 +137,30 @@ export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAl
                 button?.focus({ preventScroll: true }); button?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
               }}
               className={`text-token${selected ? ' is-selected' : ''}${anchored ? ' is-anchor' : ''}`} aria-pressed={selected}
-              aria-label={`第 ${paragraphIndex + 1} 段第 ${start + 1} 字，查看“${token}”的语境`}
+              aria-label={`第 ${paragraphIndex + 1} 段第 ${start + 1} 字，${rangeMode ? anchor?.paragraph === paragraphIndex ? '选择结束字' : '选择起始字' : '查看'}“${token}”${rangeMode ? '' : '的语境'}`}
               onClick={() => select(paragraphIndex, start, end)}>{token}</button>{suffix}</span> : <span key={start}>{token}{suffix}</span>
           })}
         </p>)}
         <p className="reader-version">{context?.text_version ?? '资料版本待校订'}{sourceUrl && <> · <a href={sourceUrl} target="_blank" rel="noreferrer">核对原文</a></>}</p>
       </div>
+      <details className="context-disclosure" ref={disclosureRef} open={!!session.context_selection}>
+      <summary>五层语境与字词资料 <span>点字后展开，也可手动收起</span></summary>
       <aside className="context-layers" ref={panelRef} aria-label="当前字词的五层语境">
         <div className="context-panel-heading"><p className="stage-label">语境标尺 · {session.context_selection ? '已保存' : '点击后保存'}</p><button type="button" className="knowledge-action" onClick={() => {
           const button = canvasRef.current?.querySelector<HTMLButtonElement>('.text-token.is-selected') ?? canvasRef.current?.querySelector<HTMLButtonElement>('.text-token')
           button?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); button?.focus({ preventScroll: true })
         }}>返回原文字词</button></div>
+        <nav className="reader-return-actions" aria-label="读完语境后的操作"><button type="button" className="knowledge-action" disabled={busy || reasoningReturnDisabled} aria-describedby={reasoningReturnHint ? 'reader-reasoning-return-hint' : undefined} onClick={() => { if (!busy && !reasoningReturnDisabled) { if (onReturnToReasoning) onReturnToReasoning(); else jumpTo('reasoning-title') } }}>回到证据与理由 ↑</button><button type="button" className="knowledge-action" disabled={busy || questionReturnDisabled} aria-describedby={questionReturnHint ? 'reader-question-return-hint' : undefined} onClick={() => { if (!busy && !questionReturnDisabled) { if (onReturnToQuestion) onReturnToQuestion(); else jumpTo('training-question') } }}>{questionReturnLabel}</button></nav>
+        {reasoningReturnHint && <p className="knowledge-note" id="reader-reasoning-return-hint">{reasoningReturnHint}</p>}
+        {questionReturnHint && <p className="knowledge-note" id="reader-question-return-hint">{questionReturnHint}</p>}
         {session.context_selection ? <>
+          {onUseContext && meaningMode !== 'REVIEW' && <div className="context-basis-action"><p>当前原文选段：{session.context_selection.token}</p><button type="button" className="knowledge-action"
+            disabled={busy || session.completed || session.transfer_ready || session.summary_ready}
+            onClick={() => { if (!busy && !session.completed && !session.transfer_ready && !session.summary_ready && session.context_selection) onUseContext({ sessionId, stage: session.stage, selection: session.context_selection }) }}>用这段原文作为依据</button><p className="knowledge-note">只选择到本次草稿；仍需明确保存，不自动提交答案。</p></div>}
           {meaningMode === 'LEGACY' && <p className="reader-version">旧训练的辅助使用未完整记录，保持未知；查看资料不会补造历史首答。</p>}
           {meaningMode === 'REVIEW' && <p className="reader-version">已完成训练只读回看，不新增辅助事件。</p>}
-          {showMeaning ? <WordKnowledge key={`${sessionId}:${session.stage}`} sessionId={sessionId} selection={session.context_selection} stage={session.stage} /> : <section className="meaning-access-gate" aria-labelledby="word-meaning-title"><h3 id="word-meaning-title" tabIndex={-1}>“{session.context_selection.token}”的字词解释尚未展开</h3><p>原文、词句段篇时代语境可以继续阅读，不记为辅助。展开解释会记录本阶段辅助使用，包括释义、词性、推断依据和其他语境释义。</p><button type="button" className="button button-secondary" disabled={busy || !onRevealMeaning} onClick={() => onRevealMeaning?.(session.context_selection!)}>查看字词解释（记录为辅助）</button><p className="reader-version" role="status">{busy ? '等待服务端确认；确认前不展示解释。' : '只有服务端确认记录后，才展开答案性内容。'}</p></section>}
+          {showMeaning ? <WordKnowledge key={`${sessionId}:${session.stage}`} sessionId={sessionId} selection={session.context_selection} stage={session.stage}
+            onUseAnnotation={meaningMode === 'REVIEW' ? undefined : onUseAnnotation} annotationDisabled={annotationDisabled || busy || session.completed || session.transfer_ready || session.summary_ready} /> : <section className="meaning-access-gate" aria-labelledby="word-meaning-title"><h3 id="word-meaning-title" tabIndex={-1}>“{session.context_selection.token}”的字词解释尚未展开</h3><p>原文、词句段篇时代语境可以继续阅读，不记为辅助。展开解释会记录本阶段辅助使用，包括释义、词性、推断依据和其他语境释义。</p><button type="button" className="button button-secondary" disabled={busy || !onRevealMeaning} onClick={() => onRevealMeaning?.(session.context_selection!)}>查看字词解释（记录为辅助）</button><p className="reader-version" role="status">{busy ? '等待服务端确认；确认前不展示解释。' : '只有服务端确认记录后，才展开答案性内容。'}</p></section>}
         </> : <p className="reader-version">点击原文字词，先查看本句与五层语境；解释按需确认后展开。</p>}
         <ol>{layers.map(([scope, label]) => <li key={scope} className={selection?.scope === scope ? 'active-layer' : ''}>
           <button type="button" aria-pressed={selection?.scope === scope} disabled={!selection || busy || rangeMode}
@@ -146,6 +170,7 @@ export function ContextReader({ sessionId, session, busy, onCommand, isMeaningAl
         </li>)}</ol>
         <p className="reader-version">原典链接用于核对原文，不代表释义已经教师审定。</p>
       </aside>
+      </details>
     </div>
   </section>
 }

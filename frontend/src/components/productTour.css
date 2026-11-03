@@ -1,0 +1,106 @@
+.product-tour { --tour-ink: #111; --tour-muted: #5c5c58; --tour-line: #dcdcd6; position: relative; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; color: var(--tour-ink); background: #fff; }
+.product-tour button { cursor: pointer; font: inherit; }
+.product-tour button:disabled { cursor: not-allowed; }
+.product-tour button:focus-visible, .tour-loading button:focus-visible { outline: 3px solid #111; outline-offset: 4px; }
+.tour-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; width: min(100%, 1120px); min-height: 82px; margin-inline: auto; padding: 18px 40px; }
+.tour-brand { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.045em; white-space: nowrap; }
+.tour-brand > span { padding-inline: 3px; font-family: Georgia, serif; font-weight: 400; }
+.tour-quiet { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 7px 4px; border: 0; background: transparent; color: #444440; font-size: 13px !important; text-decoration: underline; text-underline-offset: 4px; }
+.tour-content { flex: 1; display: grid; align-items: center; padding: 30px 40px 45px; touch-action: pan-y pinch-zoom; }
+.tour-page { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 64px; width: min(100%, 1040px); margin-inline: auto; animation: tour-arrive .22s ease-out; }
+.tour-copy { min-width: 0; }
+.tour-eyebrow { margin: 0 0 24px; color: var(--tour-muted); font-size: 12px; font-weight: 700; letter-spacing: .035em; }
+.tour-copy h1 { margin: 0; font-size: clamp(35px, 4vw, 54px); line-height: 1.24; letter-spacing: -.045em; overflow-wrap: anywhere; }
+.tour-copy h1:focus { outline: 0; }
+.tour-description { max-width: 430px; margin: 26px 0 0; color: var(--tour-muted); font-size: 16px; line-height: 1.85; }
+.tour-mode-note { margin: 14px 0 0; color: var(--tour-muted); font-size: 12px; }
+.tour-visual { min-width: 0; }
+.tour-start-path { padding: 24px; border: 1px solid #b4b4b0; border-top: 3px solid var(--tour-ink); border-radius: 8px; background: #f5f5f3; }
+.tour-start-path h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.55; }
+.tour-start-path ol { margin: 0; padding: 0; list-style: none; }
+.tour-start-path li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--tour-line); }
+.tour-start-path li > span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #111; background: #fff; font-size: 14px; font-weight: 700; }
+.tour-start-path strong { font-size: 15px; }
+.tour-start-path li p { margin: 5px 0 0; color: var(--tour-muted); font-size: 13px; line-height: 1.75; }
+.tour-start-note { margin: 15px 0 0; color: var(--tour-muted); font-size: 13px; line-height: 1.75; }
+.tour-example { padding: 24px; border: 1px solid #b4b4b0; border-top: 3px solid var(--tour-ink); border-radius: 8px; background: #f5f5f3; }
+.tour-example-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--tour-muted); }
+.tour-example-passage { display: flex; align-items: center; margin: 22px 0 12px; font-family: "Songti SC", STSong, SimSun, serif; font-size: 30px; line-height: 1.6; letter-spacing: .04em; }
+.tour-example-passage button { flex: 0 0 44px; min-height: 48px; border: 1px solid #bbb; border-radius: 5px; background: #fff; font-family: inherit; font-size: inherit; color: #111; }
+.tour-example-passage button[aria-pressed="true"] { border-color: #111; background: #111; color: #fff; }
+.tour-example-passage > span { padding-inline: 3px; white-space: nowrap; }
+.tour-example-hint { margin: 0 0 16px; font-size: 12px; line-height: 1.6; color: var(--tour-muted); }
+.tour-context-layers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; border-bottom: 1px solid #c4c4be; }
+.tour-context-layers button { min-width: 0; min-height: 44px; padding: 8px 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--tour-muted); font-size: 13px; }
+.tour-context-layers button[aria-pressed="true"] { border-bottom-color: #111; color: #111; font-weight: 700; }
+.tour-context-answer { display: grid; gap: 7px; min-height: 98px; margin: 16px 0 0; padding: 12px; border: 1px solid var(--tour-line); background: #fff; color: #444440; font-size: 13px; line-height: 1.75; overflow-wrap: anywhere; }
+.tour-context-answer strong { color: #111; font-size: 13px; }
+.tour-training-flow { display: grid; gap: 0; margin: 0; padding: 8px 22px; border: 1px solid #b4b4b0; border-top: 3px solid var(--tour-ink); border-radius: 8px; background: #f5f5f3; list-style: none; }
+.tour-training-flow li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 18px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--tour-line); }
+.tour-training-flow li:last-child { border-bottom: 0; }
+.tour-training-flow li > span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #b4b4ae; border-radius: 50%; font-family: Georgia, serif; font-size: 15px; }
+.tour-training-flow strong { font-size: 15px; }
+.tour-training-flow p { margin: 4px 0 0; color: var(--tour-muted); font-size: 13px; line-height: 1.6; }
+.tour-primary-path { padding: 20px; border: 1px solid #111; border-left: 4px solid #111; border-radius: 6px; background: #f5f5f3; }
+.tour-section-label { color: var(--tour-muted); font-size: 12px; font-weight: 700; line-height: 1.6; }
+.tour-primary-path h2 { margin: 6px 0 8px; font-size: 22px; line-height: 1.4; }
+.tour-primary-path p { margin: 0; color: #444440; font-size: 14px; line-height: 1.75; }
+.tour-secondary-label { margin: 20px 0 0; }
+.tour-next-paths dl { display: grid; gap: 0; margin: 0; }
+.tour-next-paths dl > div { padding: 17px 0; border-bottom: 1px solid var(--tour-line); }
+.tour-next-paths dl > div:first-child { border-top: 1px solid var(--tour-line); }
+.tour-next-paths dt { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+.tour-next-paths dd { margin: 0; color: var(--tour-muted); font-size: 13px; line-height: 1.65; }
+.tour-boundary-note { margin: 16px 0 0; padding-left: 12px; border-left: 2px solid #111; color: #55554f; font-size: 12px; line-height: 1.7; }
+.tour-footer { position: sticky; z-index: 5; bottom: 0; width: 100%; margin-top: auto; padding: 18px 40px max(18px, env(safe-area-inset-bottom)); border-top: 1px solid var(--tour-line); background: #fff; }
+.tour-footer-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; max-width: 1040px; margin-inline: auto; }
+.tour-back { justify-self: start; min-height: 48px; padding: 12px 16px; border: 1px solid #bfbfb8; border-radius: 999px; background: #fff; color: #111; font-size: 14px !important; }
+.tour-next { display: inline-flex; justify-content: center; align-items: center; gap: 18px; justify-self: end; min-height: 48px; padding: 12px 24px; border: 1px solid #111; border-radius: 999px; background: #111; color: #fff; font-size: 14px !important; font-weight: 700 !important; cursor: pointer; }
+.tour-next > span { font-size: 20px; line-height: 1; }
+.tour-progress { display: grid; justify-items: center; gap: 8px; font-size: 12px; color: var(--tour-muted); }
+.tour-progress > div { display: flex; gap: 5px; }
+.tour-progress i { display: block; width: 14px; height: 3px; background: #deded8; }
+.tour-progress i.read { background: #888880; }
+.tour-progress i.current { background: #111; }
+.tour-save-error { max-width: 1040px; margin: 0 auto 14px; padding: 12px 16px; border: 1px solid #aaa; font-size: 13px; line-height: 1.7; }
+.tour-save-error p { margin: 0; }
+.tour-save-error .tour-quiet { min-height: 40px; font-weight: 700; }
+.tour-loading { display: grid; align-content: center; justify-items: start; gap: 18px; max-width: 680px; min-height: 70vh; margin-inline: auto; padding: 50px 24px; }
+.tour-loading h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); line-height: 1.4; }
+.tour-loading p:not(.tour-brand) { margin: 0; color: #55554f; font-size: 14px; line-height: 1.8; }
+.tour-loading .tour-next { justify-self: start; }
+@keyframes tour-arrive { from { opacity: .2; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 760px) {
+  .tour-header { min-height: 64px; padding: 12px 22px; }
+  .tour-brand { font-size: 20px; }
+  .tour-content { display: block; padding: 22px 24px 28px; }
+  .tour-page { grid-template-columns: 1fr; gap: 24px; max-width: 480px; }
+  .tour-eyebrow { margin-bottom: 14px; font-size: 11px; }
+  .tour-copy h1 { font-size: clamp(29px, 8vw, 39px); line-height: 1.26; }
+  .tour-description { margin-top: 17px; font-size: 14px; line-height: 1.8; }
+  .tour-start-path { padding: 17px; }
+  .tour-start-path h2 { font-size: 16px; }
+  .tour-start-path li { gap: 10px; padding-block: 12px; }
+  .tour-example { padding: 17px; }
+  .tour-example-meta { font-size: 10px; }
+  .tour-example-passage { margin-top: 14px; font-size: 26px; }
+  .tour-example-passage button { flex-basis: 42px; min-height: 46px; }
+  .tour-example-hint { margin-bottom: 9px; font-size: 12px; }
+  .tour-context-answer { min-height: 82px; margin-top: 12px; font-size: 14px; }
+  .tour-training-flow { padding: 6px 17px; }
+  .tour-training-flow li { gap: 14px; padding-block: 11px; }
+  .tour-training-flow strong { font-size: 14px; }
+  .tour-training-flow p { font-size: 13px; }
+  .tour-next-paths dl > div { padding-block: 12px; }
+  .tour-next-paths dt { font-size: 14px; margin-bottom: 3px; }
+  .tour-next-paths dd { font-size: 13px; }
+  .tour-boundary-note { margin-top: 12px; font-size: 12px; }
+  .tour-primary-path { padding: 16px; }
+  .tour-footer { padding: 13px 20px max(13px, env(safe-area-inset-bottom)); }
+  .tour-footer-row { gap: 10px; }
+  .tour-next { gap: 10px; min-height: 48px; padding-inline: 17px; white-space: nowrap; }
+  .tour-back { min-height: 48px; padding-inline: 14px; white-space: nowrap; }
+  .tour-progress i { width: 10px; }
+  .tour-save-error { padding: 9px 12px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .tour-page { animation: none; }.product-tour *, .product-tour *::before, .product-tour *::after { scroll-behavior: auto; transition: none; } }

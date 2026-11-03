@@ -10,6 +10,9 @@ from .reading_context import reading_context_for
 from .observations import initial_trace, traced, record_assistance, record_attempt
 
 
+_SENTENCE_TERMINATORS = "。！？!?"  # Keep aligned with knowledge.sentence_for.
+
+
 DEFAULT_LESSON_CONTENT: dict[str, Any] = {
     "source": "《宋史·范仲淹传》",
     "passage": "学者多从质问，为执经讲解，亡所倦。",
@@ -133,14 +136,14 @@ def _context_selection(snapshot: dict[str, Any], payload: dict[str, Any]) -> tup
     if not any(not char.isspace() and not category(char).startswith("P") for char in token):
         raise ValueError("INVALID_CONTEXT_SELECTION")
     sentence_start = start
-    while sentence_start > 0 and paragraph[sentence_start - 1] not in "。！？":
+    while sentence_start > 0 and paragraph[sentence_start - 1] not in _SENTENCE_TERMINATORS:
         sentence_start -= 1
     sentence_end = end
-    if paragraph[end - 1] not in "。！？":
+    if paragraph[end - 1] not in _SENTENCE_TERMINATORS:
         while sentence_end < len(paragraph):
             char = paragraph[sentence_end]
             sentence_end += 1
-            if char in "。！？":
+            if char in _SENTENCE_TERMINATORS:
                 break
     return context, {
         "paragraph_index": paragraph_index, "start": start, "end": end,
@@ -149,7 +152,7 @@ def _context_selection(snapshot: dict[str, Any], payload: dict[str, Any]) -> tup
     }
 
 
-def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> TransitionResult:
+def apply_command(snapshot: dict[str, Any], command: dict[str, Any], *, resolved_annotation: dict[str, Any] | None = None) -> TransitionResult:
     """Apply one user intent. This layer deliberately has no HTTP or database imports."""
     action, payload = command["type"], command.get("payload", {})
     next_snapshot, events = dict(snapshot), []
@@ -159,23 +162,58 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
     if action == "SAVE_REASONING":
         if snapshot["transfer_ready"] or snapshot["summary_ready"]:
             raise ValueError("REASONING_STAGE_VALIDATED")
+        basis_kind = payload.get("basis_kind", "CONTEXT")
+        allowed = {"paragraph_index", "start", "end", "reason", "conclusion", "basis_kind"}
+        if basis_kind == "ANNOTATION":
+            allowed.update({"annotation_id", "annotation_version"})
+        if basis_kind not in ("CONTEXT", "ANNOTATION") or set(payload) - allowed:
+            raise ValueError("INVALID_EVIDENCE_BASIS")
         _, evidence_span = _context_selection(snapshot, {**payload, "scope": "SENTENCE"})
-        reason, conclusion = payload.get("reason"), payload.get("conclusion")
-        if not isinstance(reason, str) or not 5 <= len(reason.strip()) <= 2000:
+        reason, conclusion = payload.get("reason", ""), payload.get("conclusion")
+        if not isinstance(reason, str) or len(reason.strip()) > 2000:
             raise ValueError("INVALID_REASONING_REASON")
         if conclusion not in snapshot["choices"]:
             raise ValueError("INVALID_ANSWER")
-        matches = _evidence_rule_matches(snapshot["evidence"], evidence_span["token"])
+        rule_evidence = evidence_span
+        if basis_kind == "ANNOTATION":
+            annotation = resolved_annotation
+            if (not isinstance(annotation, dict) or annotation.get("id") != payload.get("annotation_id")
+                    or type(payload.get("annotation_version")) is not int
+                    or payload["annotation_version"] < 0 or annotation.get("version") != payload["annotation_version"]
+                    or annotation.get("paragraph_index") != evidence_span["paragraph_index"]
+                    or type(annotation.get("start")) is not int or type(annotation.get("end")) is not int
+                    or not annotation["start"] < evidence_span["end"] or not annotation["end"] > evidence_span["start"]):
+                raise ValueError("ANNOTATION_EVIDENCE_UNAVAILABLE")
+            # Coverage still uses frozen ORIGINAL text, never the copied meaning.
+            # Select the annotation's complete sentence, not a neighbouring sentence
+            # that happens to be inside a wider user selection.
+            _, annotation_span = _context_selection(snapshot, {**annotation, "scope": "SENTENCE"})
+            paragraph = annotation_span["paragraph"]
+            left = annotation_span["start"]
+            while left > 0 and paragraph[left - 1] not in _SENTENCE_TERMINATORS:
+                left -= 1
+            rule_evidence = {**annotation_span, "start": left,
+                "end": left + len(annotation_span["sentence"]), "token": annotation_span["sentence"],
+                "source_kind": "ANNOTATION_SENTENCE"}
+        matches = _evidence_rule_matches(snapshot["evidence"], rule_evidence["token"])
+        reason_provided = bool(reason.strip())
         graph = {
             "schema_version": 1, "stage": snapshot["stage"], "source": snapshot["source"],
             "text_version": snapshot.get("reading_context", {}).get("text_version", "历史快照"),
             "target": snapshot["variable"], "evidence": evidence_span,
             "reason": reason.strip(), "conclusion": conclusion,
-            "evidence_rule_matched": matches, "reason_review_status": "UNREVIEWED",
+            "evidence_rule_matched": matches,
+            "basis_kind": basis_kind, "reason_provided": reason_provided,
+            "reason_review_status": "UNREVIEWED" if reason_provided else "NOT_PROVIDED",
         }
+        if basis_kind == "ANNOTATION":
+            graph.update(annotation=deepcopy(resolved_annotation), rule_evidence=rule_evidence)
         next_snapshot.update(reasoning_graph=graph, evidence_selected=matches,
-                             feedback="已保存证据链；理由尚未人工审核。" + ("可提交词义判断。" if matches else "所选原文未覆盖课程预设线索，可修改证据或继续提交判断。"))
+                             feedback="已保存依据；" + ("补充理由尚未人工审核。" if reason_provided else "未填写补充理由，不评价文字论证能力。")
+                             + ("可提交词义判断。" if matches else "所选原文未覆盖课程预设线索，可换选上下文依据；不必手写理由。"))
         events.append({"type": "training.reasoning_saved", "payload": graph})
+        if basis_kind == "ANNOTATION":
+            record_assistance(next_snapshot, "WORD_MEANING", events, evidence_span)
         record_assistance(next_snapshot, "RULE_CHECK", events)
     elif action == "SELECT_EVIDENCE":
         if snapshot.get("reasoning_graph"):
@@ -236,9 +274,11 @@ def apply_command(snapshot: dict[str, Any], command: dict[str, Any]) -> Transiti
                 events.append({"type": "training.transfer_validated", "payload": {"label": "TRANSFER_CONFIRMED", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
             next_snapshot["feedback"] = snapshot["validated_feedback"]
             if graph:
-                next_snapshot["feedback"] += "（词义与预设证据通过规则核验；你的理由尚未人工审核。）"
+                next_snapshot["feedback"] += "（词义与原文预设线索通过规则核验；" + (
+                    "你的理由尚未人工审核。" if graph.get("reason", "").strip() else "未填写补充理由，不评价文字论证能力。") + (
+                    "本次使用了已有注释辅助，不代表独立推理能力。" if graph.get("basis_kind") == "ANNOTATION" else "") + "）"
         elif answer == snapshot["correct_answer"]:
-            next_snapshot.update(state="AWAITING_REASONING" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_REASONING", feedback="答案正确。请再选一句证据，说明你为什么这样判断。")
+            next_snapshot.update(state="AWAITING_REASONING" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_REASONING", feedback="答案正确。请选一句证据（原文上下文），或选用已有注释作为依据；补充自己的理由为选填。")
             events.append({"type": "training.attempt_evaluated", "payload": {"label": "CORRECT_BUT_GUESSING", "variable": snapshot["variable"], "stage": snapshot["stage"]}})
         else:
             next_snapshot.update(state="AWAITING_INITIAL_ATTEMPT" if snapshot["stage"] == "CORE" else "AWAITING_TRANSFER_ATTEMPT", feedback=f"这条解释暂时无法和“{snapshot['evidence']}”形成关系。试着使用证据，或请求一条提示。")

@@ -151,7 +151,8 @@ test('panel requires explicit privacy acknowledgement and download click while p
   assert.match(ui, /onClick=\{\(\) => void download\(\)\}/)
   assert.match(ui, /字段相同不代表教师一致或语义正确/)
   assert.match(ui, /onSelectCase=\{id => void open\(id\)\}/)
-  assert.match(ui, /if \(blocked \|\| lock\.current \|\| !mayDiscard\(\)\) return/)
+  assert.match(ui, /if \(blocked \|\| lock\.current\) return/)
+  assert.match(ui, /if \(dirty && !confirmed\) \{\s*confirmation\.ask\(\{/)
   assert.match(ui, /pending \? '请先按原标识确认提交结果/)
   assert.match(ui, /dirty \? '有未保存意见/)
   assert.match(ui, /alive\.current \|\| abort\.signal\.aborted/)
@@ -159,4 +160,50 @@ test('panel requires explicit privacy acknowledgement and download click while p
   assert.equal((ui.match(/downloadReviewBundle\(bundle\)/g) ?? []).length, 1)
   assert.match(api, /readReviewBundle\(response\)/)
   assert.doesNotMatch(api.split('async exportBundle')[1].split('async list')[0], /method: 'POST'|setInterval|retry/)
+})
+
+
+test('actual case-opening handler and confirmation controller preserve dirty drafts until explicit confirmation', async () => {
+  const componentSource = await readFile(new URL('../src/components/AIReasonReviewWorkbench.tsx', import.meta.url), 'utf8')
+  const tree = ts.createSourceFile('AIReasonReviewWorkbench.tsx', componentSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const component = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'AIReasonReviewWorkbench')
+  const open = component?.body?.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'open')
+  assert.ok(open, 'actual component case-opening handler is present')
+  const confirmationSource = await readFile(new URL('../src/components/confirmation.ts', import.meta.url), 'utf8')
+  const { createConfirmationController } = await import(moduleUrl(confirmationSource))
+  const wrapper = `export function create(h) {
+    const {blocked, dirty, lock, confirmation, setBusy, setDetail, setError, setNotice, setRevealed,
+      controller, aiReasonReviewApi, alive, setFields, emptyReviewFields, heading, message} = h;
+    const requestAnimationFrame = () => 0;
+    ${open.getText(tree)}
+    return open;
+  }`
+  const { create } = await import(moduleUrl(wrapper))
+  const setup = ({ blocked = false, dirty = true, locked = false, fail = false } = {}) => {
+    const realConfirmation = createConfirmationController(), calls = [], updates = []
+    const h = { blocked, dirty, lock: { current: locked }, controller: { current: null }, alive: { current: true }, heading: { current: null },
+      confirmation: { ask(request) { calls.push(['ask', request]); return realConfirmation.request(request) } },
+      aiReasonReviewApi: { async get(id) { calls.push(['get', id]); if (fail) throw new Error('synthetic-read-failed'); return { case_id: id } } },
+      setBusy: value => updates.push(['busy', value]), setDetail: value => updates.push(['detail', value]),
+      setError: value => updates.push(['error', value]), setNotice: value => updates.push(['notice', value]),
+      setRevealed: value => updates.push(['revealed', value]), setFields: value => updates.push(['fields', value]),
+      emptyReviewFields: () => ({ reviewer: '' }), message: reason => reason.message }
+    return { h, calls, updates, confirm: realConfirmation, open: create(h) }
+  }
+  const blocked = setup({ blocked: true }); await blocked.open('case-a'); assert.deepEqual(blocked.calls, []); assert.deepEqual(blocked.updates, [])
+  const locked = setup({ locked: true }); await locked.open('case-a'); assert.deepEqual(locked.calls, []); assert.deepEqual(locked.updates, [])
+  const cancelled = setup(); await cancelled.open('case-b'); assert.equal(cancelled.calls[0][0], 'ask')
+  assert.match(cancelled.calls[0][1].message, /有未保存的样例核对意见/)
+  assert.equal(cancelled.calls.filter(call => call[0] === 'get').length, 0); assert.equal(cancelled.updates.some(update => update[0] === 'fields'), false)
+  assert.equal(cancelled.confirm.resolve(false), true); assert.equal(cancelled.calls.filter(call => call[0] === 'get').length, 0)
+  assert.equal(cancelled.updates.some(update => update[0] === 'fields'), false)
+  await cancelled.open('case-b'); assert.equal(cancelled.confirm.resolve(true), true); assert.equal(cancelled.confirm.resolve(true), false)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(cancelled.calls.filter(call => call[0] === 'get'), [['get', 'case-b']])
+  assert.deepEqual(cancelled.updates.filter(update => update[0] === 'fields'), [['fields', { reviewer: '' }]])
+  const stale = setup(); await stale.open('case-c'); stale.h.lock.current = true; stale.confirm.resolve(true); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(stale.calls.filter(call => call[0] === 'get').length, 0); assert.equal(stale.updates.some(update => update[0] === 'fields'), false)
+  const failed = setup({ dirty: false, fail: true }); await failed.open('case-d')
+  assert.deepEqual(failed.calls.filter(call => call[0] === 'get'), [['get', 'case-d']]); assert.equal(failed.updates.some(update => update[0] === 'fields'), false)
+  assert.ok(failed.updates.some(update => update[0] === 'error' && update[1] === 'synthetic-read-failed'))
 })

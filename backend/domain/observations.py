@@ -41,9 +41,14 @@ def record_attempt(before, after, answer, correct, rule_matched, validated, even
     tracking = trace["stages"][stage]
     tracking["attempt_count"] += 1
     if tracking["first_attempt"] is None:
+        graph = before.get("reasoning_graph")
+        reason = graph.get("reason") if isinstance(graph, dict) else None
+        # A new choice without a written argument is not an argument awaiting
+        # review. Existing first observations remain immutable below/on replay.
+        reason_status = "UNREVIEWED" if isinstance(reason, str) and reason.strip() else "NOT_PROVIDED"
         first = {"answer": answer, "correct": bool(correct), "evidence_rule_matched": bool(rule_matched),
             "assistance_status": "ASSISTED" if tracking["assistance_kinds"] else "NONE_RECORDED",
-            "assistance_kinds": list(tracking["assistance_kinds"]), "reason_review_status": "UNREVIEWED",
+            "assistance_kinds": list(tracking["assistance_kinds"]), "reason_review_status": reason_status,
             "source": before["source"], "text_version": before.get("reading_context", {}).get("text_version", "历史快照")}
         tracking["first_attempt"] = deepcopy(first)
         events.append({"type": "training.first_attempt_recorded", "payload": {"schema_version": 1,

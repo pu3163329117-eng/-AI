@@ -1,0 +1,133 @@
+function TrainingPage({ sessionId, session, busy, pendingCommand, error, recoveryNeeded, onRecover, onCommand, onReturnHome, onDirtyChange }: {
+  sessionId: string
+  session: TrainingSession
+  busy: boolean
+  pendingCommand: CommandType | null
+  error: string | null
+  recoveryNeeded: boolean
+  onRecover: () => void
+  onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
+  onReturnHome: () => void
+  onDirtyChange: (dirty: boolean) => void
+}) {
+  const [answer, setAnswer] = useState<string | null>(restoredAnswer(session))
+  useEffect(() => setAnswer(restoredAnswer(session)), [session.selected_answer, session.stage, session.reasoning_graph?.conclusion])
+  const [reasoningDirty, setReasoningDirty] = useState(false)
+  const reportReasoningDirty = useCallback((dirty: boolean) => setReasoningDirty(dirty), [])
+  const persistedAnswer = restoredAnswer(session)
+  useEffect(() => {
+    onDirtyChange(trainingDraftIsDirty(answer, persistedAnswer, reasoningDirty, session.completed))
+  }, [answer, persistedAnswer, reasoningDirty, session.completed, onDirtyChange])
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
+  const lastStep = useRef({ stage: session.stage, completed: session.completed })
+  useEffect(() => {
+    if (lastStep.current.stage === session.stage && lastStep.current.completed === session.completed) return
+    lastStep.current = { stage: session.stage, completed: session.completed }
+    const frame = requestAnimationFrame(() => jumpTo(session.completed ? 'summary-title' : 'training-question'))
+    return () => cancelAnimationFrame(frame)
+  }, [session.stage, session.completed])
+  const pendingLabels: Partial<Record<CommandType, string>> = { SUBMIT_ATTEMPT: '正在核验判断…', REQUEST_MORE_CONTEXT: '正在保存点读位置与语境…', SELECT_EVIDENCE: '正在记录证据…', DEFER_VARIABLE: '正在暂放变量…', REVISIT_VARIABLE: '正在恢复判断…', REQUEST_HINT: '正在读取提示…', CONTINUE_TO_TRANSFER: '正在准备迁移挑战…', COMPLETE_SESSION: '正在保存本关总结…' }
+  const locked = busy || recoveryNeeded
+  pendingLabels.SAVE_REASONING = '正在保存原文证据与推断理由…'
+  pendingLabels.RECORD_ASSISTANCE = '正在记录字词解释辅助，确认后再展开…'
+  const lastJudgment = useRef<string | null>(null)
+  useEffect(() => {
+    if (pendingCommand === 'SUBMIT_ATTEMPT') { lastJudgment.current = session.stage; return }
+    if (pendingCommand || lastJudgment.current === null) return
+    const submittedStage = lastJudgment.current
+    lastJudgment.current = null
+    // Word selection and evidence writes must not pull a reader away from the
+    // passage. Only a completed judgment brings its result into view. Stage
+    // transitions and uncertain writes have their own, higher-priority targets.
+    if (recoveryNeeded || session.completed || submittedStage !== session.stage) return
+    const frame = requestAnimationFrame(() => jumpTo('training-feedback'))
+    return () => cancelAnimationFrame(frame)
+  }, [pendingCommand, session.stage, session.completed, recoveryNeeded])
+  useEffect(() => {
+    if (!recoveryNeeded) return
+    const frame = requestAnimationFrame(() => jumpTo('command-recovery-title'))
+    return () => cancelAnimationFrame(frame)
+  }, [recoveryNeeded])
+
+  const submit = () => answer && onCommand('SUBMIT_ATTEMPT', { answer })
+  const isTransferReady = session.transfer_ready && !session.completed
+  const isSummaryReady = session.summary_ready && !session.completed
+  const stageTrace = session.learning_trace?.stages[session.stage]
+  const firstJudgment = !!stageTrace && stageTrace.first_attempt === null
+  const currentStep = session.completed ? 4 : session.stage === 'TRANSFER' ? 3 : 1
+  const variableIndex = session.passage.indexOf(session.variable)
+  const beforeVariable = variableIndex < 0 ? session.passage : session.passage.slice(0, variableIndex)
+  const afterVariable = variableIndex < 0 ? '' : session.passage.slice(variableIndex + session.variable.length)
+
+  return (
+    <main className="training-page inkroom-training">
+      <div className="training-shell">
+        <aside className="step-list" aria-label="训练步骤">
+          <b>本次训练</b>
+          {taskLabels.map((label, index) => <span className={index < currentStep ? 'done' : index === currentStep ? 'current' : ''} key={label}>{label}</span>)}
+        </aside>
+        <section className="lesson" aria-labelledby={session.completed ? 'summary-title' : 'question-title'}>
+          <div className="lesson-meta"><span>{session.source}</span><span>{session.stage === 'CORE' ? '02 / 04' : '04 / 04'}</span></div>
+          {session.completed && session.summary ? (
+            <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
+          ) : (
+            <>
+              <div className="training-workspace">
+              <TrainingWayfinding session={session} answer={answer} dirty={reasoningDirty} busy={busy} recoveryNeeded={recoveryNeeded} onLocate={target => {
+                if (target === 'training-tools') { const tools = document.getElementById('training-tools'); if (tools instanceof HTMLDetailsElement) tools.open = true }
+                jumpTo(target)
+              }} />
+              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={locked} onCommand={onCommand}
+                meaningMode={session.learning_trace ? 'TRACKED' : 'LEGACY'} isMeaningAllowed={stageTrace?.assistance_kinds.includes('WORD_MEANING') ?? false}
+                onRevealMeaning={selection => onCommand('RECORD_ASSISTANCE', { kind: 'WORD_MEANING', paragraph_index: selection.paragraph_index, start: selection.start, end: selection.end })} />
+              <section className="training-task" id="training-question" tabIndex={-1} key={`task-${session.stage}`}>
+              <div className="training-task-heading"><p className="stage-label">{session.stage === 'CORE' ? '当前任务 · 读句子，尝试判断词义' : '换一段原文，再试一次'}</p><button className="text-button" onClick={() => jumpTo('fulltext-title')}>阅读完整原文 ↓</button></div>
+              <p className="passage">{beforeVariable}{variableIndex >= 0 && <span>{session.variable}</span>}{afterVariable}</p>
+              <div className="question-area">
+                <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
+                <h1 id="question-title">{session.question}</h1>
+                <div className="choice-list" role="radiogroup" aria-label="选择词义">
+                  {session.choices.map(choice => <label key={choice} className={`choice-option${answer === choice ? ' selected' : ''}`}>
+                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={locked || isTransferReady || isSummaryReady} onChange={() => setAnswer(choice)} />
+                    <span>{choice}</span>
+                  </label>)}
+                </div>
+                {firstJudgment && <p className="knowledge-note">可以先提交首次词义判断，再补充证据与理由。查看字词解释、提示或保存证据后的规则回执会记录为辅助；首次判断不会直接发积分。</p>}
+                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked || reasoningDirty || (!firstJudgment && (!session.reasoning_graph || session.reasoning_graph.conclusion !== answer)) || isTransferReady || isSummaryReady}>
+                  {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : firstJudgment ? '提交首次词义判断' : '提交判断'}
+                </button>
+                {!firstJudgment && !isTransferReady && !isSummaryReady && (!session.reasoning_graph || session.reasoning_graph.conclusion !== answer) && <p className="stage-label" role="status">继续提交前，请先选择原文证据，保存与当前选项对应的推断理由。</p>}
+                <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
+                <ReasonFeedback key={`${sessionId}-${session.stage}-${session.state_version}`} sessionId={sessionId} session={session} disabled={locked} dirty={reasoningDirty} />
+              </div>
+              <div id="training-feedback" tabIndex={-1} className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
+                <h2 className="training-feedback-label">{busy ? '正在处理' : error ? '操作状态' : '判断反馈'}</h2>
+                <p>{busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `${recoveryNeeded ? '操作结果未确认' : '操作未完成'}：${error}` : session.feedback}</p>
+              </div>
+              {recoveryNeeded && <div className="command-recovery" role="alert"><h3 id="command-recovery-title" tabIndex={-1}>刚才操作的结果尚未确认。</h3><p>服务可能已收到请求。本页暂不接受新操作；核对会沿用同一请求标识，避免重复记录或加分。刷新只重新读取进度，不自动提交。</p><button className="button button-secondary" disabled={busy} onClick={onRecover}>{busy ? '正在核对…' : '核对并重试刚才操作'}</button></div>}
+              {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={locked}>进入陌生文挑战 →</button>}
+              {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={locked}>查看本关总结 →</button>}
+              </section>
+              </div>
+              <nav className="reading-shortcuts" aria-label="训练页快捷操作"><button onClick={() => jumpTo('fulltext-title')}>阅读原文</button><button onClick={() => jumpTo('reasoning-title')}>证据与理由</button><button onClick={() => jumpTo('training-question')}>回到题目 ↑</button></nav>
+            </>
+          )}
+          <details className="training-records"><summary>查看本次训练的学习行为记录</summary><SessionObservations trace={session.learning_trace} currentStage={session.stage} completed={session.completed} /></details>
+          <ReasoningHistory sessionId={sessionId} version={session.state_version} />
+        </section>
+        {!session.completed && <aside className="evidence-panel" aria-label="推理工具">
+          <details className="reasoning-tools" id="training-tools"><summary>推理工具 · 提示与暂放</summary><div className="reasoning-tools-content">
+          <p>从原文选取证据，写出它与词义的关系。</p>
+          <button onClick={() => jumpTo('fulltext-title')} disabled={session.completed}>在原文中找证据 ↓</button>
+          <p>{session.reasoning_graph ? '已有保存的证据链' : '尚未保存证据链'} · 理由待复核</p>
+          <hr />
+          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={locked || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
+          {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={locked || session.completed}>回看这个字，继续判断</button>}
+          <button className="quiet-action" onClick={() => onCommand('REQUEST_HINT')} disabled={locked || session.completed}>需要一点提示</button>
+          {session.hint && <p className="hint">第 {session.hint_level} 条提示：{session.hint}</p>}
+          </div></details>
+        </aside>}
+      </div>
+    </main>
+  )
+}

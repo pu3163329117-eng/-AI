@@ -50,11 +50,22 @@ def _v4_ability_content_version(engine: Engine) -> None:
         _ensure_column(engine, "lesson_abilities", "content_version", "VARCHAR(12)")
 
 
+def _v5_email_identity(engine: Engine) -> None:
+    """Add nullable identity fields; never infer ownership or alter old accounts."""
+    if _has_table(engine, "auth_users"):
+        _ensure_column(engine, "auth_users", "email", "VARCHAR(254)")
+        with engine.begin() as connection:
+            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_auth_users_email ON auth_users (email)"))
+    if _has_table(engine, "auth_invites"):
+        _ensure_column(engine, "auth_invites", "email", "VARCHAR(254)")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "profile-session-link", _v1_profile_session),
     (2, "lesson-session-link", _v2_lesson_session),
     (3, "lesson-editorial-metadata", _v3_lesson_editorial_metadata),
     (4, "ability-content-version", _v4_ability_content_version),
+    (5, "email-identity", _v5_email_identity),
 )
 
 

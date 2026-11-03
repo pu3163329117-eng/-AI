@@ -1,0 +1,14 @@
+{
+  "baseline_sha256": "ffdeb7099707c4627951366b22e8c3986b27d2e6c5d934d8a78588e23b1c7d92",
+  "session_recovery_sha256": "c2b98ae7f82ee53ecc27d075c036f2eadafd2e71e4af233ec4d0a1928d323218",
+  "edits": [
+    {
+      "before": "import { errorMessage, uncertainWrite, RequestError } from './http'",
+      "after": "import { errorMessage, uncertainWrite, RequestError, privateWritesAreSuspended } from './http'"
+    },
+    {
+      "before": "  const runCommand = useCallback((intent: PendingTrainingCommand): Promise<TrainingCommandOutcome> => {",
+      "after": "  const runCommand = useCallback((intent: PendingTrainingCommand): Promise<TrainingCommandOutcome> => {\n    // Keep any unknown intent/key intact while identity is being reconciled.\n    if (privateWritesAreSuspended()) return Promise.resolve({ status: 'blocked' })"
+    }
+  ]
+}

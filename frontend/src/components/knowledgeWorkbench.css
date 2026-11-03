@@ -1,0 +1,15 @@
+.knowledge-workbench { min-width: 0; }
+.knowledge-workbench :is(input, textarea, select) { font-size: 16px; max-width: 100%; min-width: 0; }
+.knowledge-workbench :is(button, input, select), .editor-tabs button { min-height: 44px; }
+.knowledge-workbench :is(p, blockquote, small), .annotation-history { overflow-wrap: anywhere; }
+.knowledge-workbench .annotation-editor, .knowledge-workbench .annotation-queue { min-width: 0; }
+.knowledge-workbench .annotation-queue { scroll-margin-block-start: 9rem; }
+.knowledge-workbench .annotation-queue:focus-visible { outline: 2px solid #111; outline-offset: 4px; }
+.knowledge-workbench .annotation-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.knowledge-workbench .annotation-draft-copy pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; user-select: text; border: 1px solid #ccc; padding: 16px; }
+@media (max-width: 40rem) {
+  .knowledge-workbench .knowledge-editor-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .knowledge-workbench .field-grid { grid-template-columns: minmax(0, 1fr); }
+  .knowledge-workbench .annotation-actions button { width: 100%; }
+  .editor-tabs { flex-wrap: wrap; gap: 8px; }
+}

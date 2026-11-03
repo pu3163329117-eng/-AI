@@ -2,17 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { aiReasonReviewApi } from '../aiReasonReviewApi'
 import { editorialRequestId } from '../assessmentEditorialApi'
 import { emptyReviewFields, normalizeReviewFields, reviewDecisions, reviewDecisionLabels, reviewLabels, reviewLabelNames, validReviewFields, validReviewWrite, type ReviewDetail, type ReviewFields, type ReviewQueue, type ReviewWrite } from '../aiReasonReview'
-import { errorMessage, uncertainWrite } from '../http'
+import { authResponseCheckpoint, errorMessage, RequestError, uncertainWrite } from '../http'
 import { downloadReviewBundle, reviewBundleCounts, type ReviewBundle } from '../aiReasonReviewExport'
 import type { ExitRisk } from '../usePageRoute'
 import '../aiReasonReview.css'
+import { useConfirmationDialog } from './ConfirmationDialog'
 
 const storage = 'wenyan-ai-review-pending-v1'
+const unknownResult = (reason: unknown) => !(reason instanceof RequestError) || uncertainWrite(reason) || reason.status === 408 || reason.status === 429
 function readPending(): ReviewWrite | null { try { const value = JSON.parse(sessionStorage.getItem(storage) ?? 'null'); return validReviewWrite(value) ? value : null } catch { return null } }
 function persist(value: ReviewWrite | null) { try { if (value) sessionStorage.setItem(storage, JSON.stringify(value)); else sessionStorage.removeItem(storage); return true } catch { return false } }
 const time = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
 const contextLabels = { SUFFICIENT: '足以判断当前关系', INSUFFICIENT: '缺少必要语境', UNCERTAIN: '尚不能判断' }
 function message(reason: unknown) {
+  if (reason instanceof Error && reason.message === 'BETA_FEATURE_DISABLED') return '当前内测未开放 AI 样例核对，仅限本机教研环境使用。（BETA_FEATURE_DISABLED）'
   const map: Record<string, string> = { AI_LOCAL_PREVIEW_ONLY: 'AI 样例核对仅允许在这台电脑的本机地址使用，不开放内网或公网。', AI_REVIEW_VERSION_CONFLICT: '意见版本已变化，本次没有覆盖。请先复制自己的意见，再重新读取。', AI_REVIEW_SUITE_CHANGED: '样例已更新，本次未保存到新版本。请复制意见并重新读取后核对。', IDEMPOTENCY_KEY_REUSED: '原提交标识的内容不一致，已停止保存。请保留意见并重新读取。', AI_REVIEW_HISTORY_FULL: '当前样例已达 100 条意见上限，请整理分歧后再修订样例版本。', AI_REVIEW_INVALID: '请填写署名、实际依据和核对理由。' }
   return map[reason instanceof Error ? reason.message : ''] ?? errorMessage(reason)
 }
@@ -57,10 +60,12 @@ export function AIReasonReviewWorkbench({ onExitRiskChange }: { onExitRiskChange
   const [target, setTarget] = useState('ALL'), [state, setState] = useState('ALL'), [refresh, setRefresh] = useState(0)
   const [operationBusy, setBusy] = useState(false), [exporting, setExporting] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [revealed, setRevealed] = useState(false)
   const [pending, setPending] = useState<ReviewWrite | null>(readPending), [durable, setDurable] = useState(true)
+  const pendingRef = useRef<ReviewWrite | null>(pending)
   const lock = useRef(false), alive = useRef(true), controller = useRef<AbortController | null>(null), heading = useRef<HTMLHeadingElement>(null)
   const dirty = JSON.stringify(fields) !== JSON.stringify(emptyReviewFields())
   const busy = operationBusy || exporting
   const blocked = busy || !!pending
+  const confirmation = useConfirmationDialog(JSON.stringify([detail?.case_id, detail?.revision, detail?.suite_digest, detail?.input_digest, fields, busy, pending]))
   useEffect(() => { alive.current = true; return () => { alive.current = false; controller.current?.abort() } }, [])
   useEffect(() => { onExitRiskChange(busy ? 'working' : pending ? 'uncertain' : dirty ? 'dirty' : null) }, [busy, pending, dirty, onExitRiskChange])
   useEffect(() => () => onExitRiskChange(null), [onExitRiskChange])
@@ -69,9 +74,12 @@ export function AIReasonReviewWorkbench({ onExitRiskChange }: { onExitRiskChange
     aiReasonReviewApi.list(abort.signal).then(value => { if (!abort.signal.aborted) { setQueue(value); setLoading(false) } }).catch(reason => { if (!abort.signal.aborted) { setListError(message(reason)); setLoading(false) } })
     return () => abort.abort()
   }, [refresh])
-  const mayDiscard = () => !dirty || window.confirm('有未保存的样例核对意见，确定放弃吗？请先复制需要保留的内容。')
-  async function open(id: string) {
-    if (blocked || lock.current || !mayDiscard()) return
+  async function open(id: string, confirmed = false) {
+    if (blocked || lock.current) return
+    if (dirty && !confirmed) {
+      confirmation.ask({ title: '放弃当前样例核对意见？', message: '有未保存的样例核对意见，确定放弃吗？请先复制需要保留的内容。', confirmLabel: '放弃意见并重新读取', onConfirm: () => void open(id, true) })
+      return
+    }
     lock.current = true; setBusy(true); setDetail(null); setError(''); setNotice(''); setRevealed(false)
     const abort = new AbortController(); controller.current = abort
     try {
@@ -82,40 +90,57 @@ export function AIReasonReviewWorkbench({ onExitRiskChange }: { onExitRiskChange
     } catch (reason) { if (alive.current && !abort.signal.aborted) setError(message(reason)) }
     finally { lock.current = false; if (alive.current) setBusy(false) }
   }
-  function remember(operation: ReviewWrite | null) { setPending(operation); setDurable(persist(operation)) }
+  function remember(operation: ReviewWrite | null) { pendingRef.current = operation; setPending(operation); setDurable(persist(operation)) }
   async function submit(recovery = false) {
-    if (lock.current || (pending && !recovery) || (!pending && recovery)) return
-    let operation = pending
+    if (lock.current || (pendingRef.current && !recovery) || (!pendingRef.current && recovery)) return
+    let operation = pendingRef.current
     if (!recovery) {
       const normalized = normalizeReviewFields(fields)
       if (!detail || !validReviewFields(normalized)) return
       operation = { key: editorialRequestId(), case_id: detail.case_id, body: { expected_suite_digest: detail.suite_digest, expected_input_digest: detail.input_digest, expected_revision: detail.revision, fields: normalized } }
       if (!persist(operation)) { setDurable(false); setError('浏览器无法保存提交恢复标识，本次未发送。请先恢复浏览器存储，再保存意见。'); return }
-      setPending(operation)
+      pendingRef.current = operation; setPending(operation)
     }
     if (!operation) return
+    const sameIdentity = authResponseCheckpoint()
     lock.current = true; setBusy(true); setError(''); setNotice('')
+    let confirmed = false
     try {
       const receipt = await aiReasonReviewApi.write(operation)
+      sameIdentity()
       if (!alive.current) return
-      remember(null); setFields(emptyReviewFields()); setRefresh(v => v + 1)
+      confirmed = true; remember(null); setFields(emptyReviewFields()); setRefresh(v => v + 1)
       setNotice(`已${receipt.replayed ? '确认原提交' : '追加保存'}第 ${receipt.saved.revision} 条本地意见。署名未核验，不代表已审核。`)
       setDetail(null)
       const value = await aiReasonReviewApi.get(operation.case_id)
+      sameIdentity()
       if (alive.current) { setDetail(value); setRevealed(false) }
     } catch (reason) {
+      try { sameIdentity() } catch { return }
       if (!alive.current) return
       // A confirmed receipt is cleared before the follow-up read. A failed
       // follow-up GET must not recreate an already-confirmed pending write.
-      if (!uncertainWrite(reason)) remember(null)
-      setError(message(reason))
+      if (!confirmed && !recovery && !unknownResult(reason)) remember(null)
+      setError(!confirmed && recovery ? '本次恢复未得到有效回执；原提交结果仍未知，请使用原标识继续核对。' : message(reason))
     } finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
+  function releasePending() {
+    const operation = pendingRef.current
+    if (!operation || lock.current) return
+    const sameIdentity = authResponseCheckpoint()
+    confirmation.ask({ title: '结束未确认提交的核对？', message: '原提交可能已经保存，也可能稍后保存。结束核对不会撤销服务器写入；重新提交可能重复。请先复制需要保留的意见。', confirmLabel: '了解风险，结束核对', onConfirm: () => {
+      if (!alive.current || lock.current || pendingRef.current !== operation) return
+      try { sameIdentity() } catch { return }
+      if (!persist(null)) { setDurable(false); setError('浏览器无法清除原核对信息，请保留本页并恢复存储后再操作。'); return }
+      pendingRef.current = null; setPending(null); setDurable(true); setError(''); setNotice('原提交结果仍未知，结束核对没有撤销服务端写入；重新提交可能重复。')
+    } })
   }
   const set = <K extends keyof ReviewFields>(key: K, value: ReviewFields[K]) => setFields(v => ({ ...v, [key]: value }))
   const items = queue?.items.filter(item => (target === 'ALL' || item.target === target) && (state === 'ALL' || (state === 'EMPTY' ? item.revision === 0 : item.decision === state))) ?? []
   return <main className="ai-review-workbench">
+    {confirmation.modal}
     <header className="ai-review-intro"><p className="eyebrow">AI 样例核对 · 本机教研准备</p><h1>先核对理由，再比较模型。</h1><p>原文、关系量表与开发对照逐项核对。意见追加保存，分歧留在历史中；不修改训练内容或开启正式评分。</p><p className="knowledge-note">自填署名未核验。开发预期不是教师标准，下面的记录数量不代表审核质量。</p></header>
-    {pending && <section className="ai-review-recovery" role="status"><b>有一笔提交结果尚未确认</b><p>{pending.case_id} · 原意见版本 {pending.body.expected_revision}。刷新没有自动重复发送。</p><button className="button button-secondary" disabled={busy} onClick={() => void submit(true)}>按原标识确认保存</button></section>}
+    {pending && <section className="ai-review-recovery" role="status"><b>有一笔提交结果尚未确认</b><p>{pending.case_id} · 原意见版本 {pending.body.expected_revision}。刷新没有自动重复发送；恢复失败不代表原提交失败。</p><button className="button button-secondary" disabled={busy} onClick={() => void submit(true)}>按原标识确认保存</button><button type="button" className="button button-secondary" disabled={busy} onClick={releasePending}>结束核对</button></section>}
     {!durable && <p role="alert">浏览器存储不可用，请勿刷新或关闭页面，以免丢失恢复信息。</p>}
     {notice && <p role="status">{notice}</p>}
     <ReviewBundleExport blockedReason={pending ? '请先按原标识确认提交结果，再下载交接包。' : dirty ? '有未保存意见，请先保存或明确放弃，再下载交接包。' : busy ? '正在处理其他操作，请完成后再下载交接包。' : null} onWorkingChange={value => { lock.current = value; setExporting(value) }} onSelectCase={id => void open(id)} />

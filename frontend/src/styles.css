@@ -1,3 +1,4 @@
+.profile-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 :root {
   color: #0b0b0b;
   background: #e9e9e6;
@@ -249,7 +250,8 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .related-contexts article { padding: 12px 0; border-bottom: 1px solid #deded9; }
 .related-contexts blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #888; color: #333; font-family: "Songti SC", STSong, SimSun, serif; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
 .related-contexts .related-relation { color: #222; font-size: 12px; font-weight: 600; }
-.related-pagination { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 12px; font-size: 12px; }
+.related-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: 12px; font-size: 12px; }
+.related-pagination > span { overflow-wrap: anywhere; }
 .knowledge-action { min-height: 44px; padding: 8px 12px; border: 1px solid #bbb; border-radius: 4px; background: #fff; color: #111; cursor: pointer; }
 .knowledge-action:disabled { color: #888; cursor: default; }
 .knowledge-action:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
@@ -277,7 +279,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 @media (max-width: 760px) {
   .training-shell { display: block; }.training-page { padding: 0; }.step-list { display: none; }
   .fulltext-heading { flex-direction: column; gap: 12px; }.fulltext-heading h2 { font-size: 21px; }
-  .fulltext-paragraph { font-size: 21px; line-height: 2.1; }.text-token { min-height: 40px; padding: 0 2px; }
+  .fulltext-paragraph { font-size: 21px; line-height: 2.1; }.text-token { min-height: 44px; padding: 0 2px; }
   .fulltext-layout { grid-template-columns: 1fr; gap: 22px; }.fulltext-canvas { max-height: 480px; padding-right: 8px; }
   .context-layers li { grid-template-columns: 44px minmax(0, 1fr); }.fulltext-reader { margin-bottom: 28px; padding-bottom: 24px; }
 }

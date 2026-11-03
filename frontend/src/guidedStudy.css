@@ -1,0 +1,42 @@
+/* GUIDED-TRAINING-20261026: finish the existing learner control rhythm.
+   Import after feedbackLayout.css. No training-flow, auth or admin selectors.
+   Catalogue rows and original text deliberately retain their own geometry. */
+.waterink-theme.inkroom-formal :is(.practice-page .practice-controls button,.report-overview nav button,.about-page .about-action,.waterink-profile-links a,.recall-board .button,.recall-board .text-button,.recall-board input:where(:not([type='radio']):not([type='checkbox'])),.recall-board select) {
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  border-radius: var(--feedback-control-radius,8px);
+  font-size: 16px;
+  line-height: 1.65;
+}
+/* Match the preceding :is() maximum specificity (two classes + one type).
+   Otherwise its catalogue `button` branch would keep About at only 44px. */
+.waterink-theme.inkroom-formal :is(.about-page button.about-action,.recall-board .button,.recall-board input:where(:not([type='radio']):not([type='checkbox'])),.recall-board select) { min-height: 48px; }
+.waterink-theme.inkroom-formal :is(.about-page .about-action,.waterink-profile-links a) { white-space: normal; overflow-wrap: anywhere; }
+
+/* These two real SkillsPage branches are direct children, unlike its normal
+   catalog-state. Give loading/error copy room without changing live regions. */
+.waterink-theme.inkroom-formal .skills-page .skill-list > :is(p[role='status'],div[role='alert']) {
+  margin: 0;
+  min-height: 0;
+  padding: 20px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+.waterink-theme.inkroom-formal .skills-page .skill-list { border-radius: var(--feedback-panel-radius,12px); }
+.waterink-theme.inkroom-formal :is(.review-page,.skills-page,.practice-page,.learning-report-page) :is(.catalog-state,.practice-state,.report-empty) { border-radius: var(--feedback-panel-radius,12px); }
+
+/* Keep semantic error text and alert behavior; the seal is an additional mark,
+   not the only indication. Never decorate an empty error node. */
+.waterink-theme.inkroom-formal :is(.reading-home,.practice-page,.review-page,.profile-page,.onboarding-page,.learning-report-page) .request-error:not(:empty) {
+  padding: 12px 16px;
+  border-inline-start: 2px solid var(--waterink-seal,#9e4439);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 44rem) {
+  .waterink-theme.inkroom-formal .skills-page .skill-list > :is(p[role='status'],div[role='alert']) { padding: 20px 16px; }
+}

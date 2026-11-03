@@ -1,0 +1,121 @@
+/* Entry/support surfaces only. Authentication, tour progress, feedback drafts
+   and their failure/unknown states remain owned by unchanged components. */
+.waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) { color: var(--waterink-ink, #252624); }
+.waterink-theme :is(.auth-page,.product-tour,.tour-loading,.onboarding-page,.about-page) { background: var(--waterink-paper, #f8f7f3); }
+.waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) :is(h1,h2,h3,.auth-brand,.tour-brand) { font-family: 'Songti SC', STSong, SimSun, serif; letter-spacing: normal; }
+.waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) :is(p,small,label,button,summary) { letter-spacing: normal; }
+.waterink-theme :is(.auth-page,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) :is(input:not([type='radio']):not([type='checkbox']),textarea,select) { min-width: 0; min-height: 48px; font-size: 16px; background: var(--waterink-surface, #fffefb); color: var(--waterink-ink, #252624); border: 1px solid #818a7c; border-radius: 8px; }
+.waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) :is(button,summary) { min-width: 44px; min-height: 44px; }
+.waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) :is(button,a,summary,input,textarea,select):focus-visible { outline: 2px solid var(--waterink-ink, #252624); outline-offset: 4px; }
+.waterink-theme :is(.auth-page,.auth-state) { width: min(100%,1160px); border: 1px solid var(--waterink-line, #dcded7); border-radius: 16px; margin: 24px auto; min-height: min(800px,calc(100dvh - 48px)); }
+.waterink-theme .auth-brand { padding: 24px 36px; border-color: var(--waterink-line, #dcded7); font-size: 24px; font-weight: 600; }
+.waterink-theme .auth-brand small { padding: 4px 8px; border: 1px solid #cda59b; border-radius: 3px; color: var(--waterink-seal, #9e4439); background: var(--waterink-surface, #fffefb); line-height: 1.5; }
+.waterink-theme .auth-layout { gap: 48px; padding: 48px; grid-template-columns: minmax(0,1fr) minmax(0,.9fr); }
+.waterink-theme .auth-intro { position: relative; isolation: isolate; min-width: 0; padding: 24px; }
+.waterink-theme .auth-intro::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background-image: var(--waterink-heading-wash),var(--waterink-art, none); background-size: 100% 100%,auto 100%; background-repeat: no-repeat; background-position: center,right bottom; border-radius: 12px; }
+.waterink-theme .auth-intro h1 { margin-block: 24px; font-size: clamp(34px,4vw,50px); line-height: 1.45; font-weight: 600; }
+.waterink-theme .auth-intro > p { color: var(--waterink-ink, #252624); font-size: 16px; line-height: 1.9; }
+.waterink-theme .auth-intro .auth-note { margin-top: 28px; padding-top: 18px; border-color: var(--waterink-line, #dcded7); font-size: 13px; }
+.waterink-theme .auth-form { gap: 20px; padding: 28px; background: var(--waterink-surface, #fffefb); border: 1px solid var(--waterink-line, #dcded7); border-radius: 12px; }
+.waterink-theme .auth-form h2 { font-size: 24px; font-weight: 600; line-height: 1.6; }
+.waterink-theme .auth-form label { color: var(--waterink-ink, #252624); font-size: 15px; }
+.waterink-theme .auth-form :is(small,.auth-help) { color: var(--waterink-muted, #62645f); font-size: 13px; }
+.waterink-theme .auth-form .button-primary { min-height: 48px; background: var(--waterink-ink, #252624); border: 1px solid var(--waterink-ink, #252624); color: #fffefb; border-radius: 8px; font-size: 16px; }
+.waterink-theme .auth-switch { color: var(--waterink-ink, #252624); font-size: 14px; }
+.waterink-theme :is(.auth-error,.auth-notice) { padding: 12px 14px; border-color: var(--waterink-seal, #9e4439); border-radius: 0 6px 6px 0; background: var(--waterink-paper, #f8f7f3); color: var(--waterink-ink, #252624); line-height: 1.85; }
+.waterink-theme .auth-state { background-color: var(--waterink-paper, #f8f7f3); }
+.waterink-theme .product-tour { --tour-ink: var(--waterink-ink, #252624); --tour-muted: var(--waterink-muted, #62645f); --tour-line: var(--waterink-line, #dcded7); }
+.waterink-theme .tour-header { border-bottom: 1px solid var(--waterink-line, #dcded7); }
+.waterink-theme .tour-brand { font-size: 24px; font-weight: 600; }
+.waterink-theme .tour-content { padding-block: 32px; }
+.waterink-theme .tour-page { gap: 48px; }
+.waterink-theme :is(.tour-copy,.onboarding-copy,.beta-support-heading) { padding: 24px; border: 1px solid var(--waterink-line, #dcded7); }
+.waterink-theme :is(.tour-copy,.onboarding-copy,.beta-support-heading) :is(p,.tour-description,.tour-eyebrow,.eyebrow) { color: var(--waterink-ink, #252624); }
+.waterink-theme .tour-copy h1 { font-size: clamp(30px,3.8vw,46px); line-height: 1.5; font-weight: 600; }
+.waterink-theme .tour-description { font-size: 16px; line-height: 1.9; }
+.waterink-theme :is(.tour-example,.tour-start-path,.tour-training-flow,.tour-primary-path) { border: 1px solid var(--waterink-line, #dcded7); border-radius: 12px; background: var(--waterink-surface, #fffefb); }
+.waterink-theme :is(.tour-training-flow li,.tour-start-path li,.tour-next-paths dl > div) { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme :is(.tour-training-flow li > span,.tour-start-path li > span) { border-color: #aeb5a7; color: var(--waterink-seal, #9e4439); background: var(--waterink-paper, #f8f7f3); border-radius: 5px; }
+.waterink-theme .tour-example-passage button { flex-basis: 44px; color: var(--waterink-ink, #252624); background: var(--waterink-paper, #f8f7f3); border-color: #aeb5a7; }
+.waterink-theme .tour-example-passage button[aria-pressed='true'] { background: var(--waterink-ink, #252624); border-color: var(--waterink-ink, #252624); color: #fffefb; }
+.waterink-theme .tour-context-layers { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .tour-context-layers button { min-width: 44px; font-size: 14px; }
+.waterink-theme .tour-context-layers button[aria-pressed='true'] { border-bottom-color: var(--waterink-seal, #9e4439); color: var(--waterink-ink, #252624); }
+.waterink-theme .tour-context-answer { border: 1px solid var(--waterink-line, #dcded7); border-radius: 8px; background: var(--waterink-paper, #f8f7f3); color: var(--waterink-ink, #252624); font-size: 14px; }
+.waterink-theme .tour-footer { border-color: var(--waterink-line, #dcded7); background: var(--waterink-paper, #f8f7f3); }
+.waterink-theme .tour-next { background: var(--waterink-ink, #252624); border-color: var(--waterink-ink, #252624); color: #fffefb; border-radius: 8px; }
+.waterink-theme .tour-back { background: var(--waterink-surface, #fffefb); border-color: #aeb5a7; color: var(--waterink-ink, #252624); border-radius: 8px; }
+.waterink-theme .tour-quiet { color: var(--waterink-muted, #62645f); }
+.waterink-theme .tour-save-error { color: var(--waterink-ink, #252624); border-color: #cda59b; background: var(--waterink-surface, #fffefb); border-radius: 8px; }
+.waterink-theme .onboarding-page { gap: 40px; }
+.waterink-theme .onboarding-copy h1 { font-family: 'Songti SC', STSong, SimSun, serif; font-size: clamp(30px,3.6vw,44px); line-height: 1.5; letter-spacing: normal; }
+.waterink-theme .onboarding-copy > p { color: var(--waterink-ink, #252624); }
+.waterink-theme .getting-started-steps { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .getting-started-steps li { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .profile-form { border: 1px solid var(--waterink-line, #dcded7); border-radius: 12px; background: var(--waterink-surface, #fffefb); }
+.waterink-theme .profile-form fieldset { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .profile-form fieldset label { min-height: 44px; }
+.waterink-theme .profile-form input[type='radio'] { accent-color: var(--waterink-ink, #252624); }
+.waterink-theme .profile-form :is(.profile-form-help,.request-error) { line-height: 1.85; }
+.waterink-theme .about-page { --about-ink: var(--waterink-ink, #252624); --about-muted: var(--waterink-muted, #62645f); --about-line: var(--waterink-line, #dcded7); }
+.waterink-theme .about-page :is(h1,.about-statement) { max-width: 22ch; font-size: clamp(30px,3.8vw,46px); line-height: 1.55; letter-spacing: normal; font-weight: 600; }
+.waterink-theme .about-intro { position: relative; isolation: isolate; max-width: none; padding: 28px; border: 1px solid var(--waterink-line, #dcded7); }
+.waterink-theme .about-intro::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; background-image: var(--waterink-heading-wash),var(--waterink-art, none); background-size: 100% 100%,auto 100%; background-repeat: no-repeat; background-position: center,right center; }
+.waterink-theme .about-intro :is(p,.about-eyebrow,.about-summary) { color: var(--waterink-ink, #252624); }
+.waterink-theme .about-summary { max-width: 42em; }
+.waterink-theme .about-page :is(.about-purpose,.about-context-layers,.about-beta-note) { border: 1px solid var(--waterink-line, #dcded7); border-radius: 12px; background: var(--waterink-surface, #fffefb); }
+.waterink-theme .about-context-layers strong { color: var(--waterink-seal, #9e4439); border-color: #cda59b; background: var(--waterink-paper, #f8f7f3); font-family: 'Songti SC', STSong, SimSun, serif; border-radius: 5px; }
+.waterink-theme .about-action { border-color: #aeb5a7; background: var(--waterink-surface, #fffefb); color: var(--waterink-ink, #252624); border-radius: 8px; }
+.waterink-theme .about-action-primary { color: #fffefb; border-color: var(--waterink-ink, #252624); background: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support { margin: 24px auto 32px; padding-inline: 24px; color: var(--waterink-muted, #62645f); }
+.waterink-theme .beta-support > details { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .beta-support summary { font-size: 15px; color: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support-content { max-width: 800px; padding-bottom: 24px; }
+.waterink-theme .beta-support-heading h2 { color: var(--waterink-ink, #252624); font-size: clamp(26px,3vw,36px); line-height: 1.6; font-weight: 600; }
+.waterink-theme .beta-support :is(.feedback-form,.feedback-receipt,.feedback-detail) { border-color: var(--waterink-line, #dcded7); background: var(--waterink-surface, #fffefb); border-radius: 12px; padding: 24px; }
+.waterink-theme .beta-support .feedback-detail { border: 1px solid var(--waterink-line, #dcded7); }
+.waterink-theme .beta-support :is(h3,h4,.feedback-detail-reference,.feedback-plain-text) { color: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support button { border: 1px solid #aeb5a7; background: var(--waterink-surface, #fffefb); color: var(--waterink-ink, #252624); border-radius: 8px; min-height: 48px; }
+.waterink-theme .beta-support :is(button[aria-pressed='true'],.feedback-submit) { color: #fffefb; border-color: var(--waterink-ink, #252624); background: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support :is(.beta-support-notice,.beta-support-warning) { border-color: var(--waterink-seal, #9e4439); color: var(--waterink-ink, #252624); line-height: 1.9; }
+.waterink-theme .beta-support :is(.feedback-history,.feedback-history li,.feedback-detail-meta,.feedback-detail-original,.feedback-detail-replies li,.feedback-submit-area) { border-color: var(--waterink-line, #dcded7); }
+.waterink-theme .beta-support :is(.feedback-metadata,.feedback-optional,.feedback-history small,.feedback-detail-meta dt,.feedback-detail-state) { color: var(--waterink-muted, #62645f); }
+.waterink-theme .beta-support .feedback-consent { min-height: 44px; color: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support .feedback-consent input { accent-color: var(--waterink-ink, #252624); }
+.waterink-theme .beta-support a { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; color: var(--waterink-ink, #252624); overflow-wrap: anywhere; }
+@media (hover:hover) {
+  .waterink-theme :is(.auth-form .button-primary,.tour-next,.about-action-primary):not(:disabled):hover { background: #3c4039; color: #fffefb; }
+  .waterink-theme :is(.tour-back,.about-action,.beta-support button):not(:disabled):hover { background: #eeefe7; color: var(--waterink-ink, #252624); }
+  .waterink-theme .about-action-primary:not(:disabled):hover,
+  .waterink-theme .beta-support :is(button[aria-pressed='true'],.feedback-submit):not(:disabled):hover { color: #fffefb; background: #3c4039; }
+}
+@media (max-width: 48rem) {
+  .waterink-theme :is(.auth-page,.auth-state) { width: 100%; margin: 0; min-height: 100dvh; border: 0; border-radius: 0; }
+  .waterink-theme .auth-brand { padding: 20px; }
+  .waterink-theme .auth-layout { grid-template-columns: minmax(0,1fr); gap: 24px; padding: 28px 20px 40px; }
+  .waterink-theme .auth-intro h1 { margin-block: 16px; font-size: 34px; line-height: 1.4; }
+  .waterink-theme .auth-intro { padding: 20px 16px; }
+  .waterink-theme .auth-intro .auth-note { margin-top: 20px; padding-top: 14px; }
+  .waterink-theme .auth-form { padding: 24px; gap: 18px; }
+  .waterink-theme .auth-state { padding: 32px 20px; }
+  .waterink-theme .tour-header { padding-inline: 20px; }
+  .waterink-theme .tour-content { padding: 24px 20px 32px; }
+  .waterink-theme .tour-page { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .waterink-theme .tour-copy h1 { font-size: 30px; line-height: 1.5; }
+  .waterink-theme .tour-footer { padding-inline: 20px; }
+  .waterink-theme .onboarding-page { gap: 28px; }
+  .waterink-theme .onboarding-copy h1 { font-size: 30px; }
+  .waterink-theme :is(.tour-copy,.onboarding-copy,.beta-support-heading,.about-intro) { padding: 20px 16px; }
+  .waterink-theme .about-page :is(h1,.about-statement) { font-size: 30px; }
+  .waterink-theme .beta-support { margin-top: 20px; padding-inline: 20px; }
+  .waterink-theme .beta-support :is(.feedback-form,.feedback-receipt,.feedback-detail) { padding: 20px; }
+}
+@media (max-width: 24rem) {
+  .waterink-theme .auth-form { padding: 20px; }
+  .waterink-theme .tour-context-layers { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .waterink-theme .tour-footer-row { gap: 8px; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); }
+  .waterink-theme :is(.tour-next,.tour-back) { padding-inline: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .waterink-theme :is(.auth-page,.auth-state,.product-tour,.tour-loading,.onboarding-page,.about-page,.beta-support) * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

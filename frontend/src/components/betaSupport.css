@@ -1,0 +1,61 @@
+.beta-support { max-width: 1240px; margin: 16px auto 28px; padding: 0 24px; color: #444; font-size: 13px; overflow-wrap: anywhere; }
+.beta-support > details { border-top: 1px solid #ccc; }
+.beta-support-contact { margin: 0 0 12px; line-height: 1.8; }
+.beta-support summary { min-height: 48px; padding: 15px 0; color: #111; cursor: pointer; font-weight: 600; }
+.beta-support-content { max-width: 760px; padding: 0 0 20px; line-height: 1.8; }
+.beta-support-content h2 { margin: 20px 0 8px; color: #111; font-size: 19px; }
+.beta-support-tabs, .beta-support-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.beta-support button, .beta-support-actions a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 14px; color: #111; background: #fff; border: 1px solid #aaa; border-radius: 6px; font: inherit; text-decoration: none; cursor: pointer; }
+.beta-support button[aria-pressed='true'] { color: #fff; background: #111; border-color: #111; }
+.beta-support a { color: #111; text-underline-offset: 3px; }
+.beta-support-destinations a { display: inline-block; padding: 8px 0; }
+.beta-support :is(summary, button, a, textarea, input, select):focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+.beta-support-template { display: grid; gap: 8px; margin: 18px 0 8px; color: #111; font-weight: 600; }
+.beta-support-template textarea { width: 100%; min-width: 0; padding: 12px; color: #333; border: 1px solid #aaa; border-radius: 6px; background: #fff; font: inherit; font-weight: 400; font-size: 16px; line-height: 1.7; resize: vertical; }
+.beta-support-notice, .beta-support-warning { border-left: 2px solid #111; padding-left: 12px; }
+.beta-support-hint { font-size: 12px; }
+.beta-support-heading { margin: 16px 0 28px; }
+.beta-support-heading h2 { font-size: clamp(26px, 4vw, 38px); letter-spacing: -.04em; line-height: 1.25; }
+.feedback-form { display: grid; gap: 16px; margin: 24px 0; padding: clamp(16px, 3vw, 28px); border: 1px solid #c8c8c3; border-radius: 12px; background: #fafaf8; }
+.feedback-form h3 { margin: 0; color: #111; font-size: 20px; }
+.beta-support :is(.feedback-form, .feedback-receipt, .feedback-detail) h3 { scroll-margin-top: 135px; }
+.feedback-form label:not(.feedback-consent) { display: grid; gap: 8px; color: #222; font-weight: 600; }
+.feedback-form :is(input[type='text'], textarea, select) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 48px; padding: 12px 14px; border: 1px solid #aaa; border-radius: 8px; color: #111; background: #fff; font: inherit; font-size: 16px; font-weight: 400; line-height: 1.6; }
+.feedback-form textarea { min-height: 160px; resize: vertical; }
+.feedback-form p { margin: 0; }
+.feedback-optional { color: #666; font-size: 12px; font-weight: 400; }
+.feedback-metadata { padding: 12px 0; color: #666; font-size: 12px; }
+.feedback-consent { display: flex; gap: 12px; align-items: flex-start; min-height: 44px; padding: 12px 0; cursor: pointer; }
+.feedback-consent input { flex: 0 0 auto; width: 20px; height: 20px; margin: 4px 0 0; accent-color: #111; }
+.feedback-consent span { flex: 1; }
+.beta-support .feedback-submit { justify-self: start; min-width: 180px; color: #fff; background: #111; border-color: #111; }
+.feedback-submit-area { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid #ccc; scroll-margin-block: 24px 110px; }
+.feedback-submit-help { color: #333; font-size: 14px; line-height: 1.8; }
+.feedback-submit-area .beta-support-notice { padding: 12px; border: 1px solid #999; border-left: 3px solid #111; background: #fff; scroll-margin-block: 24px 110px; }
+.beta-support button:disabled { opacity: .5; cursor: not-allowed; }
+.feedback-receipt { padding: 24px; margin: 24px 0; border: 1px solid #bbb; border-radius: 12px; background: #f7f7f5; }
+.feedback-receipt h3 { margin-top: 0; color: #111; font-size: 22px; }
+.feedback-receipt strong { display: block; color: #111; font-size: 20px; letter-spacing: .04em; }
+.feedback-history { margin: 24px 0; padding-top: 24px; border-top: 1px solid #ddd; }
+.feedback-history ul { list-style: none; margin: 16px 0 0; padding: 0; }
+.feedback-history li { display: flex; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid #ddd; }
+.feedback-history small { display: block; margin-top: 4px; color: #666; }
+.feedback-history-status { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; }
+.feedback-detail { margin: 24px 0; padding-top: 20px; border-top: 1px solid #bbb; color: #222; overflow-wrap: anywhere; }
+.feedback-detail-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.feedback-detail h3 { margin: 24px 0 8px; color: #111; font-size: 22px; line-height: 1.4; }
+.feedback-detail-reference { margin: 0 0 20px; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.feedback-detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; margin: 0; padding: 18px 0; border-block: 1px solid #ddd; }
+.feedback-detail-meta dt { color: #666; font-size: 12px; }
+.feedback-detail-meta dd { margin: 3px 0 0; font-size: 14px; }
+.feedback-detail h4 { margin: 24px 0 12px; font-size: 16px; color: #111; }
+.feedback-plain-text { margin: 0; font-size: 16px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+.feedback-detail-original { padding-bottom: 18px; border-bottom: 1px solid #ddd; }
+.feedback-detail-replies ol { margin: 0; padding: 0; list-style: none; }
+.feedback-detail-replies li { margin: 0; padding: 20px 0; border-bottom: 1px solid #ddd; }
+.feedback-reply-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; font-size: 12px; }
+.feedback-reply-meta time { color: #666; }
+.feedback-detail-state { margin: 18px 0; padding: 16px 0; color: #666; font-size: 14px; line-height: 1.8; }
+@media (max-width: 480px) { .feedback-detail-toolbar > button { flex: 1 1 auto; }.feedback-detail-meta { gap: 14px 18px; }.feedback-history-status { justify-content: flex-start; }.feedback-history li > div:first-child { min-width: 0; flex: 1 1 180px; } }
+@media (max-width: 480px) { .feedback-receipt { padding: 18px; }.feedback-form .feedback-submit { width: 100%; }.beta-support-tabs > button { flex: 1 1 auto; }.feedback-history li { flex-wrap: wrap; } }
+@media (max-width: 760px) { .beta-support { margin: 8px auto 96px; padding-inline: 24px; }.beta-support-actions > * { flex: 1 1 auto; }.beta-support-template textarea { min-height: 260px; } }

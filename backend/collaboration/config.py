@@ -83,9 +83,15 @@ class CollaborationSettings:
 def load_settings(environ: dict[str, str] | None = None) -> CollaborationSettings:
     env = os.environ if environ is None else environ
     defaults = CollaborationSettings()
+    enabled = _switch(env.get("WENYAN_COLLABORATION_ENABLED", "0"), "WENYAN_COLLABORATION_ENABLED")
+    # Disabled deployments must not depend on a developer machine's Harness
+    # executable, directories, credentials or runtime-specific configuration.
+    # Validate the switch itself first so a typo cannot accidentally enable it.
+    if not enabled:
+        return defaults
     origins = tuple(item.strip() for item in env.get("WENYAN_COLLABORATION_ALLOWED_ORIGINS", ",".join(defaults.allowed_origins)).split(",") if item.strip())
     settings = CollaborationSettings(
-        enabled=_switch(env.get("WENYAN_COLLABORATION_ENABLED", "0"), "WENYAN_COLLABORATION_ENABLED"),
+        enabled=enabled,
         token=env.get("WENYAN_COLLABORATION_TOKEN", ""),
         database_url=env.get("WENYAN_COLLABORATION_DATABASE_URL", defaults.database_url),
         runtime=env.get("WENYAN_COLLABORATION_RUNTIME", "mock"),

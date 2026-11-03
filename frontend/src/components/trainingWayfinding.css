@@ -1,0 +1,8 @@
+.waterink-theme .training-wayfinding { grid-column: 1/-1; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px 24px; margin-block: 12px 24px; padding: 20px 24px; border: 1px solid var(--waterink-line,#dcded7); border-inline-start: 3px solid var(--waterink-seal,#9e4439); border-radius: 10px; background: var(--waterink-surface,#fffefb); overflow-wrap: anywhere; }
+.waterink-theme .training-wayfinding h2 { margin: 4px 0 8px; font-size: clamp(20px,2vw,25px); }
+.waterink-theme .training-wayfinding p { margin: 0; color: var(--waterink-ink,#252624); font-size: 15px; line-height: 1.8; }
+.waterink-theme .training-wayfinding .eyebrow { color: var(--waterink-muted,#62645f); font-size: 13px; }
+.training-wayfinding-actions { display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 6px; min-width: 0; }
+.training-wayfinding-actions button { min-height: 44px; white-space: normal; }
+.training-wayfinding ol { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; padding: 12px 0 0 22px; border-top: 1px solid var(--waterink-line,#dcded7); font-size: 13px; color: var(--waterink-muted,#62645f); }
+@media (max-width:48rem) { .waterink-theme .training-wayfinding { grid-template-columns: minmax(0,1fr); padding: 16px; gap: 12px; } .training-wayfinding-actions { align-items: stretch; } .training-wayfinding ol { display: grid; gap: 5px; } }

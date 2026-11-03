@@ -1,0 +1,13 @@
+.knowledge-evidence { margin-block: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid var(--line, #dedbd3); border-radius: 16px; background: var(--paper, #fffdf8); min-width: 0; }
+.knowledge-evidence h2 { margin: 6px 0 14px; font-size: clamp(1.25rem, 2vw, 1.65rem); }
+.knowledge-evidence p { line-height: 1.8; overflow-wrap: anywhere; }
+.knowledge-evidence .evidence-boundary { padding: 12px 16px; border-inline-start: 3px solid var(--ink, #292b26); background: rgba(112, 106, 86, .05); }
+.evidence-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block: 14px; }
+.knowledge-evidence button, .knowledge-evidence summary { min-height: 44px; }
+.evidence-results details { border-block-start: 1px solid var(--line, #dedbd3); }
+.evidence-results summary { padding-block: 14px; cursor: pointer; line-height: 1.6; overflow-wrap: anywhere; }
+.evidence-detail { padding: 0 clamp(0px, 2vw, 16px) 16px; }
+.evidence-detail blockquote { margin: 12px 0; padding: 12px 16px; background: #fff; border-inline-start: 2px solid #a6a291; line-height: 1.9; overflow-wrap: anywhere; }
+.knowledge-evidence a { display: inline-block; max-width: 100%; min-height: 44px; overflow-wrap: anywhere; }
+.knowledge-evidence :is(button, summary, a):focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+@media (max-width: 600px) { .evidence-actions { align-items: stretch; } .evidence-actions button { flex: 1 1 100%; white-space: normal; } .knowledge-evidence { border-radius: 12px; } }

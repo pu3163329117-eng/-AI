@@ -1,0 +1,53 @@
+.training-reader-dialog {
+  box-sizing: border-box;
+  width: min(1080px, calc(100vw - 48px));
+  max-width: none;
+  height: min(900px, calc(100vh - 48px));
+  height: min(900px, calc(100dvh - 48px));
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--waterink-line, #c7c9c1);
+  border-radius: 12px;
+  color: var(--waterink-ink, #252624);
+  background: var(--waterink-surface, #fffefb);
+  box-shadow: 0 22px 90px rgb(20 24 22 / 18%);
+  overflow: hidden;
+}
+.training-reader-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); animation: training-reader-enter 160ms ease-out; }
+.training-reader-dialog::backdrop { background: rgb(25 30 27 / 42%); }
+.training-reader-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; padding: 20px 28px 16px; border-bottom: 1px solid var(--waterink-line, #c7c9c1); }
+.training-reader-eyebrow { margin: 0 0 6px; color: var(--waterink-muted, #666b63); font-size: 13px; letter-spacing: .06em; }
+.training-reader-header h2 { margin: 0; font-family: "Songti SC", SimSun, serif; font-size: clamp(22px, 3vw, 30px); line-height: 1.5; }
+.training-reader-close { align-self: start; min-height: 44px; min-width: 88px; padding: 10px 14px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; color: inherit; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; cursor: pointer; white-space: normal; }
+.training-reader-close:disabled { opacity: .55; cursor: wait; }
+.training-reader-help { grid-column: 1 / -1; margin: 0; color: var(--waterink-muted, #666b63); font-size: 14px; line-height: 1.7; }
+.training-reader-scroll { min-height: 0; min-width: 0; padding: 8px 28px max(28px, env(safe-area-inset-bottom)); overflow: auto; overscroll-behavior: contain; scroll-padding-block: 20px 32px; }
+.training-reader-dialog :is(button, summary, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--waterink-ink, #252624); outline-offset: 3px; }
+.training-reader-dialog :is(input, select, textarea) { font-size: 16px; }
+.training-reader-dialog :is(button, summary, .knowledge-action) { min-height: 44px; }
+/* The overlay owns scrolling: neither the article nor its contextual material
+   creates a second constrained viewport, even when global reader CSS does. */
+dialog.training-reader-dialog .fulltext-reader { margin: 20px 0 0; padding: 0; border: 0; }
+dialog.training-reader-dialog .fulltext-layout { display: block; min-width: 0; }
+dialog.training-reader-dialog :is(.fulltext-canvas, .context-layers, .context-disclosure) { max-height: none; height: auto; overflow: visible; }
+dialog.training-reader-dialog .fulltext-canvas { padding-right: 0; }
+dialog.training-reader-dialog .context-layers { padding-inline: 0; border-inline-start: 0; }
+.training-reader-dialog .fulltext-heading { flex-wrap: wrap; gap: 14px; }
+.training-reader-dialog .fulltext-heading h2 { font-size: clamp(22px, 3vw, 28px); }
+.training-reader-dialog .fulltext-paragraph { overflow-wrap: anywhere; }
+.training-reader-dialog :is(.knowledge-note, .reader-guide, .reader-version) { overflow-wrap: anywhere; }
+@keyframes training-reader-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 760px) {
+  .training-reader-dialog { width: calc(100vw - 12px); height: calc(100vh - 12px); height: calc(100dvh - 12px); border-radius: 9px; }
+  .training-reader-header { gap: 8px 12px; padding: max(16px, env(safe-area-inset-top)) 16px 12px; }
+  .training-reader-scroll { padding-inline: 16px; }
+  .training-reader-dialog .fulltext-canvas { padding-inline: 0; }
+  .training-reader-dialog .fulltext-paragraph { font-size: clamp(22px, 5vw, 28px); line-height: 2; }
+}
+@media (max-width: 360px), (max-height: 480px) {
+  .training-reader-header { padding-block: 10px; }
+  .training-reader-eyebrow { display: none; }
+  .training-reader-header h2 { font-size: 20px; }
+  .training-reader-help { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .training-reader-dialog[open] { animation: none; }.training-reader-scroll { scroll-behavior: auto; } }

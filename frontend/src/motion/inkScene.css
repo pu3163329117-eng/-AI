@@ -1,0 +1,49 @@
+/* The 800/1600 files are two sizes of the SAME existing painting, not layers.
+   Only its camera transforms. The wash, words and controls stay stationary. */
+.ink-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  opacity: var(--ink-scene-opacity, .74);
+  pointer-events: none;
+  user-select: none;
+}
+.ink-scene__art {
+  position: absolute;
+  inset: -1px;
+  background-image: url('../assets/waterink/landscape-1600.webp');
+  background-size: auto 100%;
+  background-position: right center;
+  background-repeat: no-repeat;
+  transform: translate3d(-0.4%, -0.3%, 0) scale(1.06);
+  transform-origin: right center;
+  pointer-events: none;
+}
+.ink-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--waterink-heading-wash, linear-gradient(90deg,rgba(248,247,243,.98),rgba(248,247,243,.94) 42%,rgba(248,247,243,.70)));
+  pointer-events: none;
+}
+.ink-scene--compact .ink-scene__art {
+  background-position: right bottom;
+  transform: translate3d(-0.2%, -0.15%, 0) scale(1.03);
+}
+.ink-scene[data-motion='off'] .ink-scene__art {
+  transform: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+@media (max-width: 44rem) {
+  .ink-scene__art { background-image: url('../assets/waterink/landscape-800.webp'); background-position: right bottom; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-scene .ink-scene__art {
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}

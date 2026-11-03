@@ -1,0 +1,53 @@
+/* Learner-facing task grouping; no color-only meaning or new motion system. */
+.polished :is(.practice-page, .review-page, .profile-page, .skills-page, .learning-report-page) { overflow-wrap: anywhere; }
+.polished :is(#training-feedback, #summary-title) { scroll-margin-top: 135px; }
+.polished .training-feedback-label { margin: 0 0 8px; font-size: 14px; line-height: 1.5; }
+.polished #training-feedback > p { margin: 0; }
+.polished .practice-controls { padding: 18px; border: 1px solid #c8c8c2; border-radius: 10px; background: #f8f8f6; margin-top: 24px; }
+.polished .practice-controls > div { flex-wrap: wrap; }
+.polished .practice-plan-list { border-top: 0; }
+.polished .practice-plans { gap: 16px; }
+.polished .practice-plan { border: 1px solid #c8c8c2; border-radius: 10px; overflow: clip; }
+.polished .practice-plan.is-open { border-color: #888; }
+.polished .practice-plan-summary { padding: 20px; background: #f8f8f6; }
+.polished .practice-plan-summary:focus-visible { outline-offset: -4px; }
+.polished .practice-lessons { margin: 0 20px 16px; }
+.polished .practice-lesson { padding: 20px 4px; }
+.polished .practice-lesson:last-child { border-bottom: 0; }
+.polished :is(.review-state, .review-empty, .report-empty) { padding: 22px; border: 1px solid #cecec8; border-left: 3px solid #555; background: #f8f8f6; line-height: 1.8; }
+.polished .review-list { margin-top: 16px; }
+.polished .review-list article { padding: 20px; border: 1px solid #d2d2cc; border-radius: 8px; margin-top: 12px; }
+.polished .review-list article span { display: inline-block; margin-bottom: 8px; padding: 3px 8px; border: 1px solid #aaa; color: #333; background: #f5f5f2; font-size: 12px; }
+.polished .review-list article strong { display: block; font-size: 17px; line-height: 1.6; }
+.polished .profile-stats { gap: 14px; border: 0; }
+.polished .profile-stats article { padding: 20px; border: 1px solid #c8c8c2; border-radius: 8px; background: #f8f8f6; }
+.polished .profile-stats article span { color: #555; }
+.polished .profile-actions { padding-top: 24px; border-top: 1px solid #d4d4ce; }
+.polished .profile-actions .button { margin-top: 0; min-height: 48px; }
+.polished .report-section { min-width: 0; }
+.polished .report-overview { max-width: 1200px; margin-inline: auto; padding: 44px var(--surface-padding) 24px; }
+.polished .report-overview h1 { font-size: clamp(32px, 4vw, 52px); line-height: 1.3; letter-spacing: -.035em; margin: 18px 0; }
+.polished .report-overview > p:last-of-type { color: #555; font-size: 15px; line-height: 1.8; }
+.polished .report-overview nav { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.polished .report-overview nav button { min-height: 44px; padding: 10px 16px; border: 1px solid #aaa; border-radius: 6px; background: #f8f8f6; color: #111; cursor: pointer; }
+.polished :is(#report-ability, #report-observations, #report-progress) { scroll-margin-top: 130px; }
+.polished :is(.report-heading h2, .report-state h2) { font-size: clamp(28px, 3.5vw, 42px); line-height: 1.35; letter-spacing: -.025em; margin: 18px 0; }
+.polished .report-state { min-height: 0; }
+.polished .report-section-heading { flex-wrap: wrap; }
+.polished .report-totals { gap: 16px; }
+.polished .report-totals article { padding: 18px; border: 1px solid #d2d2cc; border-radius: 8px; background: #f8f8f6; }
+.polished .skill-row { padding: 22px 16px; }
+.polished .skill-row:nth-child(odd) { background: #f8f8f6; }
+@media (max-width: 760px) {
+  .polished .practice-controls { gap: 12px; }
+  .polished .practice-controls > div { overflow-x: visible; }
+  .polished .practice-controls button { flex: 1 1 auto; }
+  .polished .practice-plan-summary { grid-template-columns: 30px minmax(0, 1fr); padding: 16px; gap: 12px; }
+  .polished .practice-lessons { margin-inline: 16px; }
+  .polished .practice-start { width: 100%; }
+  .polished .profile-actions { display: grid; }
+  .polished .profile-actions .button { width: 100%; }
+  .polished .report-totals { gap: 8px; }
+  .polished .report-totals article { padding: 14px 9px; min-width: 0; }
+  .polished .report-totals strong { font-size: clamp(23px, 6vw, 31px); }
+}

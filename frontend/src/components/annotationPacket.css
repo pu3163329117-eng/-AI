@@ -1,0 +1,20 @@
+.annotation-packet { min-width: 0; margin-block: 28px; padding-block: 24px; border-block: 1px solid var(--waterink-line, #dcded7); color: var(--waterink-ink, #252624); }
+.annotation-packet > header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 16px; }
+.annotation-packet > header > div { flex: 1 1 20rem; min-width: 0; }
+.annotation-packet h2 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6rem); line-height: 1.5; }
+.annotation-packet :is(p, h2, h3, h4, dd, dt, code, blockquote) { overflow-wrap: anywhere; }
+.annotation-packet :is(p, dd, blockquote) { line-height: 1.8; }
+.annotation-packet :is(button, input, textarea, select, summary) { min-height: 44px; min-width: 44px; font-size: 16px; }
+.annotation-packet .knowledge-action { color: var(--waterink-ink, #252624); background: var(--waterink-surface, #fffefb); border: 1px solid #818a7c; white-space: normal; }
+.annotation-packet .knowledge-action:not(:disabled):hover { color: var(--waterink-ink, #252624); background: var(--waterink-paper, #f8f7f3); }
+.annotation-packet :is(button, summary):focus-visible { outline: 2px solid var(--waterink-ink, #252624); outline-offset: 3px; }
+.annotation-packet .packet-boundary { color: var(--waterink-muted, #62645f); }
+.annotation-packet .packet-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 16px; padding-block: 16px; border-block: 1px solid var(--waterink-line, #dcded7); }
+.annotation-packet .packet-counts dd { margin: 4px 0 0; font-size: 1.4rem; }
+.annotation-packet .packet-samples summary { padding-block: 10px; cursor: pointer; }
+.annotation-packet .packet-samples article { padding-block: 16px; border-top: 1px solid var(--waterink-line, #dcded7); }
+.annotation-packet blockquote { margin: 16px 0; padding-inline-start: 16px; border-inline-start: 2px solid var(--waterink-line, #dcded7); white-space: pre-wrap; }
+.annotation-packet .packet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.annotation-packet .packet-digest code { white-space: normal; }
+@media (max-width: 35rem) { .annotation-packet > header > button, .annotation-packet .packet-actions button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .annotation-packet * { transition: none; animation: none; scroll-behavior: auto; } }

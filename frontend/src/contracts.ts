@@ -24,10 +24,29 @@ const lesson = shape({ id, title: text, source: text, difficulty: text, estimate
 const review = shape({ status: reviewStatus, content_version: id, reviewer: nullable(text), note: nullable(text), reviewed_at: nullable(text), issues: strings })
 const adminLesson: Check = value => lesson(value) && shape({ school_stage: school, status: oneOf('DRAFT', 'PUBLISHED'), textbook_tags: strings,
   theme: text, accumulation_points: strings, reasoning_points: strings, reasoning_level: text, content: optional(record), review: optional(review) })(value)
+const editorialVersion: Check = value => typeof value === 'string' && /^[0-9a-f]{12}$/.test(value)
+const editorialContent: Check = value => record(value) && Object.values(value).every(record)
+const reviewedAt: Check = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value))
+const createdEditorial: Check = value => adminLesson(value) && shape({ status: oneOf('DRAFT'), content: editorialContent, review: shape({ status: oneOf('UNREVIEWED'),
+  content_version: editorialVersion, reviewer: value => value === null, note: value => value === null, reviewed_at: value => value === null, issues: strings }) })(value)
+const signedEditorial: Check = value => adminLesson(value) && shape({ content: editorialContent, review: shape({ status: oneOf('APPROVED'), content_version: editorialVersion,
+  reviewer: id, note: text, reviewed_at: reviewedAt, issues: strings }) })(value)
 const position: Check = value => shape({ paragraph_index: count, start: count, end: count })(value) && record(value) && (value.end as number) > (value.start as number)
 const selection: Check = value => position(value) && shape({ token: text, sentence: text, paragraph: text, scope })(value)
-const graph = shape({ schema_version: value => value === 1, stage, source: text, text_version: text, target: id,
-  evidence: selection, reason: id, conclusion: id, evidence_rule_matched: bool, reason_review_status: oneOf('UNREVIEWED') })
+const annotationBasis: Check = value => position(value) && shape({ id, version: count, document_id: id,
+  source: text, token: id, meaning: id, status: oneOf('DRAFT', 'APPROVED'), source_url: nullable(text), citation: text })(value)
+const ruleEvidence: Check = value => selection(value) && shape({ source_kind: oneOf('ANNOTATION_SENTENCE') })(value)
+const graphFields = shape({ schema_version: value => value === 1, stage, source: text, text_version: text, target: id,
+  evidence: selection, reason: text, conclusion: id, evidence_rule_matched: bool,
+  reason_review_status: oneOf('UNREVIEWED', 'NOT_PROVIDED'), reason_provided: optional(bool),
+  basis_kind: optional(oneOf('CONTEXT', 'ANNOTATION')), annotation: optional(annotationBasis), rule_evidence: optional(ruleEvidence) })
+const graph: Check = value => {
+  if (!graphFields(value) || !record(value)) return false
+  const length = Array.from((value.reason as string).trim()).length
+  if (length > 2000 || (value.reason_review_status === 'NOT_PROVIDED') !== (length === 0)) return false
+  if (value.reason_provided !== undefined && value.reason_provided !== (length > 0)) return false
+  return value.basis_kind !== 'ANNOTATION' || annotationBasis(value.annotation) && ruleEvidence(value.rule_evidence)
+}
 const reading = shape({ paragraphs: list(text, 1), full_text: text, author: text, era: text, work_note: text,
   extent: optional(extent), text_version: optional(text), source_url: optional(text), terms: optional(strings) })
 const summary = shape({ accumulation: text, reasoning: text, earned_points: count })
@@ -69,8 +88,9 @@ const mistakes = shape({ mistakes: list(shape({ lesson_id: id, title: text, sour
 
 /** Dispatch is fail-closed for unknown API contracts, not for extra JSON fields.
  * Never coerce invalid data to a success/empty state or change a saved snapshot. */
-export function validateResponse(path: string, value: unknown): boolean {
+export function validateResponse(path: string, value: unknown, method = 'GET'): boolean {
   const endpoint = path.split('?')[0]
+  const action = method.toUpperCase()
   if (endpoint === '/api/v1/admin/knowledge/annotations') return shape({ total: count, items: list(managedAnnotation) })(value)
   if (/^\/api\/v1\/admin\/knowledge\/annotations\/[^/]+(?:\/review)?$/.test(endpoint)) return annotationDetail(value)
   if (/^\/api\/v1\/training\/sessions\/[^/]+\/reasoning$/.test(endpoint)) return shape({ records: list(shape({ sequence_no: count, created_at: text, graph })) })(value)
@@ -87,7 +107,8 @@ export function validateResponse(path: string, value: unknown): boolean {
   if (/^\/api\/v1\/profiles\/[^/]+\/daily-mission$/.test(endpoint)) return shape({ mission })(value)
   if (/^\/api\/v1\/profiles\/[^/]+\/achievements$/.test(endpoint)) return achievements(value)
   if (/^\/api\/v1\/profiles\/[^/]+\/practice-plans$/.test(endpoint)) return plans(value)
-  if (endpoint === '/api/v1/admin/lessons') return shape({ lessons: list(adminLesson) })(value)
+  if (endpoint === '/api/v1/admin/lessons') return action === 'POST' ? shape({ lesson: createdEditorial })(value) : shape({ lessons: list(adminLesson) })(value)
+  if (/^\/api\/v1\/admin\/lessons\/[^/]+\/review$/.test(endpoint) && action === 'POST') return shape({ lesson: signedEditorial })(value)
   if (/^\/api\/v1\/admin\/lessons\/[^/]+(?:\/(?:publish|review))?$/.test(endpoint)) return shape({ lesson: adminLesson })(value)
   return false
 }

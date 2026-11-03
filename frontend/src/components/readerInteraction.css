@@ -1,0 +1,26 @@
+.reader-return-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 12px;
+  border-bottom: 1px solid #ddd;
+}
+.reader-return-actions .knowledge-action {
+  min-height: 44px;
+  white-space: normal;
+}
+.reasoning-editor .reasoning-length {
+  margin-top: -4px;
+  color: #555;
+  font-size: 13px;
+}
+.reasoning-editor .reasoning-save-hint {
+  padding: 10px 12px;
+  border-inline-start: 3px solid #555;
+  background: #f5f5f3;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .reader-return-actions > button { flex: 1 1 130px; }
+}

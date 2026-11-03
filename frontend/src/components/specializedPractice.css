@@ -1,0 +1,27 @@
+/* Local discovery layer: existing ink/paper tokens and decorative scene remain. */
+.practice-page.practice-discovery .practice-entry-steps { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0 0 20px; padding: 16px 20px; list-style-position: inside; border: 1px solid var(--waterink-line, #c8c8c2); border-inline-start: 3px solid var(--waterink-seal, #5b6554); border-radius: 6px; background: var(--waterink-surface, #fffefb); color: var(--waterink-ink, #252624); }
+.practice-page.practice-discovery .practice-entry-steps li { min-width: 0; font-size: 16px; line-height: 1.7; font-weight: 600; }
+.practice-page.practice-discovery .practice-entry-steps li::marker { color: var(--waterink-muted, #62645f); }
+.practice-page.practice-discovery .practice-heading h1 { font-size: clamp(30px, 3.4vw, 46px); line-height: 1.35; margin-block: 14px; }
+.practice-page.practice-discovery .practice-heading > div > p:last-child { font-size: 16px; line-height: 1.85; }
+.practice-page.practice-discovery .practice-controls { margin-block: 20px; }
+.practice-page.practice-discovery .practice-controls button { min-height: 44px; font-size: 16px; }
+.practice-page.practice-discovery .practice-plan-summary { min-height: 64px; }
+.practice-page.practice-discovery .practice-plan-toggle { padding: 8px 10px; border: 1px solid var(--waterink-line-strong, #8c9383); border-radius: 5px; color: var(--waterink-ink, #252624); font-size: 14px; white-space: normal; line-height: 1.6; }
+.practice-page.practice-discovery .practice-lesson p { font-size: 16px; line-height: 1.8; }
+.practice-page.practice-discovery .practice-start { min-height: 48px; font-size: 16px; white-space: normal; }
+.practice-page.practice-discovery .practice-lessons[hidden] { display: none; }
+.practice-page.practice-discovery .practice-no-lessons { padding-block: 16px; font-size: 16px; line-height: 1.85; }
+.practice-page.practice-discovery .practice-start-status { padding: 14px 16px; border-inline-start: 3px solid var(--waterink-seal, #5b6554); background: var(--waterink-surface, #fffefb); font-size: 16px; line-height: 1.8; }
+.practice-page.practice-discovery .practice-state .text-button { min-height: 44px; font-size: 16px; }
+@media (max-width: 760px) {
+  .waterink-theme.inkroom-formal .practice-page.practice-discovery .practice-heading { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 18px 16px; margin-bottom: 16px; }
+  .waterink-theme.inkroom-formal .practice-page.practice-discovery .practice-signal { display: none; }
+  .practice-page.practice-discovery .practice-entry-steps { gap: 8px 16px; padding: 12px 14px; }
+  .practice-page.practice-discovery .practice-list-heading h2 { font-size: 22px; line-height: 1.55; }
+  .practice-page.practice-discovery .practice-plan-copy strong { font-size: 18px; line-height: 1.6; }
+  .practice-page.practice-discovery .practice-plan-summary { gap: 10px; }
+  .practice-page.practice-discovery .practice-plan-toggle { justify-self: start; }
+  .practice-page.practice-discovery .practice-lesson { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .practice-page.practice-discovery .practice-start { width: 100%; }
+}

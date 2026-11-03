@@ -1,0 +1,14 @@
+.reasoning-editor .chosen-evidence { min-width: 0; padding: 16px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; background: var(--waterink-surface, #fffefb); overflow-wrap: anywhere; }
+.reasoning-editor .chosen-evidence blockquote { margin: 12px 0; font-family: var(--waterink-reading-font, "Songti SC", SimSun, serif); font-size: 20px; line-height: 1.8; }
+.reasoning-editor .optional-reason { margin-block: 16px; padding: 0 14px; border: 1px solid var(--waterink-line, #c7c9c1); border-radius: 6px; background: var(--waterink-surface, #fffefb); }
+.reasoning-editor .optional-reason > summary { display: list-item; min-height: 48px; padding-block: 12px; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; line-height: 1.5; cursor: pointer; }
+.reasoning-editor .optional-reason > summary span { color: var(--waterink-muted, #62645f); font-size: 14px; }
+.reasoning-editor .optional-reason label { display: grid; gap: 8px; font-size: 16px; }
+.reasoning-editor .optional-reason textarea { width: 100%; min-height: 130px; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; line-height: 1.8; }
+.reasoning-editor .optional-reason > summary:focus-visible { outline: 2px solid var(--waterink-ink, #252624); outline-offset: 2px; }
+.annotation-basis-action { margin-top: 16px; border-top: 1px solid var(--waterink-line, #c7c9c1); padding-top: 14px; }
+.annotation-basis-action .knowledge-action, .context-basis-action .knowledge-action { min-height: 44px; max-width: 100%; white-space: normal; font-size: 16px; line-height: 1.6; }
+@media (max-width: 400px) {
+  .annotation-basis-action .knowledge-action { width: 100%; }
+  .reasoning-editor .chosen-evidence { padding: 12px; }
+}

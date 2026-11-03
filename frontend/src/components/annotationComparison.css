@@ -1,0 +1,27 @@
+.annotation-comparison { min-width: 0; margin-block: 28px; border-block: 1px solid #d1d1cc; padding-block: 24px; color: #161616; }
+.annotation-comparison-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.annotation-comparison-heading > div { min-width: 0; flex: 1 1 16rem; }
+.annotation-comparison h3 { margin: 0; font-size: clamp(1.125rem, 2vw, 1.4rem); line-height: 1.55; }
+.annotation-comparison :is(p, h3, h4, blockquote, dt, dd, a) { overflow-wrap: anywhere; }
+.annotation-comparison :is(p, blockquote, dd) { line-height: 1.8; }
+.annotation-comparison :is(button, input, textarea, select) { min-height: 44px; font-size: 16px; }
+.annotation-comparison-boundary, .comparison-location { color: #555; }
+.annotation-comparison-body { min-width: 0; margin-top: 20px; }
+.comparison-anchor, .comparison-match { font-weight: 600; }
+.comparison-match { margin: 0 0 6px; font-size: .85rem; }
+.annotation-comparison-entry { padding-block: 24px; border-top: 1px solid #d9d9d5; user-select: text; }
+.annotation-comparison-entry h4 { margin: 0; font-size: 1.05rem; line-height: 1.6; }
+.annotation-comparison-entry blockquote { margin: 16px 0; padding: 8px 16px; border-left: 2px solid #222; white-space: pre-wrap; }
+.annotation-comparison-entry dl { display: grid; gap: 14px; margin: 0; }
+.annotation-comparison-entry dl > div { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 12px; }
+.annotation-comparison-entry dt { color: #555; font-weight: 500; }
+.annotation-comparison-entry dd { margin: 0; min-width: 0; white-space: pre-wrap; }
+.annotation-comparison-entry a { color: #111; text-decoration: underline; text-underline-offset: 3px; }
+.annotation-comparison-actions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 20px; }
+.comparison-conflict { border-left: 3px solid #111; padding-left: 14px; }
+@media (max-width: 35rem) {
+  .annotation-comparison-entry dl > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .annotation-comparison-actions button { flex: 1 1 100%; }
+  .annotation-comparison-heading > button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .annotation-comparison * { scroll-behavior: auto; transition: none; animation: none; } }

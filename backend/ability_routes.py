@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 try:
     from backend.db.session import get_db
     from backend.db import learning_path as store
+    from backend.access import student_response
 except ModuleNotFoundError:
     from db.session import get_db
     from db import learning_path as store
+    from access import student_response
 
 router = APIRouter(prefix="/api/v1/profiles")
 Db = Annotated[Session, Depends(get_db)]
@@ -49,4 +51,4 @@ def generate_recommendations(profile_id: str, request: GeneratePlanRequest, resp
 
 @router.post("/{profile_id}/recommendations/{task_id}/start")
 def start_recommendation(profile_id: str, task_id: str, request: StartTaskRequest, db: Db, idempotency_key: Key = None):
-    return store.start(db, profile_id, task_id, key_required(idempotency_key))
+    return student_response(store.start(db, profile_id, task_id, key_required(idempotency_key)))

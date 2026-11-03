@@ -276,6 +276,10 @@ export type RelatedContext = {
   end: number
   source_url: string | null
   relation: 'SAME_SENSE' | 'OTHER_SENSE'
+  status?: 'DRAFT' | 'APPROVED'
+  version?: number
+  reviewer?: string | null
+  citation?: string
 }
 
 export type KnowledgeLookup = {
@@ -301,7 +305,15 @@ export type ReasoningGraph = {
   reason: string
   conclusion: string
   evidence_rule_matched: boolean
-  reason_review_status: 'UNREVIEWED'
+  reason_review_status: 'UNREVIEWED' | 'NOT_PROVIDED'
+  reason_provided?: boolean
+  basis_kind?: 'CONTEXT' | 'ANNOTATION'
+  annotation?: {
+    id: string; version: number; document_id: string; source: string; token: string
+    paragraph_index: number; start: number; end: number; meaning: string
+    status: 'DRAFT' | 'APPROVED'; source_url: string | null; citation: string
+  }
+  rule_evidence?: ContextSelection & { source_kind: 'ANNOTATION_SENTENCE' }
 }
 export type ReasoningRecord = { sequence_no: number; created_at: string; graph: ReasoningGraph }
 export type ManagedAnnotation = WordAnnotation & { document_id: string; source: string; paragraph_index: number; sentence: string; version: number; citation: string }

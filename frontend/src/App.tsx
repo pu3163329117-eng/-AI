@@ -1,12 +1,22 @@
+import { TrainingWayfinding } from './components/TrainingWayfinding'
+import { SpecializedPracticePage } from './components/SpecializedPracticePage'
+import { GuidedTrainingPage, type GuidedTrainingProps } from './components/GuidedTrainingPage'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { adminLessonApi, lessonApi, profileApi, requestId, trainingApi } from './api'
-import { errorMessage, uncertainWrite } from './http'
-import { ConnectionStatus } from './components/ConnectionStatus'
+import { errorMessage, uncertainWrite, RequestError, privateWritesAreSuspended, authResponseCheckpoint, setCreationWritesBlocked, requestJson } from './http'
+import { validateResponse } from './contracts'
+import { executeTrainingCommand, type TrainingCommandIntent, type TrainingCommandOutcome } from './trainingCommandOutcome'
+import { AuthBoundary } from './authBoundary'
+import { canManage, canManageSupport, validAuthSession, type AuthSession } from './auth'
 import { ReviewRecallBoard } from './components/ReviewRecallBoard'
 import { RenderBoundary } from './components/RenderBoundary'
+import { AppHeader } from './components/AppHeader'
+import { WaterinkMobileNavigation, WaterinkProfileLinks } from './components/WaterinkNavigation'
+import { AboutPage } from './components/AboutPage'
 import { ContextReader } from './components/ContextReader'
 import { EditorialSources } from './components/EditorialSources'
 import { AdminWorkbench } from './components/KnowledgeWorkbench'
+import { SupportInbox } from './components/SupportInbox'
 import { ReasoningEditor, ReasoningHistory } from './components/ReasoningEditor'
 import { ReasonFeedback } from './components/ReasonFeedback'
 import { AssessmentPage } from './components/AssessmentPage'
@@ -14,135 +24,30 @@ import { CourseAbilityWorkbench } from './components/CourseAbilityWorkbench'
 import { AssessmentQuestionWorkbench } from './components/AssessmentQuestionWorkbench'
 import { AIReasonReviewWorkbench } from './components/AIReasonReviewWorkbench'
 import { AbilityProfilePanel } from './components/AbilityProfilePanel'
-import { RecommendationQueue } from './components/RecommendationQueue'
+import { ReadingHomePage } from './components/ReadingHomePage'
+import { InkScene } from './motion/InkScene'
+import { InkMotionControl, useInkMotion } from './motion/useInkMotion'
 import { ObservationReport } from './components/ObservationReport'
 import { SessionObservations } from './components/SessionObservations'
+import { BetaSupportPanel } from './components/BetaSupportPanel'
+import { ProductTourBoundary, useProductTour } from './components/ProductTour'
+import { trainingDraftIsDirty } from './trainingDraft'
+import { useConfirmationDialog } from './components/ConfirmationDialog'
+import { shouldLeaveOnboarding } from './betaSupport'
 import { restoredAnswer } from './reasoning'
-import { jumpTo, optionIndex, pageLabels, readRoute, revealCurrentNavigation, routeHash, type Page } from './navigation'
+import { jumpTo, optionIndex, pageLabels, readRoute, type Page } from './navigation'
 import { usePageRoute, type ExitRisk } from './usePageRoute'
 import './polish.css'
+import './functionalPages.css'
 import type { Achievement, Achievements, AdminLesson, AdminLessonInput, CommandType, DailyMission, LearnerProfile, LearningSummary, Lesson, Mistake, PracticePlan, PracticePlanGroupBy, ReviewSession, SchoolStage, TrainingSession } from './types'
 
 const taskLabels = ['识别已知', '推断变量', '回溯验证', '迁移挑战']
-type PendingTrainingCommand = { sessionId: string; version: number; type: CommandType; payload: Record<string, unknown>; key: string }
+type PendingTrainingCommand = TrainingCommandIntent
 
-function AppHeader({ page, profile, onNavigate }: { page: Page; profile: LearnerProfile | null; onNavigate: (page: Page) => void }) {
-  const navRef = useRef<HTMLElement>(null)
-  useLayoutEffect(() => {
-    const reveal = () => revealCurrentNavigation(navRef.current)
-    reveal()
-    window.addEventListener('resize', reveal)
-    return () => window.removeEventListener('resize', reveal)
-  }, [page, profile?.id])
-  return (
-    <header className="app-header">
-      <button className="brand" onClick={() => onNavigate('home')} aria-label="返回首页">
-        文言 <span>·</span> 推理
-      </button>
-      <nav aria-label="主导航" ref={navRef}>
-        {(['home', 'skills', 'assessment', 'practice', 'review', 'profile', 'report', 'admin'] as Page[]).map(target => {
-          const disabled = !profile && !['home', 'skills', 'admin'].includes(target)
-          const active = page === target || (target === 'home' && page === 'training')
-          return <a key={target} href={routeHash({ page: target })} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}
-            aria-disabled={disabled || undefined} tabIndex={disabled ? -1 : undefined}
-            onClick={event => { if (disabled) { event.preventDefault(); return } if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onNavigate(target) }}>
-            {target === 'profile' ? '我的' : target === 'admin' ? '内容管理' : pageLabels[target]}
-          </a>
-        })}
-      </nav>
-      <button className="account" aria-label="查看学习档案" onClick={() => profile && onNavigate('profile')} disabled={!profile}>{profile?.display_name.slice(0, 1) ?? '—'}</button>
-    </header>
-  )
-}
 
-function HomePage({ profile, lessons, loading, catalogError, onRetry, onStart, onAssessment, onPractice, onStartSession, onRiskChange, isStarting, error, mission, missionLoading, missionError }: {
-  profile: LearnerProfile
-  lessons: Lesson[]
-  loading: boolean
-  catalogError: string | null
-  onRetry: () => void
-  onStart: (lessonId: string) => void
-  onAssessment: () => void
-  onPractice: () => void
-  onStartSession: (sessionId: string) => void
-  onRiskChange: (risk: ExitRisk) => void
-  isStarting: boolean
-  error: string | null
-  mission: DailyMission | null
-  missionLoading: boolean
-  missionError: string | null
-}) {
-  const todayLesson = mission?.recommended_lesson ?? lessons[0]
-  const stageLabel = profile.school_stage === 'JUNIOR' ? '初中' : '高中'
-  return (
-    <main className="home-page">
-      <section className="hero" aria-labelledby="home-title">
-        <div>
-          <p className="eyebrow">{stageLabel} · 分级关卡</p>
-          {loading ? <CatalogLoading /> : catalogError ? <CatalogError error={catalogError} onRetry={onRetry} /> : todayLesson ? <>
-            <h1 id="home-title">{todayLesson.title}</h1>
-            <p className="intro">{todayLesson.summary}</p>
-            <p className="lesson-meta-line">{todayLesson.source} · {todayLesson.difficulty} · 约 {todayLesson.estimated_minutes} 分钟</p>
-            <button className="button button-primary" onClick={() => onStart(todayLesson.id)} disabled={isStarting}>
-              {isStarting ? '正在准备训练…' : '开始今日关卡'} <span aria-hidden="true">→</span>
-            </button>
-          </> : <CatalogEmpty stageLabel={stageLabel} />}
-          {error && <p className="request-error" role="alert">无法开始训练：{error}</p>}
-        </div>
-        <aside className="streak daily-mission" aria-label="今日任务进度">
-          {missionLoading ? <><span>今日任务</span><strong>正在整理进度…</strong><small>读取今天的训练记录。</small></> : missionError ? <><span>今日任务</span><strong>进度暂不可用</strong><small>本次训练仍可正常开始。</small></> : mission ? <>
-            <span>今日任务 · {mission.mission_date.slice(5).replace('-', ' 月 ')} 日</span>
-            <div className="mission-progress"><b>{mission.completed_sessions_today}</b><small> / {mission.target_completed_sessions} 次</small></div>
-            <strong>{mission.completed ? '今天的任务已完成。' : '完成一节完整训练。'}</strong>
-            <progress value={Math.min(mission.completed_sessions_today, mission.target_completed_sessions)} max={mission.target_completed_sessions} aria-label={`今日已完成 ${mission.completed_sessions_today} / ${mission.target_completed_sessions} 次训练`} />
-            <small>{mission.completed ? '可以复习错题，或继续探索下一关。' : '从证据出发，完成核心判断与迁移。'}</small>
-          </> : <><span>今日任务</span><strong>完成一节完整训练。</strong><small>从证据出发，完成核心判断与迁移。</small></>}
-        </aside>
-      </section>
-      <section className="assessment-entry" aria-labelledby="assessment-entry-title">
-        <div><p className="eyebrow">新增 · 能力试测</p><h2 id="assessment-entry-title">先看看你的阅读起点。</h2><p>字词、句式、语境、篇章四维试测，可保存和继续。题目待审核，结果仅供体验，不改变当前课程分级。</p></div>
-        <button className="button button-secondary" onClick={onAssessment}>进入能力试测 <span aria-hidden="true">→</span></button>
-      </section>
-      <RecommendationQueue profileId={profile.id} onAssessment={onAssessment} onPractice={onPractice} onStartSession={onStartSession} onRiskChange={onRiskChange} externalBusy={isStarting} />
-      <section className="lesson-catalog" aria-labelledby="catalog-title">
-        <div className="catalog-heading">
-          <div><p className="eyebrow">已有课程 · 保留旧练习入口</p><h2 id="catalog-title">{stageLabel}关卡</h2></div>
-          {!loading && !catalogError && lessons.length > 0 && <span>{lessons.length} 个可选关卡</span>}
-        </div>
-        {loading ? <CatalogLoading compact /> : catalogError ? <CatalogError error={catalogError} onRetry={onRetry} compact /> : lessons.length === 0 ? <CatalogEmpty stageLabel={stageLabel} compact /> : (
-          <div className="lesson-grid">
-            {lessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} index={index} onStart={onStart} busy={isStarting} />)}
-          </div>
-        )}
-      </section>
-    </main>
-  )
-}
-
-function CatalogLoading({ compact = false }: { compact?: boolean }) {
-  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} aria-live="polite"><b>正在读取分级关卡…</b><p>正在为当前学习阶段整理可训练的文章。</p></div>
-}
-
-function CatalogError({ error, onRetry, compact = false }: { error: string; onRetry: () => void; compact?: boolean }) {
-  return <div className={compact ? 'catalog-state compact' : 'catalog-state'} role="alert"><b>暂时无法读取关卡目录。</b><p>{errorMessage(error)}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
-}
-
-function CatalogEmpty({ stageLabel, compact = false }: { stageLabel: string; compact?: boolean }) {
-  return <div className={compact ? 'catalog-state compact' : 'catalog-state'}><b>{stageLabel}分级暂未开放关卡。</b><p>关卡由教研内容发布后显示在这里，请稍后再来。</p></div>
-}
-
-function LessonCard({ lesson, index, onStart, busy }: { lesson: Lesson; index: number; onStart: (lessonId: string) => void; busy: boolean }) {
-  return <article className="lesson-card">
-    <div className="lesson-card-top"><em>{String(index + 1).padStart(2, '0')}</em><span>{index === 0 ? '今日推荐' : lesson.difficulty}</span></div>
-    <h3>{lesson.title}</h3>
-    <p>{lesson.summary}</p>
-    <footer><small>{lesson.source} · 约 {lesson.estimated_minutes} 分钟</small><button className="text-button" onClick={() => onStart(lesson.id)} disabled={busy}>{index === 0 ? '开始' : '选择'} →</button></footer>
-  </article>
-}
-
-function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: string | null; onCreate: (name: string, stage: SchoolStage) => void }) {
-  const [name, setName] = useState('')
-  const [stage, setStage] = useState<SchoolStage>('JUNIOR')
+function OnboardingPage({ busy, locked, draft, error, onCreate, inviteMode = false }: { busy: boolean; locked: boolean; draft: { displayName: string; schoolStage: SchoolStage } | null; error: string | null; onCreate: (name: string, stage: SchoolStage) => void; inviteMode?: boolean }) {
+  const [name, setName] = useState(draft?.displayName ?? '')
+  const [stage, setStage] = useState<SchoolStage>(draft?.schoolStage ?? 'JUNIOR')
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (name.trim()) onCreate(name.trim(), stage)
@@ -150,38 +55,48 @@ function OnboardingPage({ busy, error, onCreate }: { busy: boolean; error: strin
   return (
     <main className="onboarding-page">
       <section className="onboarding-copy">
-        <p className="eyebrow">开始之前</p>
-        <h1>先留下<br />你的起点。</h1>
-        <p>档案保存在本机学习服务中，这个浏览器会记住你的入口。目前尚未接入账号登录和跨设备找回。</p>
+        <p className="eyebrow">第一步 · 建立学习档案</p>
+        <h1>选好学习阶段，<br />开始读一篇。</h1>
+        <ol className="getting-started-steps" aria-label="开始学习的三个步骤">
+          <li><b>填写昵称和学习阶段</b><span>不用填写真实姓名。</span></li>
+          <li><b>查看推荐文章</b><span>按所选初中或高中阶段展示课程。</span></li>
+          <li><b>开始今日关卡</b><span>先读原文，尝试判断，再找依据。</span></li>
+        </ol>
+        <p>{inviteMode ? '学习档案将关联到当前登录账号。使用昵称即可，请勿填写真实姓名或其他敏感信息。' : '档案保存在本机学习服务中，这个浏览器会记住你的入口。目前处于本地免登录模式，不适合直接公开到互联网。'}</p>
       </section>
       <form className="profile-form" onSubmit={submit}>
-        <label>怎么称呼你？<input type="text" autoComplete="nickname" value={name} maxLength={20} required disabled={busy} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
-        <fieldset disabled={busy}>
+        <label>怎么称呼你？<input type="text" autoComplete="nickname" value={name} maxLength={20} required disabled={busy || locked} onChange={(event) => setName(event.target.value)} placeholder="例如：小林" autoFocus /></label>
+        <fieldset disabled={busy || locked} aria-describedby="school-stage-help">
           <legend>你现在的学习阶段</legend>
           <label><input type="radio" name="stage" checked={stage === 'JUNIOR'} onChange={() => setStage('JUNIOR')} /> 初中</label>
           <label><input type="radio" name="stage" checked={stage === 'SENIOR'} onChange={() => setStage('SENIOR')} /> 高中</label>
         </fieldset>
-        <button className="button button-primary" disabled={!name.trim() || busy}>{busy ? '正在建立档案…' : '建立学习档案'} <span aria-hidden="true">→</span></button>
+        <p id="school-stage-help" className="profile-form-help">当前课程覆盖初中和高中。这不是能力考试，只用于选择课程，请按你希望练习的阶段选择。</p>
+        <button className="button button-primary" disabled={!name.trim() || busy || locked}>{locked ? '等待核对创建结果' : busy ? '正在建立档案…' : '保存资料，查看推荐文章'} <span aria-hidden="true">→</span></button>
         {error && <p className="request-error" role="alert">无法建立档案：{error}</p>}
       </form>
     </main>
   )
 }
 
-function ProfilePage({ profile, onStart }: { profile: LearnerProfile; onStart: () => void }) {
+function ProfilePage({ profile, onStart, onReplayTour, onNavigate, adminAllowed, adminLabel }: { profile: LearnerProfile; onStart: () => void; onReplayTour: () => void; onNavigate: (page: Page) => void; adminAllowed: boolean; adminLabel?: '教研工作台' | '用户反馈' }) {
   const stage = profile.school_stage === 'JUNIOR' ? '初中' : '高中'
   const title = profile.total_points >= 60 ? '行读者' : profile.total_points >= 20 ? '见习推理者' : '初入文境'
   return (
     <main className="profile-page">
+      <header className="waterink-page-heading">
       <p className="eyebrow">我的学习档案</p>
       <h1>{profile.display_name}，<br />继续把依据说清楚。</h1>
-      <p className="intro">当前分级：{stage}。数据随本机 SQLite 档案保存。</p>
+      <p className="intro">当前分级：{stage}。已确认的学习记录保存在你的学习档案中。</p>
+      </header>
       <section className="profile-stats" aria-label="学习进度">
         <article><span>当前身份</span><strong>{title}</strong></article>
         <article><span>完成关卡</span><strong>{profile.completed_levels}</strong></article>
         <article><span>累计知行</span><strong>{profile.total_points}</strong></article>
       </section>
-      <button className="button button-primary" onClick={onStart}>继续训练 <span aria-hidden="true">→</span></button>
+      <div className="profile-actions"><button className="button button-primary" onClick={onStart}>选择文章，继续训练 <span aria-hidden="true">→</span></button>
+      <button className="button button-secondary" onClick={onReplayTour}>重新了解产品功能</button></div>
+      <WaterinkProfileLinks onNavigate={onNavigate} adminAllowed={adminAllowed} adminLabel={adminLabel} />
     </main>
   )
 }
@@ -224,19 +139,19 @@ function LearningReportPage({
   onRecommendation: (kind: string) => void
 }) {
   if (loading) {
-    return <section className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习报告</p><h1>正在整理<br />你的学习轨迹。</h1><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></section>
+    return <section className="learning-report-page report-state" aria-live="polite"><p className="eyebrow">学习进度</p><h2>正在整理<br />你的学习轨迹。</h2><p className="intro">把最近的训练、薄弱环节和连续学习天数汇总成一页。</p></section>
   }
   if (error) {
-    return <section className="learning-report-page report-state" role="alert"><p className="eyebrow">学习报告</p><h1>报告暂时<br />还没准备好。</h1><p className="intro">请确认本地服务仍在运行后再试一次。错误代码：{error}</p><button className="button button-primary" onClick={onRetry}>重新读取 <span aria-hidden="true">→</span></button></section>
+    return <section className="learning-report-page report-state" role="alert"><p className="eyebrow">学习进度</p><h2>报告暂时<br />还没准备好。</h2><p className="intro">{errorMessage(error)} 已确认的记录仍保留，可以重新读取。</p><button className="button button-primary" onClick={onRetry}>重新读取 <span aria-hidden="true">→</span></button></section>
   }
   if (!summary || (summary.completed_sessions === 0 && summary.completed_lessons === 0 && summary.total_points === 0)) {
-    return <section className="learning-report-page report-state"><p className="eyebrow">学习报告</p><h1>先完成一关，<br />再看见你的路径。</h1><p className="intro">每次完成训练后，这里会记录知行、连续学习天数，以及下一步值得回看的推理能力。</p><button className="button button-primary" onClick={onStart}>开始第一关 <span aria-hidden="true">→</span></button></section>
+    return <section className="learning-report-page report-state"><p className="eyebrow">学习进度</p><h2>先完成一关，<br />再看见你的路径。</h2><p className="intro">每次完成训练后，这里会记录知行、连续学习天数，以及下一步值得回看的推理能力。</p><button className="button button-primary" onClick={onStart}>去首页选择第一关 <span aria-hidden="true">→</span></button></section>
   }
 
   return (
     <section className="learning-report-page">
       <header className="report-heading">
-        <div><p className="eyebrow">学习报告</p><h1>把每一次判断，<br />看成一条路径。</h1><p>这不是排名，而是你在文言语境中留下的证据、回溯与迁移记录。</p></div>
+        <div><p className="eyebrow">学习进度</p><h2>把每一次判断，<br />看成一条路径。</h2><p>这不是排名，而是你在文言语境中留下的证据、回溯与迁移记录。</p></div>
         <aside className="report-streak" aria-label={`已连续学习 ${summary.current_streak_days} 天`}><b>{summary.current_streak_days}</b><span>连续学习<br />天</span></aside>
       </header>
 
@@ -275,7 +190,7 @@ function LearningReportPage({
           {!achievementsLoading && achievements && <span>{achievements.achievements.filter((item) => item.unlocked).length} / {achievements.achievements.length} 已解锁</span>}
         </div>
         {achievementsLoading ? <div className="report-empty" aria-live="polite"><b>正在整理学习印记。</b><p>完成的训练和持续练习会在这里留下进度。</p></div>
-          : achievementsError ? <div className="report-empty" role="alert"><b>学习印记暂时无法读取。</b><p>报告其他内容不受影响；请稍后重新打开学习报告。错误代码：{achievementsError}</p></div>
+          : achievementsError ? <div className="report-empty" role="alert"><b>学习印记暂时无法读取。</b><p>{errorMessage(achievementsError)} 报告其他内容不受影响。</p><button className="text-button" onClick={onRetry}>重新读取报告与印记 →</button></div>
             : !achievements || achievements.achievements.length === 0 ? <div className="report-empty"><b>学习印记正在准备中。</b><p>完成更多训练后，这里会展示你的阶段性进展。</p></div>
               : <div className="achievement-list">
                 {achievements.achievements.map((achievement) => {
@@ -295,7 +210,7 @@ function LearningReportPage({
         <div><p className="eyebrow">下一次练习</p><h2 id="recommendation-title">{achievements.review_recommendation.title}</h2><p>{achievements.review_recommendation.description}</p></div>
         <button className="button button-secondary" onClick={() => onRecommendation(achievements.review_recommendation!.kind)}>{achievements.review_recommendation.action_label} <span aria-hidden="true">→</span></button>
       </section>}
-      <button className="button button-primary report-action" onClick={onStart}>继续今日训练 <span aria-hidden="true">→</span></button>
+      <button className="button button-primary report-action" onClick={onStart}>选择文章，继续训练 <span aria-hidden="true">→</span></button>
     </section>
   )
 }
@@ -311,6 +226,7 @@ function ReviewPage({
   startError,
   onOpen,
   onRetryMistakes,
+  onRetrySessions,
   onStartLesson,
 }: {
   sessions: ReviewSession[];
@@ -323,18 +239,21 @@ function ReviewPage({
   startError: string | null;
   onOpen: (sessionId: string) => void;
   onRetryMistakes: () => void;
+  onRetrySessions: () => void;
   onStartLesson: (lessonId: string) => void;
 }) {
   return (
     <main className="review-page">
+      <header className="waterink-page-heading">
       <p className="eyebrow">复习</p>
       <h1>把走过的推理，<br />再走一遍。</h1>
       <p className="intro">错过的判断会留在错题本里；未完成的关卡也能从原处继续。每一次重练，都回到具体的语境和证据。</p>
+      </header>
 
       <section className="mistake-bank" aria-labelledby="mistake-bank-title">
         <header className="review-section-heading"><div><p className="eyebrow">错题本</p><h2 id="mistake-bank-title">回到当时没说清的地方。</h2></div>{!mistakesLoading && !mistakesError && <span>{mistakes.length} 个待回看</span>}</header>
         {mistakesLoading ? <div className="review-state" aria-live="polite"><b>正在整理错题本…</b><p>把每次尚未答对的语境和线索汇总到这里。</p></div>
-          : mistakesError ? <div className="review-state" role="alert"><b>错题本暂时无法读取。</b><p>请确认本地服务仍在运行。错误代码：{mistakesError}</p><button className="text-button" onClick={onRetryMistakes}>重新读取 →</button></div>
+          : mistakesError ? <div className="review-state" role="alert"><b>错题本暂时无法读取。</b><p>{errorMessage(mistakesError)} 已保存的错题没有被清除。</p><button className="text-button" onClick={onRetryMistakes}>重新读取错题 →</button></div>
             : mistakes.length === 0 ? <div className="review-state"><b>错题本还是空的。</b><p>继续认真作答；遇到需要回看的地方，会在这里留下清晰的复习入口。</p></div>
               : <ReviewRecallBoard items={mistakes} busy={startingLesson} onStart={onStartLesson} />}
         {startError && <p className="request-error review-action-error" role="alert">无法开始复习：{startError}</p>}
@@ -342,118 +261,18 @@ function ReviewPage({
 
       <section className="review-history" aria-labelledby="review-history-title">
         <header className="review-section-heading"><div><p className="eyebrow">最近训练</p><h2 id="review-history-title">继续未走完的路径。</h2></div></header>
-        {loading ? <p className="review-status">正在读取训练记录…</p> : error ? <p className="request-error" role="alert">无法读取训练记录：{error}</p> : sessions.length === 0 ? (
-          <div className="review-empty"><b>还没有可回看的训练。</b><p>完成第一关后，它会出现在这里。</p></div>
+        {loading ? <p className="review-status" role="status">正在读取训练记录…</p> : error ? <div className="review-state" role="alert"><b>训练记录暂时无法读取。</b><p>{errorMessage(error)}</p><button className="text-button" onClick={onRetrySessions}>重新读取训练记录 →</button></div> : sessions.length === 0 ? (
+          <div className="review-empty"><b>还没有可回看的训练。</b><p>开始训练后，未完成的练习和已完成的总结都会出现在这里。</p></div>
         ) : (
           <div className="review-list" aria-label="最近训练记录">
           {sessions.map((item) => (
             <article key={item.session_id}>
               <div><span>{item.completed ? '已完成' : '进行中'}</span><strong>{item.source}</strong><p>{item.feedback}</p></div>
-              <button className="text-button" onClick={() => onOpen(item.session_id)}>{item.completed ? '查看总结' : '继续练习'} →</button>
+              <button className="text-button" disabled={startingLesson} onClick={() => onOpen(item.session_id)}>{startingLesson ? '正在打开…' : item.completed ? '查看总结' : '继续练习'} →</button>
             </article>
           ))}
           </div>
         )}
-      </section>
-    </main>
-  )
-}
-
-const practiceGroupOptions: Array<{ value: PracticePlanGroupBy; label: string; description: string }> = [
-  { value: 'theme', label: '主题', description: '围绕同一阅读语境，连续练习。' },
-  { value: 'textbook_tag', label: '教材标签', description: '按教材单元与篇目线索回看。' },
-  { value: 'reasoning_point', label: '推理考点', description: '把同一种推断方法练得更扎实。' },
-]
-
-function SpecializedPracticePage({
-  plans,
-  groupBy,
-  loading,
-  error,
-  startingLesson,
-  startError,
-  onGroupByChange,
-  onRetry,
-  onStartLesson,
-}: {
-  plans: PracticePlan[]
-  groupBy: PracticePlanGroupBy
-  loading: boolean
-  error: string | null
-  startingLesson: boolean
-  startError: string | null
-  onGroupByChange: (groupBy: PracticePlanGroupBy) => void
-  onRetry: () => void
-  onStartLesson: (lessonId: string) => void
-}) {
-  const [openPlanId, setOpenPlanId] = useState<string | null>(null)
-  const activeOption = practiceGroupOptions.find((option) => option.value === groupBy) ?? practiceGroupOptions[0]
-
-  useEffect(() => {
-    setOpenPlanId((current) => plans.some((plan) => plan.id === current) ? current : plans[0]?.id ?? null)
-  }, [plans, groupBy])
-
-  return (
-    <main className="practice-page">
-      <header className="practice-heading">
-        <div>
-          <p className="eyebrow">专项练习</p>
-          <h1>把一种方法，<br />练到会用。</h1>
-          <p>从已发布课程中按同一线索重新组织训练。选择一个专题，连续完成其中的关卡。</p>
-        </div>
-        <aside className="practice-signal" aria-label="当前专项练习模式">
-          <span>当前聚合</span>
-          <strong>{activeOption.label}</strong>
-          <small>{activeOption.description}</small>
-        </aside>
-      </header>
-
-      <section className="practice-controls" aria-label="专项练习分类">
-        <p>选择组织方式</p>
-        <div role="tablist" aria-label="专项练习分类方式">
-          {practiceGroupOptions.map((option) => <button
-            key={option.value}
-            type="button"
-            role="tab"
-            id={`practice-tab-${option.value}`}
-            aria-selected={groupBy === option.value}
-            aria-controls="practice-results"
-            tabIndex={groupBy === option.value ? 0 : -1}
-            className={groupBy === option.value ? 'is-active' : ''}
-            onClick={() => onGroupByChange(option.value)}
-            onKeyDown={event => {
-              const next = optionIndex(event.key, practiceGroupOptions.indexOf(option), practiceGroupOptions.length)
-              if (next === null) return
-              event.preventDefault(); onGroupByChange(practiceGroupOptions[next].value)
-              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus()
-            }}
-          >{option.label}</button>)}
-        </div>
-      </section>
-
-      <section className="practice-plan-list" id="practice-results" role="tabpanel" aria-labelledby={`practice-tab-${groupBy}`} aria-busy={loading}>
-        <header className="practice-list-heading"><div><p className="eyebrow">课程专题</p><h2 id="practice-list-title">按{activeOption.label}组织的课程。</h2></div>{!loading && !error && <span>{plans.length} 个专题</span>}</header>
-        {loading ? <div className="practice-state" aria-live="polite"><b>正在整理专项练习…</b><p>正在按{activeOption.label}汇总已发布的课程。</p></div>
-          : error ? <div className="practice-state" role="alert"><b>专项练习暂时无法读取。</b><p>请确认本地服务仍在运行。错误代码：{error}</p><button className="text-button" onClick={onRetry}>重新读取 →</button></div>
-            : plans.length === 0 ? <div className="practice-state"><b>暂时没有可用的专项练习。</b><p>教研内容发布并补齐{activeOption.label}后，会自动出现在这里。</p></div>
-              : <div className="practice-plans">{plans.map((plan, planIndex) => {
-                const isOpen = openPlanId === plan.id
-                const count = plan.lessons.length || plan.lesson_count
-                return <article className={isOpen ? 'practice-plan is-open' : 'practice-plan'} key={plan.id}>
-                  <button className="practice-plan-summary" type="button" aria-expanded={isOpen} onClick={() => setOpenPlanId(isOpen ? null : plan.id)}>
-                    <span className="practice-plan-index">{String(planIndex + 1).padStart(2, '0')}</span>
-                    <span className="practice-plan-copy"><small>{count} 节课程</small><strong>{plan.label}</strong></span>
-                    <span className="practice-plan-toggle" aria-hidden="true">{isOpen ? '收起 −' : '展开 +'}</span>
-                  </button>
-                  {isOpen && <div className="practice-lessons" aria-label={`${plan.label}课程列表`}>
-                    {plan.lessons.length === 0 ? <p>这个专题暂时没有可开始的课程。</p> : plan.lessons.map((lesson, lessonIndex) => <article className="practice-lesson" key={lesson.id}>
-                      <div><span>{String(lessonIndex + 1).padStart(2, '0')}</span><h3>{lesson.title}</h3><p>{lesson.summary}</p><small>{lesson.source} · {lesson.difficulty} · 约 {lesson.estimated_minutes} 分钟</small></div>
-                      <button className="button button-secondary practice-start" onClick={() => onStartLesson(lesson.id)} disabled={startingLesson}>{startingLesson ? '正在进入…' : '开始练习'} <span aria-hidden="true">→</span></button>
-                    </article>)}
-                  </div>}
-                </article>
-              })}</div>}
-        {startError && <p className="request-error practice-action-error" role="alert">无法开始专项练习：{startError}</p>}
       </section>
     </main>
   )
@@ -482,6 +301,16 @@ const emptyContentForm = (): ContentForm => ({
 })
 
 const lines = (value: string) => value.split(/\n|,/).map((item) => item.trim()).filter(Boolean)
+
+type PendingEditorial =
+  | { kind: 'create'; form: ContentForm; payload: AdminLessonInput }
+  | { kind: 'review'; lessonId: string; version: string; reviewer: string; note: string; form: ContentForm }
+  | { kind: 'update'; lessonId: string; version: string; form: ContentForm; payload: AdminLessonInput }
+  | { kind: 'publish'; lessonId: string; version: string; form: ContentForm }
+
+function uncertainEditorialWrite(reason: unknown) {
+  return !(reason instanceof RequestError) || uncertainWrite(reason) || reason.status === 408 || reason.status === 429
+}
 
 function contentFormFromLesson(lesson: AdminLesson): ContentForm {
   const content = lesson.content ?? {}
@@ -528,6 +357,17 @@ function ContentAdminPage({ onExitRiskChange }: { onExitRiskChange: (risk: ExitR
   const [savedForm, setSavedForm] = useState<ContentForm>(emptyContentForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingEditorial | null>(null)
+  const pendingRef = useRef<PendingEditorial | null>(null)
+  const operationLock = useRef(false)
+  const checkLock = useRef(false)
+  const alive = useRef(true)
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const [checkList, setCheckList] = useState<AdminLesson[] | null>(null)
+  const [checkDetail, setCheckDetail] = useState<AdminLesson | null>(null)
+  const [releasedNotice, setReleasedNotice] = useState(false)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
 
   const loadLessons = useCallback(async () => {
     setLoading(true); setListError(null)
@@ -543,12 +383,14 @@ function ContentAdminPage({ onExitRiskChange }: { onExitRiskChange: (risk: ExitR
   useEffect(() => { void loadLessons() }, [loadLessons])
 
   const openNew = () => {
-    if (dirty && !window.confirm('当前有未保存修改，确定放弃并新建课程吗？')) return
-    setActiveId('new'); setEditingLesson(null); setForm(emptyContentForm()); setSavedForm(emptyContentForm()); setFormError(null); setSuccess(null); setReviewNote('')
+    requestContentChange(() => {
+      setActiveId('new'); setEditingLesson(null); setForm(emptyContentForm()); setSavedForm(emptyContentForm()); setFormError(null); setSuccess(null); setReviewNote('')
+    }, '当前有未保存修改，确定放弃并新建课程吗？')
   }
 
-  const openLesson = async (lessonId: string) => {
-    if (dirty && !window.confirm('当前有未保存修改，确定切换课程吗？')) return
+  const openLesson = (lessonId: string) => requestContentChange(() => { void readLesson(lessonId) }, '当前有未保存修改，确定切换课程吗？')
+  const readLesson = async (lessonId: string) => {
+    if (operationLock.current || pendingRef.current) return
     setActiveId(lessonId); setEditingLesson(null); setDetailLoading(true); setFormError(null); setSuccess(null)
     try {
       const response = await adminLessonApi.get(lessonId)
@@ -564,11 +406,11 @@ function ContentAdminPage({ onExitRiskChange }: { onExitRiskChange: (risk: ExitR
     } finally { setDetailLoading(false) }
   }
 
-  const setField = <Key extends keyof ContentForm>(key: Key, value: ContentForm[Key]) => setForm((current) => ({ ...current, [key]: value }))
+  const setField = <Key extends keyof ContentForm>(key: Key, value: ContentForm[Key]) => { if (!operationLock.current && !pendingRef.current) setForm((current) => ({ ...current, [key]: value })) }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!activeId || (activeId !== 'new' && !selectedLesson?.review?.content_version)) return
+    if (operationLock.current || pendingRef.current || !activeId || (activeId !== 'new' && !selectedLesson?.review?.content_version)) return
     setFormError(null); setSuccess(null)
     let content: Record<string, unknown> | undefined
     try {
@@ -590,103 +432,198 @@ function ContentAdminPage({ onExitRiskChange }: { onExitRiskChange: (risk: ExitR
       accumulation_points: lines(form.accumulation_points), reasoning_points: lines(form.reasoning_points),
       reasoning_level: form.reasoning_level.trim(), content,
     }
-    setSaving(true)
+    const submission: PendingEditorial = activeId === 'new' ? { kind: 'create', form: { ...form }, payload } : { kind: 'update', lessonId: activeId, version: selectedLesson!.review!.content_version, form: { ...form }, payload }
+    const checkpoint = authResponseCheckpoint()
+    operationLock.current = true; onExitRiskChange('working'); setSaving(true)
     try {
       const response = activeId === 'new'
         ? await adminLessonApi.create(payload)
         : await adminLessonApi.update(activeId, payload, selectedLesson!.review!.content_version)
+      checkpoint()
+      if (!alive.current) return
+      if (submission.kind === 'create' && !validateResponse('/api/v1/admin/lessons', response, 'POST')) throw new RequestError('INVALID_RESPONSE', 200)
+      if (submission.kind === 'update' && (!validateResponse(`/api/v1/admin/lessons/${encodeURIComponent(submission.lessonId)}`, response, 'PATCH') || response.lesson.id !== submission.lessonId || response.lesson.title !== payload.title || response.lesson.source !== payload.source || response.lesson.school_stage !== payload.school_stage)) throw new RequestError('INVALID_RESPONSE', 200)
+      const nextForm = contentFormFromLesson(response.lesson)
       setLessons((current) => {
         const withoutSaved = current.filter((lesson) => lesson.id !== response.lesson.id)
         return [...withoutSaved, response.lesson]
       })
       setActiveId(response.lesson.id)
       setEditingLesson(response.lesson)
-      setForm(contentFormFromLesson(response.lesson))
-      setSavedForm(contentFormFromLesson(response.lesson))
+      setForm(nextForm)
+      setSavedForm(nextForm)
       setSuccess(activeId === 'new' ? '草稿已创建。核对两阶段的原文与来源后，请审核当前版本。' : response.lesson.status === 'DRAFT' ? '修改已保存。草稿需重新审核后发布，学生已有训练不受影响。' : '修改已保存，资料版本未变化。')
     } catch (reason) {
+      try { checkpoint() } catch { return }
+      if (uncertainEditorialWrite(reason) && alive.current) {
+        pendingRef.current = submission; setPending(submission); setCheckList(null); setCheckDetail(null); setCheckError(null); setReleasedNotice(false)
+        onExitRiskChange('uncertain')
+      }
       setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setSaving(false) }
+    } finally { operationLock.current = false; if (alive.current) onExitRiskChange(pendingRef.current ? 'uncertain' : dirty ? 'dirty' : null); setSaving(false) }
   }
 
   const publish = async () => {
-    if (!activeId || activeId === 'new' || dirty || selectedLesson?.review?.status !== 'APPROVED' || !selectedLesson.review.content_version) return
+    if (operationLock.current || pendingRef.current || !activeId || activeId === 'new' || dirty || selectedLesson?.review?.status !== 'APPROVED' || !selectedLesson.review.content_version) return
+    const submission: PendingEditorial = { kind: 'publish', lessonId: activeId, version: selectedLesson.review.content_version, form: { ...form } }
+    const checkpoint = authResponseCheckpoint()
+    operationLock.current = true; onExitRiskChange('working')
     setPublishing(true); setFormError(null); setSuccess(null)
     try {
       const response = await adminLessonApi.publish(activeId, selectedLesson.review.content_version)
+      checkpoint()
+      if (!alive.current) return
+      if (!validateResponse(`/api/v1/admin/lessons/${encodeURIComponent(submission.lessonId)}/publish`, response, 'POST') || response.lesson.id !== submission.lessonId || response.lesson.status !== 'PUBLISHED' || response.lesson.review?.content_version !== submission.version) throw new RequestError('INVALID_RESPONSE', 200)
       setEditingLesson(response.lesson)
       setLessons((current) => current.map((lesson) => lesson.id === response.lesson.id ? response.lesson : lesson))
       setForm(contentFormFromLesson(response.lesson))
       setSavedForm(contentFormFromLesson(response.lesson))
       setSuccess('关卡已发布，现在会出现在对应学段的学习目录中。')
     } catch (reason) {
+      try { checkpoint() } catch { return }
+      if (uncertainEditorialWrite(reason) && alive.current) {
+        pendingRef.current = submission; setPending(submission); setCheckList(null); setCheckDetail(null); setCheckError(null); setReleasedNotice(false)
+        onExitRiskChange('uncertain')
+      }
       setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setPublishing(false) }
+    } finally { operationLock.current = false; if (alive.current) onExitRiskChange(pendingRef.current ? 'uncertain' : dirty ? 'dirty' : null); setPublishing(false) }
   }
 
   // Keep the detail version bound to its visible form. Refreshing the list must
   // not silently approve a different version that this editor has not loaded.
   const selectedLesson = editingLesson?.id === activeId ? editingLesson : null
   const dirty = activeId === 'new' ? JSON.stringify(form) !== JSON.stringify(emptyContentForm()) : JSON.stringify(form) !== JSON.stringify(savedForm)
-  const working = saving || reviewing || publishing || detailLoading
+  const working = saving || reviewing || publishing || detailLoading || checking
+  // The original blocking confirm could not outlive its draft. Bind the async
+  // modal to the visible draft and work state so a stale acceptance cannot discard it.
+  const contentConfirmation = useConfirmationDialog(JSON.stringify([activeId, form, savedForm, editingLesson?.review?.content_version, reviewer, reviewNote, working, pending]))
+  const requestContentChange = (action: () => void, message: string) => {
+    if (working || operationLock.current || pendingRef.current) return
+    if (!dirty) { action(); return }
+    contentConfirmation.ask({ title: '保留当前修改？', message, confirmLabel: '放弃修改并继续', onConfirm: action })
+  }
   useLayoutEffect(() => {
-    onExitRiskChange(working ? 'working' : dirty ? 'dirty' : null)
+    onExitRiskChange(working ? 'working' : pending ? 'uncertain' : dirty ? 'dirty' : null)
     return () => onExitRiskChange(null)
-  }, [working, dirty, onExitRiskChange])
+  }, [working, pending, dirty, onExitRiskChange])
   const reviewStatus = selectedLesson?.review?.status
   const reviewLabel = dirty ? '有未保存修改，请先保存后审核' : reviewStatus === 'APPROVED' ? '当前版本已审核' : reviewStatus === 'STALE' ? '资料已变化，需重新审核' : '尚未审核'
   const review = async () => {
-    if (!activeId || activeId === 'new' || dirty || !reviewer.trim() || !selectedLesson?.review?.content_version) return
-    setReviewing(true); setFormError(null); setSuccess(null)
+    if (operationLock.current || pendingRef.current || !activeId || activeId === 'new' || dirty || !reviewer.trim() || !selectedLesson?.review?.content_version) return
+    const submission: PendingEditorial = { kind: 'review', lessonId: activeId, version: selectedLesson.review.content_version, reviewer: reviewer.trim(), note: reviewNote.trim(), form: { ...form } }
+    operationLock.current = true; onExitRiskChange('working'); setReviewing(true); setFormError(null); setSuccess(null)
     try {
       const response = await adminLessonApi.review(activeId, reviewer.trim(), reviewNote.trim(), selectedLesson.review.content_version)
+      if (!validateResponse(`/api/v1/admin/lessons/${encodeURIComponent(activeId)}/review`, response, 'POST') ||
+          response.lesson.id !== submission.lessonId || response.lesson.review?.content_version !== submission.version ||
+          response.lesson.review?.reviewer !== submission.reviewer || response.lesson.review?.note !== submission.note) throw new RequestError('INVALID_RESPONSE', 200)
+      const nextForm = contentFormFromLesson(response.lesson)
       setEditingLesson(response.lesson)
       setLessons(current => current.map(lesson => lesson.id === response.lesson.id ? response.lesson : lesson))
-      setForm(contentFormFromLesson(response.lesson)); setSavedForm(contentFormFromLesson(response.lesson))
+      setForm(nextForm); setSavedForm(nextForm)
       setSuccess('已记录本地教研审核。请确认当前版本后，再点击发布关卡。')
-    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED') }
-    finally { setReviewing(false) }
+    } catch (reason) {
+      if (uncertainEditorialWrite(reason) && alive.current) {
+        pendingRef.current = submission; setPending(submission); setCheckList(null); setCheckDetail(null); setCheckError(null); setReleasedNotice(false)
+        onExitRiskChange('uncertain')
+      }
+      setFormError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
+    }
+    finally { operationLock.current = false; if (alive.current) onExitRiskChange(pendingRef.current ? 'uncertain' : dirty ? 'dirty' : null); setReviewing(false) }
+  }
+  const checkPending = async (lessonId?: string) => {
+    const target = pendingRef.current
+    if (!target || checkLock.current || operationLock.current) return
+    if (target.kind !== 'create' && lessonId && lessonId !== target.lessonId) return
+    if (target.kind === 'create' && lessonId && !checkList?.some(item => item.id === lessonId)) return
+    const checkpoint = authResponseCheckpoint()
+    const current = () => { try { checkpoint(); return alive.current && pendingRef.current === target } catch { return false } }
+    checkLock.current = true; onExitRiskChange('working'); setChecking(true); setCheckError(null); setCheckDetail(null)
+    try {
+      if (target.kind === 'create' && !lessonId) {
+        const response = await adminLessonApi.list()
+        if (current()) setCheckList(response.lessons)
+      } else {
+        const id = target.kind !== 'create' ? target.lessonId : lessonId!
+        const response = await adminLessonApi.get(id)
+        if (response.lesson.id !== id) throw new RequestError('INVALID_RESPONSE', 200)
+        if (current()) setCheckDetail(response.lesson)
+      }
+    } catch (reason) {
+      if (current()) setCheckError(errorMessage(reason))
+    } finally {
+      checkLock.current = false
+      if (current()) { setChecking(false); onExitRiskChange('uncertain') }
+    }
+  }
+  const endPending = () => {
+    const target = pendingRef.current
+    if (!target || checkLock.current || operationLock.current) return
+    const checkpoint = authResponseCheckpoint()
+    contentConfirmation.ask({
+      title: '结束未确认操作的核对？',
+      message: '当前读取无法证明这次操作是否保存，也可能在读取后才保存。结束不会撤销服务器写入；以后重新提交可能产生重复。请先复制需要保留的草稿和核对线索。',
+      confirmLabel: '了解风险，结束核对',
+      onConfirm: () => {
+        try { checkpoint() } catch { return }
+        if (!alive.current || pendingRef.current !== target || checkLock.current || operationLock.current) return
+        pendingRef.current = null; setPending(null); setCheckList(null); setCheckDetail(null); setCheckError(null); setFormError(null); setReleasedNotice(true)
+        onExitRiskChange(dirty ? 'dirty' : null)
+      },
+    })
   }
   const errorLabels: Record<string, string> = { LESSON_REVIEW_REQUIRED: '当前版本尚未审核，请先核对来源并审核。', LESSON_REVIEW_NOT_READY: '来源或训练资料不完整，请按下方检查项补齐后保存。', CONTENT_JSON_INVALID: '训练 JSON 格式有误，请检查引号、括号和逗号。', CONTENT_STAGES_REQUIRED: '请同时填写 CORE 和 TRANSFER；仅建立课程骨架时可将两者都留空。', CONTENT_OBJECT_REQUIRED: '每个阶段的 JSON 必须是对象，不能是数组、文字或空值。', LESSON_CONTENT_INVALID: '题目字段不完整：请核对题文、目标词、证据、正确答案及选项。', LESSON_READING_CONTEXT_INVALID: '阅读资料格式有误，paragraphs 必须是非空段落数组。', ESTIMATED_MINUTES_INVALID: '预计时长必须是大于 0 的整数。', REQUEST_FAILED: '请求未完成，请检查必填字段或稍后重试。' }
   Object.assign(errorLabels, { LESSON_REVIEW_VERSION_CONFLICT: '资料已在其他页面修改，不能审核未读的新版本。请重新读取并核对。', LESSON_PUBLISH_VERSION_CONFLICT: '资料版本已变化，不能发布旧页面所见版本。请重新读取并核对。', LESSON_EDIT_VERSION_CONFLICT: '其他页面已修改此课程；本次未覆盖新版本。请先复制自己的修改，再重新读取。' })
   for (const code of ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'INVALID_RESPONSE', 'SERVER_UNAVAILABLE']) errorLabels[code] = errorMessage(code)
   const versionConflict = ['LESSON_REVIEW_VERSION_CONFLICT', 'LESSON_PUBLISH_VERSION_CONFLICT', 'LESSON_EDIT_VERSION_CONFLICT'].includes(formError ?? '')
   return (
-    <main className="content-admin-page">
+    <><main className="content-admin-page">
       <header className="admin-heading">
         <div><p className="eyebrow">教研工作台</p><h1>来源有据，<br />版本可追溯。</h1><p>保存草稿 → 核对来源并审核 → 发布当前版本。已发布课程修改后，需重新审核。</p></div>
-        <button className="button button-primary" onClick={openNew} disabled={working}>创建新关卡 <span aria-hidden="true">+</span></button>
+        <button className="button button-primary" onClick={openNew} disabled={working || !!pending}>创建新关卡 <span aria-hidden="true">+</span></button>
       </header>
       <div className="admin-workspace">
         <aside className="admin-list" aria-label="关卡列表">
-          <div className="admin-list-title"><b>全部关卡</b><button className="text-button" onClick={() => void loadLessons()} disabled={loading}>刷新</button></div>
+          <div className="admin-list-title"><b>全部关卡</b><button className="text-button" onClick={() => { if (!pendingRef.current && !operationLock.current) void loadLessons() }} disabled={loading || !!pending || working}>刷新</button></div>
           {loading ? <p className="admin-state">正在读取关卡…</p> : listError ? <div className="admin-state" role="alert"><b>无法读取关卡。</b><p>错误代码：{listError}</p><button className="text-button" onClick={() => void loadLessons()}>重新读取 →</button></div> : lessons.length === 0 ? <p className="admin-state">还没有教研关卡。创建第一份草稿开始编辑。</p> : <div className="admin-lesson-list">
-            {lessons.map((lesson) => <button key={lesson.id} disabled={working} className={activeId === lesson.id ? 'selected' : ''} onClick={() => void openLesson(lesson.id)}><span className={`status-badge ${lesson.status === 'PUBLISHED' ? 'published' : ''}`}>{lesson.status === 'PUBLISHED' ? '已发布' : '草稿'} · {lesson.review?.status === 'APPROVED' ? '已审核' : lesson.review?.status === 'STALE' ? '审核失效' : '待审核'}</span><strong>{lesson.title}</strong><small>{lesson.school_stage === 'JUNIOR' ? '初中' : '高中'} · {lesson.source}</small></button>)}
+            {lessons.map((lesson) => <button key={lesson.id} disabled={working || !!pending} className={activeId === lesson.id ? 'selected' : ''} onClick={() => void openLesson(lesson.id)}><span className={`status-badge ${lesson.status === 'PUBLISHED' ? 'published' : ''}`}>{lesson.status === 'PUBLISHED' ? '已发布' : '草稿'} · {lesson.review?.status === 'APPROVED' ? '已审核' : lesson.review?.status === 'STALE' ? '审核失效' : '待审核'}</span><strong>{lesson.title}</strong><small>{lesson.school_stage === 'JUNIOR' ? '初中' : '高中'} · {lesson.source}</small></button>)}
           </div>}
         </aside>
         <section className="admin-editor" aria-live="polite">
           {!activeId ? <div className="admin-placeholder">{formError && <p role="alert" className="request-error">关卡详情读取失败，请重新选择课程。（{formError}）</p>}<p className="eyebrow">内容管理</p><h2>选择一份关卡，<br />或新建草稿。</h2><p>这里记录课程的学习对象、教材位置、关键积累与推理路径。</p><button className="button button-primary" onClick={openNew}>创建新关卡 <span aria-hidden="true">→</span></button></div> : detailLoading ? <p className="admin-state">正在读取关卡详情…</p> : <form className="lesson-editor-form" onSubmit={submit}>
-            <div className="editor-topline"><div><p className="eyebrow">{activeId === 'new' ? '新建草稿' : selectedLesson?.status === 'PUBLISHED' ? '已发布关卡' : '草稿关卡'}{dirty && ' · 有未保存修改'}</p><h2>{activeId === 'new' ? '建立课程骨架' : form.title || '未命名关卡'}</h2></div>{activeId !== 'new' && <button type="button" className="button button-secondary" onClick={publish} disabled={working || dirty || reviewStatus !== 'APPROVED' || selectedLesson?.status === 'PUBLISHED'}>{selectedLesson?.status === 'PUBLISHED' ? '已发布' : publishing ? '正在发布…' : '发布关卡'}</button>}</div>
+            {pending && <section className="editor-review" role="alert" aria-label="未确认操作核对">
+              <h2>提交结果尚未确认</h2>
+              <p>上次{pending.kind === 'create' ? '创建草稿' : pending.kind === 'review' ? '审核签署' : pending.kind === 'update' ? '保存修改' : '发布课程'}可能已经保存，也可能尚未保存。系统没有自动重试；请先复制草稿并读取当前信息核对。离开或刷新会丢失本页核对线索，不会撤销服务器写入。</p>
+              <p>读取仅显示当前快照，不能证明本次提交是否成功；原请求也可能在读取后才保存。结束核对后再次提交可能产生重复。</p>
+              <details><summary>复制本次草稿及核对线索</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(pending, null, 2)}</pre></details>
+              <button type="button" className="button button-secondary" disabled={checking} onClick={() => void checkPending()}>{checking ? '正在读取…' : pending.kind === 'create' ? '读取课程列表核对' : '读取当前课程核对'}</button>
+              {checkError && <p role="status">读取失败：{checkError}。结果仍未确认，可重新读取。</p>}
+              {checkList && <div><p>以下为当前课程列表，仅供人工核对，不能确定哪项由本次操作产生。</p>{checkList.length === 0 ? <p>当前列表为空，也不能证明原请求未保存。</p> : <ul>{checkList.map(item => <li key={item.id}>{item.title} · {item.source} · {item.status} · {item.id} <button type="button" disabled={checking} onClick={() => void checkPending(item.id)}>读取该课程详情</button></li>)}</ul>}</div>}
+              {checkDetail && <details open><summary>当前课程快照（并非提交回执）</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(checkDetail, null, 2)}</pre></details>}
+              <button type="button" className="button button-secondary" disabled={checking} onClick={endPending}>结束本次核对</button>
+            </section>}
+            {releasedNotice && <p role="status">此前提交结果仍未知。结束核对没有撤销服务器写入；再次提交可能产生重复，请先核实。</p>}
+            <div className="editor-topline"><div><p className="eyebrow">{activeId === 'new' ? '新建草稿' : selectedLesson?.status === 'PUBLISHED' ? '已发布关卡' : '草稿关卡'}{dirty && ' · 有未保存修改'}</p><h2>{activeId === 'new' ? '建立课程骨架' : form.title || '未命名关卡'}</h2></div>{activeId !== 'new' && <button type="button" className="button button-secondary" onClick={publish} disabled={working || !!pending || dirty || reviewStatus !== 'APPROVED' || selectedLesson?.status === 'PUBLISHED'}>{selectedLesson?.status === 'PUBLISHED' ? '已发布' : publishing ? '正在发布…' : '发布关卡'}</button>}</div>
             {activeId !== 'new' && <section className="editor-review" aria-label="资料版本与教研审核">
               <div className="review-version-line"><strong>{reviewLabel}</strong><span>版本 {selectedLesson?.review?.content_version ?? '读取中'}</span></div>
               <p>本地审核是署名记录，不代表已接入账号认证。请实际核对原文、题源、词义、选项与提示；系统只检查资料结构和版本一致性。</p>
               {selectedLesson?.review?.reviewer && <p>最近审核：{selectedLesson.review.reviewer}{selectedLesson.review.reviewed_at && ` · ${new Date(selectedLesson.review.reviewed_at).toLocaleString('zh-CN')}`}。{selectedLesson.review.note}</p>}
               {!!selectedLesson?.review?.issues?.length && <div className="review-issues"><b>发布前检查</b><ul>{selectedLesson.review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
-              <div className="review-signoff"><label>审核人<input maxLength={80} value={reviewer} disabled={working} onChange={event => setReviewer(event.target.value)} placeholder="填写实际审核人的署名" /></label><label>审核说明<textarea maxLength={2000} value={reviewNote} disabled={working} onChange={event => setReviewNote(event.target.value)} placeholder="例如：核对原文版本、题源和词义注释" /></label></div>
-              <button type="button" className="button button-secondary" disabled={working || dirty || !reviewer.trim() || !!selectedLesson?.review?.issues?.length} onClick={review}>{reviewing ? '正在记录审核…' : '确认审核当前版本'}</button>
+              <div className="review-signoff"><label>审核人<input maxLength={80} value={reviewer} disabled={working || !!pending} onChange={event => { if (!pendingRef.current && !operationLock.current) setReviewer(event.target.value) }} placeholder="填写实际审核人的署名" /></label><label>审核说明<textarea maxLength={2000} value={reviewNote} disabled={working || !!pending} onChange={event => { if (!pendingRef.current && !operationLock.current) setReviewNote(event.target.value) }} placeholder="例如：核对原文版本、题源和词义注释" /></label></div>
+              <button type="button" className="button button-secondary" disabled={working || !!pending || dirty || !reviewer.trim() || !!selectedLesson?.review?.issues?.length} onClick={review}>{reviewing ? '正在记录审核…' : '确认审核当前版本'}</button>
               {dirty && <p>请先保存修改，再审核和发布，避免审核到旧版本。</p>}
             </section>}
-            <fieldset className="editor-section" disabled={working}><legend>课程定位</legend><div className="field-grid"><label>学段<select value={form.school_stage} onChange={(event) => setField('school_stage', event.target.value as SchoolStage)}><option value="JUNIOR">初中</option><option value="SENIOR">高中</option></select></label><label>教材标签（用逗号分隔）<input value={form.textbook_tags} onChange={(event) => setField('textbook_tags', event.target.value)} placeholder="部编版, 七年级上册" /></label><label>主题<input value={form.theme} onChange={(event) => setField('theme', event.target.value)} placeholder="语境推断" /></label></div></fieldset>
-            <fieldset className="editor-section" disabled={working}><legend>关卡信息</legend><div className="field-grid"><label className="span-two">题目<input required value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="例如：从人物关系推断词义" /></label><label>出处<input required value={form.source} onChange={(event) => setField('source', event.target.value)} placeholder="《陈涉世家》" /></label><label>难度<input required value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} placeholder="进阶" /></label><label>预计时长（分钟）<input required min="1" type="number" inputMode="numeric" value={form.estimated_minutes} onChange={(event) => setField('estimated_minutes', event.target.value)} /></label><label className="span-two">学习摘要<textarea required value={form.summary} onChange={(event) => setField('summary', event.target.value)} placeholder="说明本关要完成的理解与推断任务。" /></label></div></fieldset>
-            <fieldset className="editor-section" disabled={working}><legend>教研标注</legend><div className="field-grid"><label>积累点（每行一项）<textarea value={form.accumulation_points} onChange={(event) => setField('accumulation_points', event.target.value)} placeholder="实词义项\n人物关系" /></label><label>推理点（每行一项）<textarea value={form.reasoning_points} onChange={(event) => setField('reasoning_points', event.target.value)} placeholder="从人物动作寻找依据\n排除不合语境的义项" /></label><label className="span-two">推理层级<input value={form.reasoning_level} onChange={(event) => setField('reasoning_level', event.target.value)} placeholder="如：语境定位 → 关系推断 → 回溯验证" /></label></div></fieldset>
-            <fieldset className="editor-section" disabled={working}><legend>训练内容</legend><p className="field-note">CORE 与 TRANSFER 均需提供原文、题目和 reading_context；其中填写 paragraphs、source_url、text_version、author、era 和材料范围 extent。全文与节选必须如实标注。</p><div className="field-grid"><label>CORE（核心训练 JSON）<textarea className="code-input" value={form.core_content} onChange={(event) => setField('core_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label><label>TRANSFER（迁移训练 JSON）<textarea className="code-input" value={form.transfer_content} onChange={(event) => setField('transfer_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working || !!pending}><legend>课程定位</legend><div className="field-grid"><label>学段<select value={form.school_stage} onChange={(event) => setField('school_stage', event.target.value as SchoolStage)}><option value="JUNIOR">初中</option><option value="SENIOR">高中</option></select></label><label>教材标签（用逗号分隔）<input value={form.textbook_tags} onChange={(event) => setField('textbook_tags', event.target.value)} placeholder="部编版, 七年级上册" /></label><label>主题<input value={form.theme} onChange={(event) => setField('theme', event.target.value)} placeholder="语境推断" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working || !!pending}><legend>关卡信息</legend><div className="field-grid"><label className="span-two">题目<input required value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="例如：从人物关系推断词义" /></label><label>出处<input required value={form.source} onChange={(event) => setField('source', event.target.value)} placeholder="《陈涉世家》" /></label><label>难度<input required value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} placeholder="进阶" /></label><label>预计时长（分钟）<input required min="1" type="number" inputMode="numeric" value={form.estimated_minutes} onChange={(event) => setField('estimated_minutes', event.target.value)} /></label><label className="span-two">学习摘要<textarea required value={form.summary} onChange={(event) => setField('summary', event.target.value)} placeholder="说明本关要完成的理解与推断任务。" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working || !!pending}><legend>教研标注</legend><div className="field-grid"><label>积累点（每行一项）<textarea value={form.accumulation_points} onChange={(event) => setField('accumulation_points', event.target.value)} placeholder="实词义项\n人物关系" /></label><label>推理点（每行一项）<textarea value={form.reasoning_points} onChange={(event) => setField('reasoning_points', event.target.value)} placeholder="从人物动作寻找依据\n排除不合语境的义项" /></label><label className="span-two">推理层级<input value={form.reasoning_level} onChange={(event) => setField('reasoning_level', event.target.value)} placeholder="如：语境定位 → 关系推断 → 回溯验证" /></label></div></fieldset>
+            <fieldset className="editor-section" disabled={working || !!pending}><legend>训练内容</legend><p className="field-note">CORE 与 TRANSFER 均需提供原文、题目和 reading_context；其中填写 paragraphs、source_url、text_version、author、era 和材料范围 extent。全文与节选必须如实标注。</p><div className="field-grid"><label>CORE（核心训练 JSON）<textarea className="code-input" value={form.core_content} onChange={(event) => setField('core_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label><label>TRANSFER（迁移训练 JSON）<textarea className="code-input" value={form.transfer_content} onChange={(event) => setField('transfer_content', event.target.value)} placeholder={'{\n  "passage": "…"\n}'} /></label></div></fieldset>
             <EditorialSources core={form.core_content} transfer={form.transfer_content} />
-            {versionConflict && activeId && activeId !== 'new' && <button type="button" className="button button-secondary" disabled={working} onClick={() => void openLesson(activeId)}>重新读取当前课程</button>}
-            <div className="editor-actions"><button className="button button-primary" disabled={working}>{saving ? '正在保存…' : activeId === 'new' ? '保存草稿' : '保存修改'} <span aria-hidden="true">→</span></button>{formError && <p className="request-error" role="alert">操作未完成：{errorLabels[formError] ?? formError}</p>}{success && <p className="request-success" role="status">{success}</p>}</div>
+            {versionConflict && activeId && activeId !== 'new' && <button type="button" className="button button-secondary" disabled={working || !!pending} onClick={() => void openLesson(activeId)}>重新读取当前课程</button>}
+            <div className="editor-actions"><button className="button button-primary" disabled={working || !!pending}>{saving ? '正在保存…' : activeId === 'new' ? '保存草稿' : '保存修改'} <span aria-hidden="true">→</span></button>{formError && !pending && <p className="request-error" role="alert">操作未完成：{errorLabels[formError] ?? formError}</p>}{success && <p className="request-success" role="status">{success}</p>}</div>
           </form>}
         </section>
       </div>
-    </main>
+    </main>{contentConfirmation.modal}</>
   )
 }
 
@@ -702,119 +639,17 @@ function EmptyPage({ onHome }: { onHome: () => void }) {
 }
 
 
-function TrainingPage({ sessionId, session, busy, pendingCommand, error, recoveryNeeded, onRecover, onCommand, onReturnHome, onDirtyChange }: {
-  sessionId: string
-  session: TrainingSession
-  busy: boolean
-  pendingCommand: CommandType | null
-  error: string | null
-  recoveryNeeded: boolean
-  onRecover: () => void
-  onCommand: (type: CommandType, payload?: Record<string, unknown>) => void
-  onReturnHome: () => void
-  onDirtyChange: (dirty: boolean) => void
-}) {
-  const [answer, setAnswer] = useState<string | null>(restoredAnswer(session))
-  useEffect(() => setAnswer(restoredAnswer(session)), [session.selected_answer, session.stage, session.reasoning_graph?.conclusion])
-  const [reasoningDirty, setReasoningDirty] = useState(false)
-  const reportReasoningDirty = useCallback((dirty: boolean) => { setReasoningDirty(dirty); onDirtyChange(dirty) }, [onDirtyChange])
-  const lastStep = useRef({ stage: session.stage, completed: session.completed })
-  useEffect(() => {
-    if (lastStep.current.stage === session.stage && lastStep.current.completed === session.completed) return
-    lastStep.current = { stage: session.stage, completed: session.completed }
-    const frame = requestAnimationFrame(() => jumpTo(session.completed ? 'summary-title' : 'training-question'))
-    return () => cancelAnimationFrame(frame)
-  }, [session.stage, session.completed])
-  const pendingLabels: Partial<Record<CommandType, string>> = { SUBMIT_ATTEMPT: '正在核验判断…', REQUEST_MORE_CONTEXT: '正在保存点读位置与语境…', SELECT_EVIDENCE: '正在记录证据…', DEFER_VARIABLE: '正在暂放变量…', REVISIT_VARIABLE: '正在恢复判断…', REQUEST_HINT: '正在读取提示…', CONTINUE_TO_TRANSFER: '正在准备迁移挑战…', COMPLETE_SESSION: '正在保存本关总结…' }
-  const locked = busy || recoveryNeeded
-  pendingLabels.SAVE_REASONING = '正在保存原文证据与推断理由…'
-  pendingLabels.RECORD_ASSISTANCE = '正在记录字词解释辅助，确认后再展开…'
-  useEffect(() => {
-    if (!recoveryNeeded) return
-    const frame = requestAnimationFrame(() => jumpTo('command-recovery-title'))
-    return () => cancelAnimationFrame(frame)
-  }, [recoveryNeeded])
-
-  const submit = () => answer && onCommand('SUBMIT_ATTEMPT', { answer })
-  const isTransferReady = session.transfer_ready && !session.completed
-  const isSummaryReady = session.summary_ready && !session.completed
-  const stageTrace = session.learning_trace?.stages[session.stage]
-  const firstJudgment = !!stageTrace && stageTrace.first_attempt === null
-  const currentStep = session.completed ? 4 : session.stage === 'TRANSFER' ? 3 : 1
-  const variableIndex = session.passage.indexOf(session.variable)
-  const beforeVariable = variableIndex < 0 ? session.passage : session.passage.slice(0, variableIndex)
-  const afterVariable = variableIndex < 0 ? '' : session.passage.slice(variableIndex + session.variable.length)
-
-  return (
-    <main className="training-page">
-      <div className="training-shell">
-        <aside className="step-list" aria-label="训练步骤">
-          <b>本次训练</b>
-          {taskLabels.map((label, index) => <span className={index < currentStep ? 'done' : index === currentStep ? 'current' : ''} key={label}>{label}</span>)}
-        </aside>
-        {!session.completed && <aside className="evidence-panel" aria-label="推理工具">
-          <details className="reasoning-tools"><summary>推理工具 · 提示与暂放</summary><div className="reasoning-tools-content">
-          <p>从原文选取证据，写出它与词义的关系。</p>
-          <button onClick={() => jumpTo('fulltext-title')} disabled={session.completed}>在原文中找证据 ↓</button>
-          <p>{session.reasoning_graph ? '已有保存的证据链' : '尚未保存证据链'} · 理由待复核</p>
-          <hr />
-          <button className="quiet-action" onClick={() => onCommand('DEFER_VARIABLE')} disabled={locked || session.completed || session.deferred}>{session.deferred ? '已暂放，先扩大语境' : '先暂放这个字'}</button>
-          {session.deferred && <button className="quiet-action revisit-action" onClick={() => onCommand('REVISIT_VARIABLE')} disabled={locked || session.completed}>回看这个字，继续判断</button>}
-          <button className="quiet-action" onClick={() => onCommand('REQUEST_HINT')} disabled={locked || session.completed}>需要一点提示</button>
-          {session.hint && <p className="hint">第 {session.hint_level} 条提示：{session.hint}</p>}
-          </div></details>
-        </aside>}
-        <section className="lesson" aria-labelledby={session.completed ? 'summary-title' : 'question-title'}>
-          <div className="lesson-meta"><span>{session.source}</span><span>{session.stage === 'CORE' ? '02 / 04' : '04 / 04'}</span></div>
-          {session.completed && session.summary ? (
-            <LessonSummary summary={session.summary} onReturnHome={onReturnHome} />
-          ) : (
-            <>
-              <section className="training-task" id="training-question" tabIndex={-1} key={`task-${session.stage}`}>
-              <div className="training-task-heading"><p className="stage-label">当前判断 · 先读原文，再回到词上</p><button className="text-button" onClick={() => jumpTo('fulltext-title')}>阅读完整原文 ↓</button></div>
-              <p className="passage">{beforeVariable}{variableIndex >= 0 && <span>{session.variable}</span>}{afterVariable}</p>
-              <div className="question-area">
-                <p className="stage-label">{session.stage === 'CORE' ? '先完成原文推理' : '陌生文迁移挑战'}</p>
-                <h1 id="question-title">{session.question}</h1>
-                <div className="choice-list" role="radiogroup" aria-label="选择词义">
-                  {session.choices.map(choice => <label key={choice} className={`choice-option${answer === choice ? ' selected' : ''}`}>
-                    <input type="radio" name={`answer-${sessionId}-${session.stage}`} value={choice} checked={answer === choice} disabled={locked || isTransferReady || isSummaryReady} onChange={() => setAnswer(choice)} />
-                    <span>{choice}</span>
-                  </label>)}
-                </div>
-                {firstJudgment && <p className="knowledge-note">可以先提交首次词义判断，再补充证据与理由。查看字词解释、提示或保存证据后的规则回执会记录为辅助；首次判断不会直接发积分。</p>}
-                <button className="button button-primary submit" onClick={submit} disabled={!answer || locked || reasoningDirty || (!firstJudgment && (!session.reasoning_graph || session.reasoning_graph.conclusion !== answer)) || isTransferReady || isSummaryReady}>
-                  {pendingCommand === 'SUBMIT_ATTEMPT' ? '正在核验…' : busy ? '请等待当前操作…' : firstJudgment ? '提交首次词义判断' : '提交判断'}
-                </button>
-                <ReasoningEditor key={session.stage} session={session} answer={answer} busy={locked} onCommand={onCommand} onDirtyChange={reportReasoningDirty} />
-                <ReasonFeedback key={`${sessionId}-${session.stage}-${session.state_version}`} sessionId={sessionId} session={session} disabled={locked} dirty={reasoningDirty} />
-              </div>
-              <div className={`feedback ${isTransferReady || isSummaryReady ? 'success' : ''}`} aria-live="polite">
-                {busy ? pendingLabels[pendingCommand ?? 'SUBMIT_ATTEMPT'] ?? '正在处理当前操作…' : error ? `${recoveryNeeded ? '操作结果未确认' : '操作未完成'}：${error}` : session.feedback}
-              </div>
-              {recoveryNeeded && <div className="command-recovery" role="alert"><h3 id="command-recovery-title" tabIndex={-1}>刚才操作的结果尚未确认。</h3><p>服务可能已收到请求。本页暂不接受新操作；核对会沿用同一请求标识，避免重复记录或加分。刷新只重新读取进度，不自动提交。</p><button className="button button-secondary" disabled={busy} onClick={onRecover}>{busy ? '正在核对…' : '核对并重试刚才操作'}</button></div>}
-              {isTransferReady && <button className="text-button" onClick={() => onCommand('CONTINUE_TO_TRANSFER')} disabled={locked}>进入陌生文挑战 →</button>}
-              {isSummaryReady && <button className="text-button" onClick={() => onCommand('COMPLETE_SESSION')} disabled={locked}>查看本关总结 →</button>}
-              </section>
-              <ContextReader key={session.stage} sessionId={sessionId} session={session} busy={locked} onCommand={onCommand}
-                meaningMode={session.learning_trace ? 'TRACKED' : 'LEGACY'} isMeaningAllowed={stageTrace?.assistance_kinds.includes('WORD_MEANING') ?? false}
-                onRevealMeaning={selection => onCommand('RECORD_ASSISTANCE', { kind: 'WORD_MEANING', paragraph_index: selection.paragraph_index, start: selection.start, end: selection.end })} />
-              <nav className="reading-shortcuts" aria-label="训练页快捷操作"><button onClick={() => jumpTo('fulltext-title')}>阅读原文</button><button onClick={() => jumpTo('reasoning-title')}>证据与理由</button><button onClick={() => jumpTo('training-question')}>回到题目 ↑</button></nav>
-            </>
-          )}
-          <details className="training-records"><summary>查看本次训练的学习行为记录</summary><SessionObservations trace={session.learning_trace} currentStage={session.stage} completed={session.completed} /></details>
-          <ReasoningHistory sessionId={sessionId} version={session.state_version} />
-        </section>
-      </div>
-    </main>
-  )
+function TrainingPage(props: Omit<GuidedTrainingProps, 'renderSummary'>) {
+  return <GuidedTrainingPage {...props} renderSummary={summary => <LessonSummary summary={summary} onReturnHome={props.onReturnHome} />} />
 }
 
 function LessonSummary({ summary, onReturnHome }: { summary: NonNullable<TrainingSession['summary']>; onReturnHome: () => void }) {
   return (
     <section className="lesson-summary" aria-labelledby="summary-title">
+      <header className="waterink-page-heading waterink-summary-heading">
       <p className="stage-label">本关总结</p>
       <h1 id="summary-title" tabIndex={-1}>词义判断已完成，<br />再回看推理路径。</h1>
+      </header>
       <div className="summary-lines">
         <article><b>积累</b><p>{summary.accumulation}</p></article>
         <article><b>推理</b><p>{summary.reasoning}</p></article>
@@ -831,9 +666,11 @@ function SkillsPage({ summary, loading, error, onRetry, onStart }: {
   const skills = summary?.skill_statistics ?? []
   return (
     <main className="skills-page">
+      <header className="waterink-page-heading">
       <p className="eyebrow">能力地图</p>
       <h1>把每一次判断，<br />留下可回看的路径。</h1>
       <p className="intro">这里展示实际作答事件中的词义判断记录，不再按完成关卡数推算能力。判断正确率不等同于完整推理能力测评。</p>
+      </header>
       <section className="skill-list" aria-label="当前能力">
         {loading ? <p role="status">正在读取实际判断记录…</p> : error ? <div role="alert"><p>判断记录暂时未能读取。</p><button className="text-button" onClick={onRetry}>重新读取</button></div> : skills.length === 0 ? <div className="catalog-state"><b>还没有足够的判断记录。</b><p>完成作答后，这里会逐项显示真实样本，不把未知能力显示成零分。</p></div> : skills.map(skill => (
           <article className="skill-row" key={skill.label}>
@@ -843,15 +680,52 @@ function SkillsPage({ summary, loading, error, onRetry, onStart }: {
           </article>
         ))}
       </section>
-      <button className="button button-primary" onClick={onStart}>继续今日训练 <span aria-hidden="true">→</span></button>
+      <button className="button button-primary" onClick={onStart}>选择文章，继续训练 <span aria-hidden="true">→</span></button>
     </main>
   )
 }
 
+function DualAdminWorkbench({ supportAllowed, onExitRiskChange, children }: { supportAllowed: boolean; onExitRiskChange: (risk: ExitRisk) => void; children: (callback: (risk: ExitRisk) => void) => React.ReactNode }) {
+  const [tab, setTab] = useState<'editorial' | 'support'>('editorial')
+  const risk = useRef<ExitRisk>(null)
+  const supportAccess = useRef(supportAllowed)
+  supportAccess.current = supportAllowed
+  const confirmation = useConfirmationDialog(supportAllowed ? 'admin-areas' : null)
+  const [notice, setNotice] = useState('')
+  const report = useCallback((next: ExitRisk) => { risk.current = next; onExitRiskChange(next) }, [onExitRiskChange])
+  if (!supportAllowed && tab === 'support') setTab('editorial')
+  const active = supportAllowed && tab === 'support' ? 'support' : 'editorial'
+  const change = (next: 'editorial' | 'support') => {
+    if (next === active || (next === 'support' && !supportAllowed)) return
+    if (risk.current === 'working') { setNotice('请等待当前操作完成，不能切换工作台。'); return }
+    const expectedRisk = risk.current
+    const leave = () => { if (next === 'support' && !supportAccess.current) return; if (risk.current === 'working') { setNotice('请等待当前操作完成。'); return }; if (risk.current !== expectedRisk) { setNotice('当前操作状态已变化，请重新选择工作台并确认。'); return }; report(null); setNotice(''); setTab(next) }
+    if (risk.current) { confirmation.ask({ title: risk.current === 'uncertain' ? '离开未确认操作？' : '放弃未保存修改？', message: risk.current === 'uncertain' ? '上次写入可能已在服务端完成。离开会丢失本页的草稿与核对线索；请先复制并核对当前记录。此操作不撤销服务端写入。' : '请先复制需要保留的修改和说明。确认后切换工作台，当前草稿将丢失。', confirmLabel: '确认离开工作台', onConfirm: leave }); return }
+    leave()
+  }
+  return <>{confirmation.modal}{supportAllowed && <nav className="editor-tabs" aria-label="管理区域"><button type="button" aria-pressed={active === 'editorial'} onClick={() => change('editorial')}>教研工作台</button><button type="button" aria-pressed={active === 'support'} onClick={() => change('support')}>用户反馈</button></nav>}{supportAllowed && notice && <p role="status">{notice}</p>}{active === 'support' ? <main className="content-admin-page"><SupportInbox onRiskChange={report} /></main> : children(report)}</>
+}
+
 export function App() {
+  return <AuthBoundary fallbackFooter={<BetaSupportPanel />}>{(auth, onLogout) => <><ProductTourBoundary session={auth} onLogout={onLogout}><LearningApp key={`${auth.mode}:${auth.user?.id ?? 'local'}`} auth={auth} onLogout={onLogout} /></ProductTourBoundary><BetaSupportPanel session={auth} /></>}</AuthBoundary>
+}
+
+function LearningApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => Promise<void> }) {
+  const inkMotion = useInkMotion()
+  const { replayTour } = useProductTour()
+  const adminAllowed = canManage(auth) || canManageSupport(auth)
+  const initialProfile = useRef(auth.mode === 'invite' ? auth.profile_id : undefined)
+  const shell = useRef<HTMLDivElement>(null)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const logoutLock = useRef(false)
   const exitRisk = useRef<ExitRisk>(null)
-  const { route, page, setPage } = usePageRoute(exitRisk)
-  const onExitRiskChange = useCallback((risk: ExitRisk) => { exitRisk.current = risk }, [])
+  const createPendingRef = useRef<{ profileId: string; lessonId: string; previousRisk: ExitRisk } | null>(null)
+  const profilePendingRef = useRef<{ displayName: string; schoolStage: SchoolStage; previousRisk: ExitRisk } | null>(null)
+  const { route, page, setPage, navigationModal } = usePageRoute(exitRisk)
+  const logoutConfirmation = useConfirmationDialog(auth.user?.id ?? auth.mode)
+  const startConfirmation = useConfirmationDialog(auth.user?.id ?? auth.mode)
+  const onExitRiskChange = useCallback((risk: ExitRisk) => { exitRisk.current = createPendingRef.current || profilePendingRef.current ? (risk === 'working' ? 'working' : 'uncertain') : risk }, [])
   const [profile, setProfile] = useState<LearnerProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileLoadAttempt, setProfileLoadAttempt] = useState(0)
@@ -859,6 +733,7 @@ export function App() {
   const [reviewSessions, setReviewSessions] = useState<ReviewSession[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [reviewReadAttempt, setReviewReadAttempt] = useState(0)
   const [mistakes, setMistakes] = useState<Mistake[]>([])
   const [mistakesLoading, setMistakesLoading] = useState(false)
   const [mistakesError, setMistakesError] = useState<string | null>(null)
@@ -890,12 +765,58 @@ export function App() {
   const [routeSessionLoading, setRouteSessionLoading] = useState(false)
   const [routeSessionError, setRouteSessionError] = useState<string | null>(null)
   const [routeSessionAttempt, setRouteSessionAttempt] = useState(0)
+  const latestReads = useRef({ mistakes: 0, sessions: 0, summary: 0, achievements: 0, mission: 0, lessons: 0 })
+  const mounted = useRef(true)
+  const commandOwner = useRef<symbol | null>(null)
+  const commandContext = useRef({ sessionId, session, profileId: profile?.id ?? null, page, routeSessionId: route.sessionId })
+  commandContext.current = { sessionId, session, profileId: profile?.id ?? null, page, routeSessionId: route.sessionId }
+  const uncertainIntent = useRef(uncertainCommand)
+  uncertainIntent.current = uncertainCommand
+  useEffect(() => {
+    mounted.current = true
+    const warn = (event: BeforeUnloadEvent) => { if (createPendingRef.current || profilePendingRef.current) { event.preventDefault(); event.returnValue = '' } }
+    window.addEventListener('beforeunload', warn)
+    return () => { mounted.current = false; setCreationWritesBlocked(false); window.removeEventListener('beforeunload', warn) }
+  }, [])
+  const [createPending, setCreatePending] = useState<{ profileId: string; lessonId: string; previousRisk: ExitRisk } | null>(null)
+  const [createSessions, setCreateSessions] = useState<ReviewSession[] | null>(null)
+  const [createReadError, setCreateReadError] = useState<string | null>(null)
+  const [createChecking, setCreateChecking] = useState(false)
+  const createReadLock = useRef(false)
+  const [profilePending, setProfilePending] = useState<typeof profilePendingRef.current>(null)
+  const [profileCheck, setProfileCheck] = useState<LearnerProfile | 'none' | 'unavailable' | null>(null)
+  const [profileCheckError, setProfileCheckError] = useState<string | null>(null)
+  const [profileChecking, setProfileChecking] = useState(false)
+  const profileReadLock = useRef(false)
+  useEffect(() => {
+    if (createPendingRef.current && createPendingRef.current.profileId !== profile?.id) {
+      createPendingRef.current = null; setCreatePending(null); setCreateSessions(null); setCreateReadError(null)
+      if (!profilePendingRef.current) setCreationWritesBlocked(false)
+      if (exitRisk.current === 'uncertain') exitRisk.current = null
+    }
+  }, [profile?.id])
+
+
+  useEffect(() => {
+    if (shouldLeaveOnboarding(page, !!profile)) setPage('home', undefined, true)
+  }, [page, profile?.id, setPage])
+
+  useLayoutEffect(() => { if (shell.current) shell.current.inert = logoutBusy }, [logoutBusy])
+  const logout = async (confirmed = false) => {
+    if (logoutLock.current) return
+    if (exitRisk.current === 'working' || busy) { logoutConfirmation.ask({ title: '操作仍在进行', message: '请等待结果返回后退出。当前页面暂时保留。', confirmLabel: '继续等待', onConfirm: () => {} }); return }
+    if (exitRisk.current && !confirmed) { logoutConfirmation.ask({ title: '确认退出登录？', message: '当前有未保存的输入或结果尚未确认的提交。退出会清空临时输入，已确认记录保留在账号中。', confirmLabel: '放弃临时输入并退出', onConfirm: () => void logout(true) }); return }
+    logoutLock.current = true; setLogoutBusy(true); setLogoutError(null)
+    try { await onLogout() }
+    catch (reason) { setLogoutError(`退出未确认：${errorMessage(reason)}。本页暂时保留，请重试退出或重新读取登录状态。`) }
+    finally { logoutLock.current = false; setLogoutBusy(false) }
+  }
 
   useLayoutEffect(() => {
-    if (pendingCommand) exitRisk.current = 'working'
-    else if (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId) exitRisk.current = 'uncertain'
+    if (pendingCommand || busy) exitRisk.current = 'working'
+    else if (createPendingRef.current || profilePendingRef.current || (uncertainCommand && page === 'training' && uncertainCommand.sessionId === sessionId)) exitRisk.current = 'uncertain'
     else if (page !== 'admin' && page !== 'assessment' && page !== 'home') exitRisk.current = page === 'training' && trainingDirty ? 'dirty' : null
-  }, [pendingCommand, uncertainCommand, sessionId, page, trainingDirty])
+  }, [pendingCommand, busy, uncertainCommand, sessionId, page, trainingDirty])
 
   useEffect(() => {
     document.title = `${pageLabels[page]} · 文言·推理`
@@ -910,9 +831,9 @@ export function App() {
   useEffect(() => {
     let cancelled = false
     setProfileLoading(true); setProfileLoadError(null)
-    const storedProfileId = window.localStorage.getItem('wenyan.profile-id')
+    const storedProfileId = initialProfile.current === undefined ? window.localStorage.getItem('wenyan.profile-id') : initialProfile.current
     if (!storedProfileId) {
-      setProfileLoading(false); if (page !== 'admin') setPage('onboarding', undefined, true)
+      setProfileLoading(false); if (!['admin', 'about'].includes(page)) setPage('onboarding', undefined, true)
       return () => { cancelled = true }
     }
     void (async () => {
@@ -950,8 +871,8 @@ export function App() {
         if (reason instanceof Error && reason.message === 'PROFILE_NOT_FOUND') {
           window.localStorage.removeItem('wenyan.profile-id')
           window.localStorage.removeItem('wenyan.active-session')
-          if (readRoute(location.hash).page !== 'admin') setPage('onboarding', undefined, true)
-        } else setProfileLoadError('暂时无法连接学习服务，档案和训练入口已保留。请检查后端是否启动后重试。')
+          if (!['admin', 'about'].includes(readRoute(location.hash).page)) setPage('onboarding', undefined, true)
+        } else setProfileLoadError('暂时无法连接学习服务，档案和训练入口已保留。请检查网络后重试；仍有问题可通过反馈与帮助联系内测负责人。')
       } finally { if (!cancelled) setProfileLoading(false) }
     })()
     return () => { cancelled = true }
@@ -973,90 +894,153 @@ export function App() {
   }, [page, route.sessionId, sessionId, profile?.id, profileLoading, routeSessionAttempt])
 
   const createProfile = useCallback(async (displayName: string, schoolStage: SchoolStage) => {
-    if (operationLock.current) return
-    operationLock.current = true
-    setBusy(true); setError(null)
+    if (!mounted.current || operationLock.current || profile || profilePendingRef.current || createPendingRef.current || privateWritesAreSuspended()) return
+    const checkpoint = authResponseCheckpoint(), previousRisk = exitRisk.current
+    const current = () => { try { checkpoint(); return mounted.current && commandContext.current.profileId === null } catch { return false } }
+    operationLock.current = true; exitRisk.current = 'working'; setBusy(true); setError(null)
+    const markUnknown = () => {
+      const pending = { displayName, schoolStage, previousRisk }
+      setCreationWritesBlocked(true); profilePendingRef.current = pending; setProfilePending(pending); setProfileCheck(null); setProfileCheckError(null); exitRisk.current = 'uncertain'
+      setError('档案创建结果尚未确认，请先核对当前账号资料；系统不会自动重复创建。')
+    }
     try {
-      const response = await profileApi.create(displayName, schoolStage)
+      const sent = profileApi.create(displayName, schoolStage); setCreationWritesBlocked(true)
+      const response = await sent
+      if (!current()) return
+      if (privateWritesAreSuspended()) { markUnknown(); return }
+      if (response.profile.display_name !== displayName || response.profile.school_stage !== schoolStage) throw new RequestError('INVALID_RESPONSE', 200)
+      if (auth.mode === 'invite') initialProfile.current = response.profile.id
       window.localStorage.setItem('wenyan.profile-id', response.profile.id)
-      setProfile(response.profile)
-      setPage('home')
+      if (!createPendingRef.current) setCreationWritesBlocked(false)
+      operationLock.current = false; setBusy(false)
+      setProfile(response.profile); exitRisk.current = previousRisk; setPage('home')
     } catch (reason) {
-      setError(errorMessage(reason))
-    } finally { setBusy(false); operationLock.current = false }
-  }, [])
+      if (!current()) return
+      if (uncertainWrite(reason) || !(reason instanceof RequestError) || reason.status === 408 || reason.status === 429) markUnknown()
+      else setError(errorMessage(reason))
+    } finally {
+      if (current()) { if (!profilePendingRef.current && !createPendingRef.current) setCreationWritesBlocked(false); if (exitRisk.current === 'working') exitRisk.current = previousRisk; setBusy(false); operationLock.current = false }
+    }
+  }, [profile, auth.mode, setPage])
+
+  const checkCreatedProfile = async () => {
+    const pending = profilePendingRef.current
+    if (!pending || profileReadLock.current || privateWritesAreSuspended()) return
+    const checkpoint = authResponseCheckpoint()
+    const current = () => { try { checkpoint(); return mounted.current && profilePendingRef.current === pending && commandContext.current.profileId === null } catch { return false } }
+    profileReadLock.current = true; setProfileChecking(true); setProfileCheckError(null); setProfileCheck(null)
+    try {
+      if (auth.mode !== 'invite') { if (current()) setProfileCheck('unavailable'); return }
+      const result = await requestJson<unknown>(`${import.meta.env.VITE_API_ROOT ?? ''}/api/v1/auth/session`)
+      if (!validAuthSession(result) || result.mode !== auth.mode || result.user?.id !== auth.user?.id || result.csrf_token !== auth.csrf_token || !result.authenticated) throw new RequestError('SESSION_CHANGED', 409)
+      if (!current()) return
+      if (!result.profile_id) { setProfileCheck('none'); return }
+      const found = await profileApi.get(result.profile_id)
+      if (current()) setProfileCheck(found.profile)
+    } catch (reason) { if (current()) setProfileCheckError(errorMessage(reason)) }
+    finally { profileReadLock.current = false; if (current()) setProfileChecking(false) }
+  }
+  const releaseCreatedProfile = () => {
+    const pending = profilePendingRef.current
+    if (!pending || profileReadLock.current || privateWritesAreSuspended()) return
+    const checkpoint = authResponseCheckpoint()
+    startConfirmation.ask({ title: '结束本次档案创建核对？', message: '原请求可能已经或稍后创建档案。结束核对不会撤销它；重新提交可能产生重复。请先核对当前账号资料。', confirmLabel: '了解风险，结束核对', onConfirm: () => {
+      try { checkpoint() } catch { return }
+      if (!mounted.current || profilePendingRef.current !== pending || commandContext.current.profileId !== null || privateWritesAreSuspended()) return
+      profilePendingRef.current = null; setProfilePending(null); setProfileCheck(null); setProfileCheckError(null)
+      if (!createPendingRef.current) setCreationWritesBlocked(false)
+      if (exitRisk.current === 'uncertain') exitRisk.current = pending.previousRisk
+      setError('此前档案创建结果仍未知；结束核对没有撤销原请求，再次提交可能重复。')
+    } })
+  }
 
   const loadMistakes = useCallback(async (profileId: string) => {
+    const request = ++latestReads.current.mistakes
     setMistakesLoading(true); setMistakesError(null)
     try {
       const response = await profileApi.listMistakes(profileId)
+      if (!mounted.current || request !== latestReads.current.mistakes) return
       setMistakes(response.mistakes)
     } catch (reason) {
+      if (!mounted.current || request !== latestReads.current.mistakes) return
       setMistakes([])
       setMistakesError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setMistakesLoading(false) }
+    } finally { if (mounted.current && request === latestReads.current.mistakes) setMistakesLoading(false) }
   }, [])
 
   useEffect(() => {
     if (page !== 'review' || !profile) return
+    const request = ++latestReads.current.sessions
     setReviewsLoading(true); setReviewError(null)
     profileApi.listSessions(profile.id)
-      .then(({ sessions }) => setReviewSessions(sessions))
-      .catch((reason) => setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED'))
-      .finally(() => setReviewsLoading(false))
+      .then(({ sessions }) => { if (mounted.current && request === latestReads.current.sessions) setReviewSessions(sessions) })
+      .catch((reason) => { if (mounted.current && request === latestReads.current.sessions) setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED') })
+      .finally(() => { if (mounted.current && request === latestReads.current.sessions) setReviewsLoading(false) })
     void loadMistakes(profile.id)
-  }, [page, profile, loadMistakes])
+    return () => { latestReads.current.sessions++; latestReads.current.mistakes++ }
+  }, [page, profile?.id, loadMistakes, reviewReadAttempt])
 
   const loadPracticePlans = useCallback(async (profileId: string, groupBy: PracticePlanGroupBy) => {
     const request = ++practiceRequest.current
     setPracticeLoading(true); setPracticeError(null)
     try {
       const response = await profileApi.getPracticePlans(profileId, groupBy)
-      if (request === practiceRequest.current) setPracticePlans(response.plans)
+      if (mounted.current && request === practiceRequest.current) setPracticePlans(response.plans)
     } catch (reason) {
-      if (request === practiceRequest.current) { setPracticePlans([]); setPracticeError(reason instanceof Error ? reason.message : 'REQUEST_FAILED') }
-    } finally { if (request === practiceRequest.current) setPracticeLoading(false) }
+      if (mounted.current && request === practiceRequest.current) { setPracticePlans([]); setPracticeError(reason instanceof Error ? reason.message : 'REQUEST_FAILED') }
+    } finally { if (mounted.current && request === practiceRequest.current) setPracticeLoading(false) }
   }, [])
 
   useEffect(() => {
     if (page === 'practice' && profile) void loadPracticePlans(profile.id, practiceGroupBy)
+    return () => { practiceRequest.current++ }
   }, [page, profile, practiceGroupBy, loadPracticePlans])
 
   const loadLearningSummary = useCallback(async (profileId: string) => {
+    const request = ++latestReads.current.summary
     setSummaryLoading(true); setSummaryError(null)
     try {
       const response = await profileApi.getLearningSummary(profileId)
+      if (!mounted.current || request !== latestReads.current.summary) return
       setLearningSummary(response.summary)
     } catch (reason) {
+      if (!mounted.current || request !== latestReads.current.summary) return
       setLearningSummary(null)
       setSummaryError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setSummaryLoading(false) }
+    } finally { if (mounted.current && request === latestReads.current.summary) setSummaryLoading(false) }
   }, [])
 
   const loadAchievements = useCallback(async (profileId: string) => {
+    const request = ++latestReads.current.achievements
     setAchievementsLoading(true); setAchievementsError(null)
     try {
       const response = await profileApi.getAchievements(profileId)
+      if (!mounted.current || request !== latestReads.current.achievements) return
       setAchievements(response)
     } catch (reason) {
+      if (!mounted.current || request !== latestReads.current.achievements) return
       setAchievements(null)
       setAchievementsError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setAchievementsLoading(false) }
+    } finally { if (mounted.current && request === latestReads.current.achievements) setAchievementsLoading(false) }
   }, [])
 
   const loadDailyMission = useCallback(async (profileId: string) => {
+    const request = ++latestReads.current.mission
     setMissionLoading(true); setMissionError(null)
     try {
       const response = await profileApi.getDailyMission(profileId)
+      if (!mounted.current || request !== latestReads.current.mission) return
       setDailyMission(response.mission)
     } catch (reason) {
+      if (!mounted.current || request !== latestReads.current.mission) return
       setDailyMission(null)
       setMissionError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setMissionLoading(false) }
+    } finally { if (mounted.current && request === latestReads.current.mission) setMissionLoading(false) }
   }, [])
 
   useEffect(() => {
     if (page === 'home' && profile) void loadDailyMission(profile.id)
+    return () => { latestReads.current.mission++ }
   }, [page, profile, loadDailyMission])
 
   useEffect(() => {
@@ -1064,81 +1048,164 @@ export function App() {
       void loadLearningSummary(profile.id)
       if (page === 'report') void loadAchievements(profile.id)
     }
+    return () => { latestReads.current.summary++; latestReads.current.achievements++ }
   }, [page, profile, loadLearningSummary, loadAchievements])
 
   const loadLessons = useCallback(async (schoolStage: SchoolStage) => {
+    const request = ++latestReads.current.lessons
     setLessonsLoading(true); setLessonsError(null)
     try {
       const response = await lessonApi.list(schoolStage)
+      if (!mounted.current || request !== latestReads.current.lessons) return
       setLessons(response.lessons)
     } catch (reason) {
+      if (!mounted.current || request !== latestReads.current.lessons) return
       setLessons([])
       setLessonsError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setLessonsLoading(false) }
+    } finally { if (mounted.current && request === latestReads.current.lessons) setLessonsLoading(false) }
   }, [])
 
   useEffect(() => {
     if (profile) void loadLessons(profile.school_stage)
   }, [profile, loadLessons])
 
-  const start = useCallback(async (lessonId: string) => {
-    if (operationLock.current) return
+  const start = useCallback(async (lessonId: string, confirmed = false): Promise<void> => {
+    if (!mounted.current || operationLock.current || createPendingRef.current || profilePendingRef.current || privateWritesAreSuspended()) return
     if (!profile) { setPage('onboarding'); return }
-    if (exitRisk.current === 'working') { window.alert('学习路线操作正在进行，请等待确认后再开始旧练习。'); return }
-    if (exitRisk.current && !window.confirm('学习路线有未确认的选择或提交。确定离开路线并开始已有练习吗？')) return
-    exitRisk.current = null
-    operationLock.current = true
+    if (commandContext.current.profileId !== profile.id) return
+    if (exitRisk.current === 'working') { startConfirmation.ask({ title: '操作仍在进行', message: '请等待学习路线操作确认后，再开始其他练习。', confirmLabel: '继续等待', onConfirm: () => {} }); return }
+    if (exitRisk.current && !confirmed) {
+      const checkpoint = authResponseCheckpoint()
+      startConfirmation.ask({ title: '离开学习路线？', message: '当前有未保存的选择或结果未确认的提交。可以保留当前状态，或离开并开始已有课程；不会自动重试旧提交。', confirmLabel: '开始已有课程', onConfirm: () => { try { checkpoint() } catch { return }; if (mounted.current) void start(lessonId, true) } }); return
+    }
+    const previousRisk = exitRisk.current, checkpoint = authResponseCheckpoint(), profileId = profile.id
+    const current = () => { try { checkpoint(); return mounted.current && commandContext.current.profileId === profileId } catch { return false } }
+    exitRisk.current = 'working'; operationLock.current = true
     setBusy(true); setError(null)
+    const markUnknown = () => {
+      const pending = { profileId, lessonId, previousRisk }
+      setCreationWritesBlocked(true); createPendingRef.current = pending; setCreatePending(pending); setCreateSessions(null); setCreateReadError(null); exitRisk.current = 'uncertain'
+      setError('训练创建结果尚未确认，请先核对最近训练；系统不会自动重新创建。')
+    }
     try {
-      const response = await trainingApi.createSession(profile.id, lessonId)
-      window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId: profile.id, sessionId: response.session_id }))
-      setSessionId(response.session_id); setSession(response.session); setPage('training', response.session_id)
+      const sent = trainingApi.createSession(profileId, lessonId)
+      setCreationWritesBlocked(true)
+      const response = await sent
+      if (!current()) return
+      if (privateWritesAreSuspended()) { markUnknown(); return }
+      if (response.session.profile_id !== profileId || response.session.lesson?.id !== lessonId) throw new RequestError('INVALID_RESPONSE', 200)
+      window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId, sessionId: response.session_id }))
+      setSessionId(response.session_id); setSession(response.session); exitRisk.current = null; setPage('training', response.session_id, true)
     } catch (reason) {
-      setError(errorMessage(reason))
-    } finally { setBusy(false); operationLock.current = false }
-  }, [profile, busy])
+      if (!current()) return
+      if (uncertainWrite(reason) || !(reason instanceof RequestError) || (reason.status === 408 || reason.status === 429)) {
+        markUnknown()
+      } else setError(errorMessage(reason))
+    } finally {
+      if (current()) { if (!createPendingRef.current && !profilePendingRef.current) setCreationWritesBlocked(false); if (exitRisk.current === 'working') exitRisk.current = previousRisk; setBusy(false); operationLock.current = false }
+    }
+  }, [profile, setPage, startConfirmation.ask])
 
-  const runCommand = useCallback(async (intent: PendingTrainingCommand) => {
-    if (operationLock.current) return
-    operationLock.current = true
-    setPendingCommand(intent.type)
-    setBusy(true); setError(null)
-    try {
-      const response = await trainingApi.command(intent.sessionId, intent.version, intent.type, intent.payload, intent.key)
-      setSession(response.session)
-      if (response.profile) setProfile(response.profile)
-      setUncertainCommand(null)
-    } catch (reason) {
-      const code = reason instanceof Error ? reason.message : 'REQUEST_FAILED'
-      if (uncertainWrite(reason)) {
-        setUncertainCommand(intent); setError(errorMessage(reason))
-      } else if (code === 'VERSION_CONFLICT') {
-        setUncertainCommand(null)
-        try { setSession((await trainingApi.getSession(intent.sessionId)).session) } catch { /* Keep local state until retry. */ }
-        setError('训练已在其他页面更新，已尝试同步。请确认当前内容后重试。')
-      } else { setUncertainCommand(null); setError(code === 'INVALID_CONTEXT_SELECTION' ? '所选词组超出原文范围，请重新点选。' : errorMessage(reason)) }
-    } finally { setBusy(false); setPendingCommand(null); operationLock.current = false }
+  const checkCreatedTraining = async () => {
+    const pending = createPendingRef.current
+    if (!pending || createReadLock.current || privateWritesAreSuspended()) return
+    const checkpoint = authResponseCheckpoint()
+    const current = () => { try { checkpoint(); return mounted.current && createPendingRef.current === pending && commandContext.current.profileId === pending.profileId } catch { return false } }
+    createReadLock.current = true; setCreateChecking(true); setCreateReadError(null); setCreateSessions(null)
+    try { const result = await profileApi.listSessions(pending.profileId); if (current()) setCreateSessions(result.sessions) }
+    catch (reason) { if (current()) setCreateReadError(errorMessage(reason)) }
+    finally { createReadLock.current = false; if (current()) setCreateChecking(false) }
+  }
+  const releaseCreatedTraining = () => {
+    const pending = createPendingRef.current
+    if (!pending || createReadLock.current || privateWritesAreSuspended()) return
+    const checkpoint = authResponseCheckpoint()
+    startConfirmation.ask({ title: '结束本次训练创建核对？', message: '原请求可能已经或稍后创建训练。结束核对不会撤销它；重新开始可能产生重复。请先核对最近训练。', confirmLabel: '了解风险，结束核对', onConfirm: () => {
+      try { checkpoint() } catch { return }
+      if (!mounted.current || createPendingRef.current !== pending || commandContext.current.profileId !== pending.profileId || privateWritesAreSuspended()) return
+      createPendingRef.current = null; setCreatePending(null); setCreateSessions(null); setCreateReadError(null)
+      if (!profilePendingRef.current) setCreationWritesBlocked(false)
+      if (exitRisk.current === 'uncertain') exitRisk.current = pending.previousRisk
+      setError('此前训练创建结果仍未知；结束核对没有撤销原请求，再次开始可能重复。')
+    } })
+  }
+
+  const runCommand = useCallback((intent: PendingTrainingCommand): Promise<TrainingCommandOutcome> => {
+    // Keep any unknown intent/key intact while identity is being reconciled.
+    if (privateWritesAreSuspended()) return Promise.resolve({ status: 'blocked' })
+    const recovering = uncertainIntent.current === intent
+    const isCurrent = (target: PendingTrainingCommand) => {
+      const now = commandContext.current
+      return mounted.current && now.page === 'training' && now.routeSessionId === target.sessionId
+        && now.sessionId === target.sessionId && now.session?.state_version === target.version
+        && now.session.profile_id === now.profileId
+    }
+    return executeTrainingCommand(intent, {
+      lock: operationLock, owner: commandOwner, isCurrent, isAlive: () => mounted.current,
+      begin: type => { setPendingCommand(type); setBusy(true); setError(null) },
+      finish: () => { setBusy(false); setPendingCommand(null) },
+      send: async target => {
+        const response = await trainingApi.command(target.sessionId, target.version, target.type, target.payload, target.key)
+        const owner = commandContext.current.profileId
+        if (response.session.profile_id !== owner || response.profile && response.profile.id !== owner) throw new RequestError('INVALID_RESPONSE', 200)
+        return response
+      },
+      accept: response => {
+        commandContext.current.session = response.session
+        setSession(response.session)
+        if (response.profile) setProfile(response.profile)
+        uncertainIntent.current = null; setUncertainCommand(null)
+      },
+      // A rejection of a replay does not prove whether the earlier attempt committed.
+      isUnknown: reason => uncertainWrite(reason) || (recovering && reason instanceof RequestError && reason.status >= 400 && reason.status < 500 && reason.status !== 401 && reason.message !== 'SESSION_CHANGED'),
+      unknown: (target, reason) => {
+        uncertainIntent.current = target; setUncertainCommand(target)
+        setError(recovering && reason instanceof RequestError && reason.status >= 400 && reason.status < 500
+          ? '原提交的结果仍未确认；本次核对不能证明原提交失败，请继续核对原提交。' : errorMessage(reason))
+      },
+      failure: reason => {
+        uncertainIntent.current = null; setUncertainCommand(null)
+        const code = reason instanceof Error ? reason.message : 'REQUEST_FAILED'
+        setError(code === 'INVALID_CONTEXT_SELECTION' ? '所选词组超出原文范围，请重新点选。' : errorMessage(reason))
+      },
+      conflict: async () => {
+        uncertainIntent.current = null; setUncertainCommand(null)
+        try {
+          const restored = (await trainingApi.getSession(intent.sessionId)).session
+          if (isCurrent(intent) && restored.profile_id === commandContext.current.profileId && restored.state_version >= intent.version) {
+            commandContext.current.session = restored; setSession(restored)
+          }
+        } catch { /* A failed read keeps the current confirmed snapshot and draft. */ }
+        if (mounted.current && commandContext.current.sessionId === intent.sessionId && commandContext.current.page === 'training') {
+          setError('训练已在其他页面更新，已尝试同步。请确认当前内容后重试。')
+        }
+      },
+    })
   }, [])
-  const command = useCallback((type: CommandType, payload: Record<string, unknown> = {}) => {
-    if (!sessionId || !session || operationLock.current || uncertainCommand?.sessionId === sessionId) return
-    void runCommand({ sessionId, version: session.state_version, type, payload, key: requestId() })
-  }, [session, sessionId, uncertainCommand, runCommand])
+  const command = useCallback((type: CommandType, payload: Record<string, unknown> = {}, expectedVersion?: number): Promise<TrainingCommandOutcome> => {
+    const now = commandContext.current
+    if (!now.sessionId || !now.session || !mounted.current || now.page !== 'training' || now.routeSessionId !== now.sessionId) return Promise.resolve({ status: 'stale' })
+    if (operationLock.current || uncertainIntent.current?.sessionId === now.sessionId) return Promise.resolve({ status: 'blocked' })
+    if (expectedVersion !== undefined && expectedVersion !== now.session.state_version) return Promise.resolve({ status: 'stale' })
+    return runCommand({ sessionId: now.sessionId, version: now.session.state_version, type, payload, key: requestId() })
+  }, [runCommand])
 
   const openReviewSession = useCallback(async (nextSessionId: string) => {
     if (operationLock.current) return
     operationLock.current = true
+    exitRisk.current = 'working'
     setBusy(true); setError(null)
     try {
       const response = await trainingApi.getSession(nextSessionId)
       if (response.session.profile_id) window.localStorage.setItem('wenyan.active-session', JSON.stringify({ profileId: response.session.profile_id, sessionId: nextSessionId }))
-      setSessionId(nextSessionId); setSession(response.session); setPage('training', nextSessionId)
+      setSessionId(nextSessionId); setSession(response.session); exitRisk.current = createPendingRef.current || profilePendingRef.current ? 'uncertain' : null; setPage('training', nextSessionId, true)
     } catch (reason) {
       setReviewError(reason instanceof Error ? reason.message : 'REQUEST_FAILED')
-    } finally { setBusy(false); operationLock.current = false }
+    } finally { if (exitRisk.current === 'working') exitRisk.current = createPendingRef.current || profilePendingRef.current ? 'uncertain' : null; setBusy(false); operationLock.current = false }
   }, [busy])
 
   const navigate = (next: Page) => {
-    if (!profile && next !== 'admin') { setPage('onboarding'); return }
+    if (!profile && !['admin', 'about'].includes(next)) { setPage('onboarding'); return }
     if (next === 'home') setPage('home')
     else if (next === 'skills') setPage('skills')
     else if (next === 'assessment') setPage('assessment')
@@ -1147,30 +1214,54 @@ export function App() {
     else if (next === 'profile' && profile) setPage('profile')
     else if (next === 'report' && profile) setPage('report')
     else if (next === 'admin') setPage('admin')
+    else if (next === 'about') setPage('about')
   }
 
   if (profileLoading) return <main className="loading-page" aria-live="polite">正在读取学习档案…</main>
   if (profileLoadError) return <main className="loading-page" aria-live="polite"><div><p>{profileLoadError}</p><button className="button button-primary" onClick={() => setProfileLoadAttempt(attempt => attempt + 1)}>重试读取档案</button></div></main>
 
-  return <div className="app-shell polished">
+  return <>{navigationModal}{logoutConfirmation.modal}{startConfirmation.modal}<div className={`app-shell polished waterink-theme${page !== 'admin' ? ' inkroom-formal' : ''}${!['home', 'training', 'admin'].includes(page) ? ' inkroom-pages' : ''}`} data-surface={page} ref={shell}>
     <a className="skip-link" href="#page-content" onClick={event => { event.preventDefault(); jumpTo('page-content') }}>跳到主要内容</a>
-    <AppHeader page={page} profile={profile} onNavigate={navigate} />
-    <ConnectionStatus />
+    <AppHeader page={page} profile={profile} onNavigate={navigate} adminAllowed={adminAllowed} supportOnly={canManageSupport(auth) && !canManage(auth)} />
+    <WaterinkMobileNavigation page={page} hasProfile={!!profile} onNavigate={navigate} />
+    {profile && (page === 'home' || page === 'practice') && <InkMotionControl reduced={inkMotion.reduced} systemReduced={inkMotion.systemReduced} onChange={inkMotion.setReduced} />}
+    {auth.mode === 'invite' && <div className="auth-account-bar"><span>当前账号：{auth.user?.email ? auth.user.email.replace(/^(.{1,2}).*(@.*)$/, '$1***$2') : auth.user?.username}</span><button onClick={() => void logout()} disabled={logoutBusy}>退出登录</button>{logoutError && <p role="alert">{logoutError}</p>}</div>}
+    {profilePending && !profile && <section className="auth-state" aria-label="档案创建结果核对">
+      <h2>档案创建结果尚未确认</h2><p>原请求可能已经或稍后创建档案。只读资料仅供人工核对，暂时没有档案也不能证明原请求失败。刷新、关闭页面或退出后本页核对线索会丢失；浏览器可能不会提示。</p>
+      <button type="button" className="button button-secondary" disabled={profileChecking} onClick={() => void checkCreatedProfile()}>{profileChecking ? '正在读取…' : '读取当前账号资料'}</button>
+      {profileCheckError && <p role="alert">读取失败：{profileCheckError}。结果仍未确认。</p>}
+      {profileCheck === 'none' && <p>当前账号尚未显示档案；原请求仍可能稍后完成。</p>}
+      {profileCheck === 'unavailable' && <p>当前模式没有按账号读取档案的接口，结果仍未确认。</p>}
+      {profileCheck && typeof profileCheck === 'object' && <p>当前账号显示的档案：{profileCheck.display_name} · {profileCheck.school_stage === 'JUNIOR' ? '初中' : '高中'}。这不是原请求的操作回执。</p>}
+      <button type="button" className="button button-secondary" disabled={profileChecking} onClick={releaseCreatedProfile}>结束本次核对</button>
+    </section>}
+    {createPending && createPending.profileId === profile?.id && <section className="auth-state" aria-label="训练创建结果核对">
+      <h2>训练创建结果尚未确认</h2><p>原请求可能已经或稍后创建训练。最近训练仅供人工核对，列表为空也不能证明原请求失败。刷新、关闭页面或退出后本页核对线索会丢失；浏览器可能不会提示。</p>
+      <button type="button" className="button button-secondary" disabled={createChecking} onClick={() => void checkCreatedTraining()}>{createChecking ? '正在读取…' : '读取最近训练'}</button>
+      {createReadError && <p role="alert">读取失败：{createReadError}。结果仍未确认。</p>}
+      {createSessions && (createSessions.length ? <ul>{createSessions.map(item => <li key={item.session_id}>{item.source} · {item.completed ? '已完成' : '进行中'}</li>)}</ul> : <p>当前没有最近训练；原请求仍可能稍后完成。</p>)}
+      <button type="button" className="button button-secondary" disabled={createChecking} onClick={releaseCreatedTraining}>结束本次核对</button>
+    </section>}
     <div className="page-view" id="page-content" tabIndex={-1} key={`${page}:${route.sessionId ?? ''}`}>
     <RenderBoundary onHome={() => navigate('home')}>
-    {(page === 'onboarding' || (!profile && (page === 'home' || page === 'skills'))) && <OnboardingPage busy={busy} error={error} onCreate={createProfile} />}
-    {page === 'home' && profile && <HomePage profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} onStartSession={id => setPage('training', id)} onRiskChange={onExitRiskChange} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
+    {page === 'about' && <AboutPage onNavigate={navigate} onReplayTour={replayTour} />}
+    {!profile && ['onboarding', 'home', 'skills'].includes(page) && <OnboardingPage busy={busy} locked={!!profilePending} draft={profilePending} error={error} onCreate={createProfile} inviteMode={auth.mode === 'invite'} />}
+    {page === 'home' && profile && <ReadingHomePage inkMotion={inkMotion} profile={profile} lessons={lessons} loading={lessonsLoading} catalogError={lessonsError} onRetry={() => void loadLessons(profile.school_stage)} onStart={start} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} onStartSession={id => setPage('training', id)} onRiskChange={onExitRiskChange} isStarting={busy} error={error} mission={dailyMission} missionLoading={missionLoading} missionError={missionError} />}
     {page === 'assessment' && <AssessmentPage profileId={profile?.id ?? null} onCreateProfile={() => setPage('onboarding')} onHome={() => navigate('home')} onRiskChange={onExitRiskChange} />}
-    {page === 'skills' && profile && <SkillsPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'practice' && profile && <SpecializedPracticePage plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
-    {page === 'review' && profile && <ReviewPage key={profile.id} sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onStartLesson={start} />}
-    {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => lessons[0] && start(lessons[0].id)} />}
-    {page === 'report' && profile && <main aria-label="学习报告"><div className="ability-report-container"><AbilityProfilePanel profileId={profile.id} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} /><ObservationReport profileId={profile.id} onOpenSession={(id) => setPage('training', id)} /></div><LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => lessons[0] && start(lessons[0].id)} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} /></main>}
-    {page === 'admin' && <AdminWorkbench onExitRiskChange={onExitRiskChange} ability={callback => <CourseAbilityWorkbench onExitRiskChange={callback} />} questions={callback => <AssessmentQuestionWorkbench onExitRiskChange={callback} />} aiReview={callback => <AIReasonReviewWorkbench onExitRiskChange={callback} />}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}
+    {page === 'skills' && profile && <SkillsPage summary={learningSummary} loading={summaryLoading} error={summaryError} onRetry={() => void loadLearningSummary(profile.id)} onStart={() => navigate('home')} />}
+    {page === 'practice' && profile && <SpecializedPracticePage inkMotion={inkMotion} plans={practicePlans} groupBy={practiceGroupBy} loading={practiceLoading} error={practiceError} startingLesson={busy} startError={error} onGroupByChange={setPracticeGroupBy} onRetry={() => void loadPracticePlans(profile.id, practiceGroupBy)} onStartLesson={start} />}
+    {page === 'review' && profile && <ReviewPage key={profile.id} sessions={reviewSessions} loading={reviewsLoading} error={reviewError} mistakes={mistakes} mistakesLoading={mistakesLoading} mistakesError={mistakesError} startingLesson={busy} startError={error} onOpen={openReviewSession} onRetryMistakes={() => void loadMistakes(profile.id)} onRetrySessions={() => setReviewReadAttempt(value => value + 1)} onStartLesson={start} />}
+    {page === 'profile' && profile && <ProfilePage profile={profile} onStart={() => navigate('home')} onReplayTour={replayTour} onNavigate={navigate} adminAllowed={adminAllowed} adminLabel={canManageSupport(auth) && !canManage(auth) ? '用户反馈' : '教研工作台'} />}
+    {page === 'report' && profile && <main aria-label="学习报告">
+      <header className="report-overview"><p className="eyebrow">学习报告</p><h1>表现、过程与进度，<br />分开看得更清楚。</h1><p>正式能力档案、作答过程和练习进度分别记录，不混成一个分数。</p><nav aria-label="报告分区"><button onClick={() => jumpTo('report-ability')}>能力档案</button><button onClick={() => jumpTo('report-observations')}>作答过程</button><button onClick={() => jumpTo('report-progress')}>学习进度</button></nav></header>
+      <div className="ability-report-container"><div id="report-ability" tabIndex={-1}><AbilityProfilePanel profileId={profile.id} onAssessment={() => navigate('assessment')} onPractice={() => navigate('practice')} /></div><div id="report-observations" tabIndex={-1}><ObservationReport profileId={profile.id} onPractice={() => navigate('practice')} onOpenSession={(id) => setPage('training', id)} /></div></div>
+      <div id="report-progress" tabIndex={-1}><LearningReportPage summary={learningSummary} loading={summaryLoading} error={summaryError} achievements={achievements} achievementsLoading={achievementsLoading} achievementsError={achievementsError} onRetry={() => { void loadLearningSummary(profile.id); void loadAchievements(profile.id) }} onStart={() => navigate('home')} onRecommendation={(kind) => navigate(kind === 'WEAK_SKILL' ? 'review' : 'home')} /></div>
+    </main>}
+    {page === 'admin' && (canManageSupport(auth) && !canManage(auth) ? <main className="content-admin-page"><SupportInbox onRiskChange={onExitRiskChange} /></main> : adminAllowed ? <DualAdminWorkbench supportAllowed={canManageSupport(auth)} onExitRiskChange={onExitRiskChange}>{callback => <AdminWorkbench onExitRiskChange={callback} ability={callback => <CourseAbilityWorkbench onExitRiskChange={callback} />} questions={callback => <AssessmentQuestionWorkbench onExitRiskChange={callback} />} aiReview={callback => <AIReasonReviewWorkbench onExitRiskChange={callback} />}>{callback => <ContentAdminPage onExitRiskChange={callback} />}</AdminWorkbench>}</DualAdminWorkbench> : <main className="auth-forbidden"><p className="eyebrow">管理后台未开放</p><h1>这里不属于当前账号的权限范围。</h1><p>学习功能不受影响。如需教研管理权限，请联系内测负责人。</p><button className="button button-primary" onClick={() => setPage(profile ? 'home' : 'onboarding')}>返回学习页面</button></main>)}
     {page === 'training' && (routeSessionLoading || (!!route.sessionId && route.sessionId !== sessionId)) && <main className="route-state">{routeSessionError ? <div role="alert"><p>{routeSessionError}</p><button className="button button-primary" onClick={() => setRouteSessionAttempt(n => n + 1)}>重试读取</button><button className="text-button" onClick={() => setPage('review')}>返回复习</button></div> : <p role="status">正在恢复这次训练…</p>}</main>}
     {page === 'training' && !routeSessionLoading && session && sessionId && route.sessionId === sessionId && <TrainingPage key={sessionId} sessionId={sessionId} session={session} busy={busy} pendingCommand={pendingCommand} error={error} recoveryNeeded={uncertainCommand?.sessionId === sessionId} onRecover={() => uncertainCommand && void runCommand(uncertainCommand)} onCommand={command} onDirtyChange={setTrainingDirty} onReturnHome={() => { window.localStorage.removeItem('wenyan.active-session'); setPage('home') }} />}
     {page === 'training' && !route.sessionId && <EmptyPage onHome={() => setPage('home')} />}
     </RenderBoundary>
     </div>
-  </div>
+  </div>{logoutBusy && <div className="auth-logout-progress" role="status">正在安全退出，请稍候…</div>}</>
 }

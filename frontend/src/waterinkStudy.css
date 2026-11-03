@@ -1,0 +1,200 @@
+/* WATERINK-GLOBAL-20261024 / study presentation only.
+   This file is imported after the existing page styles. The double shell scope
+   deliberately wins the old learner-page rules without touching admin/auth.
+   No generated labels, answer decoration, hidden content or timing logic. */
+.waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) {
+  color: var(--waterink-ink,#252624);
+  overflow-wrap: anywhere;
+}
+.waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page) :is(h1,h2,h3,legend) {
+  font-family: 'Songti SC',STSong,SimSun,serif;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.6;
+}
+.waterink-theme.inkroom-formal :is(.practice-heading,.assessment-heading,.report-overview,.ability-profile-panel .path-section-heading) {
+  border-color: var(--waterink-line,#dcded7);
+}
+.waterink-theme.inkroom-formal .training-page:not(:has(.lesson-summary)) .lesson-meta { padding: 18px 20px; border: 1px solid var(--waterink-line,#dcded7); border-radius: 10px; background-color: var(--waterink-paper,#f8f7f3); background-image: var(--waterink-heading-wash),var(--waterink-art,none); background-position: center,right center; background-repeat: no-repeat; background-size: 100% 100%,auto 100%; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page:not(:has(.lesson-summary)) .lesson-meta :is(p,span) { color: var(--waterink-ink,#252624); }
+/* Task evidence and inputs are deliberately image-free. The scene belongs to
+   the title, never underneath glyphs, answers or editable reasoning. */
+.waterink-theme.inkroom-formal :is(.fulltext-reader,.context-layers,.choice-option,.reasoning-editor,.reason-feedback-result,.assessment-passage,.assessment-options,.assessment-survey,.assessment-self-review,.skill-list,.review-list,.recall-board,.observation-report) { background-image: none; }
+.waterink-theme.inkroom-formal :is(.practice-page,.review-page,.skills-page,.profile-page,.assessment-page,.report-overview) h1 {
+  font-size: clamp(28px,3.1vw,42px);
+  line-height: 1.55;
+  max-width: 24ch;
+  text-wrap: balance;
+}
+.waterink-theme.inkroom-formal :is(.eyebrow,.stage-label,.knowledge-note,.reader-version,.reader-guide,.reader-keyboard-guide,.assessment-note,.path-note,.recall-result-count) {
+  color: var(--waterink-muted,#62645f);
+  letter-spacing: 0;
+  line-height: 1.85;
+}
+.waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) :is(button,input,textarea,select,summary,a):focus-visible {
+  outline: 2px solid var(--waterink-ink,#252624);
+  outline-offset: 4px;
+}
+.waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) :is(.button,.text-button,.knowledge-action,.quiet-action,summary) {
+  min-height: 44px;
+  min-width: 44px;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.65;
+}
+.waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) :is(textarea,input:not([type='radio']):not([type='checkbox']),select) {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 16px;
+  line-height: 1.8;
+  border-color: #828779;
+  background: var(--waterink-surface,#fffefb);
+  color: var(--waterink-ink,#252624);
+  border-radius: 8px;
+}
+
+/* Reading is the quiet centre. The full original text and click geometry stay
+   intact. Inline glyph targets are the deliberate natural-width exception. */
+.waterink-theme.inkroom-formal .training-page { background: var(--waterink-paper,#f8f7f3); }
+.waterink-theme.inkroom-formal .training-page .step-list { gap: 8px 14px; border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .step-list .current { color: var(--waterink-ink,#252624); background: #e9eae3; border-radius: 4px; box-shadow: inset 0 -2px var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .lesson-meta { padding-bottom: 18px; color: var(--waterink-muted,#62645f); border-color: var(--waterink-line,#dcded7); font-variant-numeric: tabular-nums; }
+.waterink-theme.inkroom-formal .training-page .training-workspace { gap: clamp(24px,3vw,40px); }
+.waterink-theme.inkroom-formal .training-page .fulltext-reader { padding: clamp(20px,2.5vw,32px); background: var(--waterink-surface,#fffefb); border: 1px solid var(--waterink-line,#dcded7); border-radius: 8px; box-shadow: 0 3px 12px #25262403; }
+.waterink-theme.inkroom-formal .training-page #fulltext-title { font-size: clamp(22px,2vw,28px); line-height: 1.65; }
+.waterink-theme.inkroom-formal .training-page :is(.fulltext-paragraph,.training-task .passage) { font-family: 'Songti SC',STSong,SimSun,serif; font-size: 24px; letter-spacing: 0; line-height: 2.05; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .reader-word { white-space: nowrap; }
+.waterink-theme.inkroom-formal .training-page .text-token { min-width: 24px; min-height: 44px; padding-inline: 0; font-family: inherit; letter-spacing: 0; border-radius: 2px; }
+.waterink-theme.inkroom-formal .training-page .text-token.is-selected { color: var(--waterink-surface,#fffefb); background: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .text-token.is-anchor { outline: 2px dashed var(--waterink-ink,#252624); outline-offset: 1px; }
+.waterink-theme.inkroom-formal .training-page .reader-range-toggle { min-width: 44px; min-height: 44px; border-color: #828779; border-radius: 6px; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .reader-range-toggle[aria-pressed='true'] { border-color: var(--waterink-ink,#252624); background: #e9eae3; }
+.waterink-theme.inkroom-formal .training-page :is(.context-layers,.context-disclosure,.question-area,.reasoning-editor,.training-records,.reasoning-history,.reading-shortcuts) { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .context-panel-heading { background: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal .training-page .context-layers li { grid-template-columns: 44px minmax(0,1fr); gap: 16px; border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .context-layers li > button { width: 44px; min-width: 44px; min-height: 44px; border-radius: 4px; background: var(--waterink-surface,#fffefb); border-color: #828779; }
+.waterink-theme.inkroom-formal .training-page .context-layers li.active-layer > button { background: var(--waterink-ink,#252624); color: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal .training-page .context-layers p { line-height: 1.95; }
+.waterink-theme.inkroom-formal .training-page :is(.meaning-access-gate,.reason-feedback-consent) { background: var(--waterink-paper,#f8f7f3); border-color: var(--waterink-line,#dcded7); border-radius: 6px; }
+.waterink-theme.inkroom-formal .training-page .training-task .passage span { padding-inline: 2px; border-radius: 2px; outline-color: #62645f; }
+.waterink-theme.inkroom-formal .training-page .training-task .question-area h1 { font-size: clamp(21px,2.1vw,27px); line-height: 1.7; }
+.waterink-theme.inkroom-formal .training-page .choice-list { max-width: none; gap: 10px; }
+.waterink-theme.inkroom-formal .training-page .choice-option { min-height: 60px; padding: 16px; border: 1px solid #828779; border-radius: 6px; color: var(--waterink-ink,#252624); background: var(--waterink-surface,#fffefb); line-height: 1.85; }
+.waterink-theme.inkroom-formal .training-page .choice-option.selected { border-color: var(--waterink-ink,#252624); box-shadow: inset 3px 0 var(--waterink-ink,#252624); background: #edeee8; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .choice-option input { accent-color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .choice-option > span { min-width: 0; overflow-wrap: anywhere; }
+.waterink-theme.inkroom-formal .training-page .reasoning-editor textarea { min-height: 148px; padding: 14px; line-height: 1.9; resize: vertical; }
+.waterink-theme.inkroom-formal .training-page :is(.reasoning-save-hint,.feedback,.hint) { padding: 16px 18px; border-inline-start: 2px solid var(--waterink-ink,#252624); border-radius: 0 6px 6px 0; background: #edeee8; color: var(--waterink-ink,#252624); line-height: 1.9; }
+.waterink-theme.inkroom-formal .training-page .training-feedback-label { margin: 0 0 6px; font-family: inherit; font-size: 14px; line-height: 1.8; }
+.waterink-theme.inkroom-formal .training-page :is(.command-recovery,.reason-feedback-result) { margin-top: 20px; padding: 20px; border: 1px solid #828779; border-radius: 8px; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .command-recovery { border-inline-start: 3px solid var(--waterink-seal,#9e4439); }
+.waterink-theme.inkroom-formal .training-page .evidence-panel { border-radius: 6px; background: var(--waterink-surface,#fffefb); border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .reasoning-tools-content button { background: var(--waterink-paper,#f8f7f3); border-color: #828779; border-radius: 6px; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page :is(.reasoning-path blockquote,.reasoning-editor blockquote) { background: var(--waterink-paper,#f8f7f3); border-color: var(--waterink-line,#dcded7); font-family: 'Songti SC',STSong,SimSun,serif; line-height: 1.9; }
+.waterink-theme.inkroom-formal .training-page :is(.reasoning-history article,.reasoning-path li,.observation-stage-records li) { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .reading-shortcuts { background: var(--waterink-paper,#f8f7f3); }
+.waterink-theme.inkroom-formal .training-page .reading-shortcuts button { border-color: #828779; border-radius: 6px; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .training-page .lesson-summary { max-width: 800px; }
+.waterink-theme.inkroom-formal .training-page .lesson-summary h1 { font-size: clamp(28px,3.8vw,42px); }
+.waterink-theme.inkroom-formal .training-page .summary-lines { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .summary-lines article { padding-block: 20px; border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .training-page .earned-points { color: var(--waterink-ink,#252624); font-variant-numeric: tabular-nums; }
+
+/* Catalogue and recollection: chapter indices, not a wall of nested cards. */
+.waterink-theme.inkroom-formal .practice-page .practice-signal { background: var(--waterink-surface,#fffefb); border-radius: 6px; border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .practice-page .practice-controls { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .practice-page .practice-controls button { min-width: 44px; min-height: 44px; border-radius: 5px; border-color: #828779; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .practice-page .practice-controls button.is-active { color: var(--waterink-surface,#fffefb); background: var(--waterink-ink,#252624); border-color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .practice-page .practice-plan { border: 0; border-block-end: 1px solid var(--waterink-line,#dcded7); border-radius: 0; background: transparent; }
+.waterink-theme.inkroom-formal .practice-page .practice-plan-summary { background: transparent; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .practice-page .practice-plan.is-open .practice-plan-summary { background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .practice-page :is(.practice-plan-index,.practice-plan-toggle) { color: var(--waterink-muted,#62645f); }
+.waterink-theme.inkroom-formal .practice-page .practice-plan-index { white-space: nowrap; }
+.waterink-theme.inkroom-formal .practice-page .practice-lessons { margin-inline: 22px; border-color: var(--waterink-line,#dcded7); animation: none; }
+.waterink-theme.inkroom-formal .practice-page .practice-lesson { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal :is(.review-page,.practice-page,.skills-page,.learning-report-page) :is(.review-state,.review-empty,.practice-state,.report-empty,.catalog-state) { color: var(--waterink-muted,#62645f); background: var(--waterink-surface,#fffefb); border-color: var(--waterink-line,#dcded7); border-radius: 6px; }
+.waterink-theme.inkroom-formal .review-page .review-list article { border: 0; border-bottom: 1px solid var(--waterink-line,#dcded7); border-radius: 0; background: transparent; }
+.waterink-theme.inkroom-formal .review-page .review-list article span { border-color: var(--waterink-line,#dcded7); border-radius: 3px; color: var(--waterink-muted,#62645f); background: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal .recall-board .recall-guide { padding: 24px 0; border: 0; border-block: 1px solid var(--waterink-line,#dcded7); border-radius: 0; background: transparent; }
+.waterink-theme.inkroom-formal .recall-board .recall-guide > span { color: var(--waterink-muted,#62645f); white-space: nowrap; }
+.waterink-theme.inkroom-formal .recall-board .recall-guide h3 { font-family: 'Songti SC',STSong,SimSun,serif; }
+.waterink-theme.inkroom-formal .recall-board .recall-list { gap: 0; }
+.waterink-theme.inkroom-formal .recall-board .recall-card { padding: 28px 0; border: 0; border-bottom: 1px solid var(--waterink-line,#dcded7); border-radius: 0; background: transparent; }
+.waterink-theme.inkroom-formal .recall-board .recall-card-heading { color: var(--waterink-muted,#62645f); }
+.waterink-theme.inkroom-formal .recall-board .recall-card h3 { font-family: 'Songti SC',STSong,SimSun,serif; }
+.waterink-theme.inkroom-formal .recall-board .recall-card blockquote { padding: 18px 20px; border: 1px solid var(--waterink-line,#dcded7); border-radius: 4px; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); font-size: 23px; }
+.waterink-theme.inkroom-formal .recall-board :is(.recall-question,.recall-guide p,.recall-result-count) { color: var(--waterink-muted,#62645f); }
+.waterink-theme.inkroom-formal .recall-board .recall-question strong { color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .recall-board .recall-hint { border-inline-start: 2px solid var(--waterink-ink,#252624); border-radius: 0 4px 4px 0; background: #edeee8; color: var(--waterink-ink,#252624); animation: none; }
+.waterink-theme.inkroom-formal .recall-board .recall-actions button[aria-expanded='true'] { background: #edeee8; color: var(--waterink-ink,#252624); border-color: #828779; }
+
+/* Records are evidence, not ranks: restrained numbers, unfilled unknowns. */
+.waterink-theme.inkroom-formal :is(.skill-list,.profile-stats article,.report-streak,.report-totals article,.observation-report) { background: var(--waterink-surface,#fffefb); border-color: var(--waterink-line,#dcded7); border-radius: 8px; }
+.waterink-theme.inkroom-formal .skills-page .skill-row { background: transparent; border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .skills-page .skill-row > b { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: clamp(24px,2.7vw,32px); }
+.waterink-theme.inkroom-formal :is(.meter,.report-meter) { height: 5px; background: #e4e6df; }
+.waterink-theme.inkroom-formal :is(.meter,.report-meter) i { background: #626b5c; }
+.waterink-theme.inkroom-formal :is(.report-totals strong,.report-streak b,.profile-stats strong) { color: var(--waterink-ink,#252624); font-variant-numeric: tabular-nums; }
+.waterink-theme.inkroom-formal :is(.report-section,.report-achievements,.achievement-row,.weak-skill-row,.activity-list li,.profile-actions) { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .learning-report-page :is(.activity-list li,.achievement-row) { background: transparent; }
+.waterink-theme.inkroom-formal .learning-report-page .activity-list { padding-inline-start: 0; }
+.waterink-theme.inkroom-formal .learning-report-page .activity-list li { padding-block: 16px; }
+.waterink-theme.inkroom-formal .report-overview nav button { min-height: 44px; min-width: 44px; border-radius: 5px; border-color: #828779; background: var(--waterink-surface,#fffefb); color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .learning-report-page .review-recommendation { background: transparent; border: 0; border-block: 1px solid var(--waterink-line,#dcded7); border-radius: 0; padding-inline: 0; }
+.waterink-theme.inkroom-formal .ability-profile-panel :is(h2,h3) { font-family: 'Songti SC',STSong,SimSun,serif; }
+.waterink-theme.inkroom-formal .ability-profile-panel :is(.path-formal-profile,.path-pilot-reference) { border: 0; border-block-start: 1px solid var(--waterink-line,#dcded7); border-radius: 0; padding: 28px 0; background: transparent; }
+.waterink-theme.inkroom-formal .ability-profile-panel .report-boundary-note { border-inline-start: 2px solid var(--waterink-ink,#252624); border-radius: 0 4px 4px 0; background: #edeee8; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .ability-profile-panel :is(.path-dimension-list article,.path-pilot-dimensions li,.path-ability-history li,.report-next-step) { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .ability-profile-panel :is(.path-dimension-list article > div span,.path-dimension-list article b) { color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .ability-profile-panel :is(.path-note,.path-dimension-list article p,.path-ability-history li p) { color: var(--waterink-muted,#62645f); }
+.waterink-theme.inkroom-formal .ability-profile-panel .path-ability-history { border-color: var(--waterink-line,#dcded7); border-radius: 6px; background: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal :is(.ability-profile-panel,.observation-report) :is(.path-message,.observation-message,.observation-empty) { border-color: var(--waterink-line,#dcded7); background: var(--waterink-surface,#fffefb); border-radius: 6px; }
+.waterink-theme.inkroom-formal .observation-report :is(.observation-group,.observation-empty,.report-boundary-note) { background: var(--waterink-paper,#f8f7f3); border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .observation-report :is(.observation-trend,.observation-sources) { border-color: var(--waterink-line,#dcded7); border-radius: 6px; }
+.waterink-theme.inkroom-formal :is(.ability-profile-panel,.assessment-page) meter { accent-color: #626b5c; }
+.waterink-theme.inkroom-formal :is(.ability-profile-panel,.assessment-page) meter::-webkit-meter-bar { background: #e4e6df; }
+.waterink-theme.inkroom-formal :is(.ability-profile-panel,.assessment-page) meter::-webkit-meter-optimum-value { background: #626b5c; }
+.waterink-theme.inkroom-formal :is(.ability-profile-panel,.assessment-page) meter::-moz-meter-bar { background: #626b5c; }
+
+/* Assessment keeps every formal-release boundary and answer state unchanged. */
+.waterink-theme.inkroom-formal .assessment-page .assessment-start { display: block; min-width: 0; }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-boundary,.assessment-survey,.assessment-resume,.assessment-state,.assessment-message,.assessment-passage,.assessment-result-intro,.assessment-review) { border-color: var(--waterink-line,#dcded7); border-radius: 8px; background: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-save-state:not(:empty),.assessment-question-state) { background: #edeee8; border-inline-start-color: var(--waterink-ink,#252624); color: var(--waterink-ink,#252624); border-radius: 0 4px 4px 0; }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-options label,.assessment-survey label) { border-color: #828779; border-radius: 6px; color: var(--waterink-ink,#252624); background: var(--waterink-surface,#fffefb); }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-options .is-selected,.assessment-survey label:has(input:checked)) { border-color: var(--waterink-ink,#252624); box-shadow: inset 3px 0 var(--waterink-ink,#252624); color: var(--waterink-ink,#252624); background: #edeee8; }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-option-index,input[type='radio']) { color: var(--waterink-muted,#62645f); accent-color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-format,.assessment-history,.assessment-history li,.assessment-question-nav,.assessment-self-review) { border-color: var(--waterink-line,#dcded7); }
+.waterink-theme.inkroom-formal .assessment-page .assessment-passage blockquote { font-size: 24px; line-height: 2; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-number-grid button { background: var(--waterink-surface,#fffefb); border-color: #828779; border-radius: 5px; color: var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .assessment-page .assessment-number-grid button[aria-current='step'] { background: #edeee8; border-color: var(--waterink-ink,#252624); box-shadow: inset 0 -2px var(--waterink-ink,#252624); }
+.waterink-theme.inkroom-formal .assessment-page .assessment-question-nav details { background: var(--waterink-surface,#fffefb); border-color: var(--waterink-line,#dcded7); border-radius: 6px; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-score { color: var(--waterink-ink,#252624); font-variant-numeric: tabular-nums; }
+.waterink-theme.inkroom-formal .assessment-page :is(.assessment-dimensions article,.assessment-result-notes > div) { border: 0; border-block-start: 1px solid var(--waterink-line,#dcded7); border-radius: 0; background: transparent; padding: 20px 0; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-review blockquote { background: var(--waterink-paper,#f8f7f3); border-color: var(--waterink-line,#dcded7); border-radius: 0 4px 4px 0; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-progress progress { accent-color: #626b5c; background: #e4e6df; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-progress progress::-webkit-progress-bar { background: #e4e6df; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-progress progress::-webkit-progress-value { background: #626b5c; }
+.waterink-theme.inkroom-formal .assessment-page .assessment-progress progress::-moz-progress-bar { background: #626b5c; }
+
+@media (hover:hover) {
+  .waterink-theme.inkroom-formal .training-page :is(.choice-option,.reader-range-toggle):not(:has(input:disabled)):not(:disabled):hover,
+  .waterink-theme.inkroom-formal .assessment-page :is(.assessment-options label,.assessment-survey label):not(:has(input:disabled)):hover { border-color: var(--waterink-ink,#252624); }
+  .waterink-theme.inkroom-formal .practice-page .practice-plan-summary:not(:disabled):hover { background: #edeee8; color: var(--waterink-ink,#252624); }
+}
+@media (max-width: 42rem) {
+  .waterink-theme.inkroom-formal .training-page .step-list { gap: 4px; }
+  .waterink-theme.inkroom-formal .training-page .fulltext-reader { padding: 20px 16px; }
+  .waterink-theme.inkroom-formal .training-page .training-workspace { gap: 28px; }
+  .waterink-theme.inkroom-formal .training-page .context-layers li { gap: 12px; }
+  .waterink-theme.inkroom-formal .training-page .choice-option { padding: 14px 12px; }
+  .waterink-theme.inkroom-formal .practice-page .practice-lessons { margin-inline: 16px; }
+  .waterink-theme.inkroom-formal .recall-board .recall-card { padding-block: 24px; }
+  .waterink-theme.inkroom-formal .recall-board .recall-card blockquote { padding: 16px; font-size: 22px; }
+  .waterink-theme.inkroom-formal .ability-profile-panel :is(.path-formal-profile,.path-pilot-reference) { padding: 24px 0; }
+  .waterink-theme.inkroom-formal .assessment-page .assessment-format { gap: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) *,
+  .waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) *::before,
+  .waterink-theme.inkroom-formal :is(.training-page,.practice-page,.review-page,.skills-page,.profile-page,.learning-report-page,.assessment-page,.ability-profile-panel,.recall-board,.observation-report) *::after { animation: none; transition: none; scroll-behavior: auto; }
+}

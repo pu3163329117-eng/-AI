@@ -1,0 +1,19 @@
+/* First local sample: only home and practice. No training/body transform. */
+.waterink-theme[data-surface='home'] .page-view,
+.waterink-theme[data-surface='practice'] .page-view { animation: none; }
+.waterink-theme .ink-motion-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; max-width: 1328px; margin: 12px auto 0; padding: 0 28px; font-size: 13px; color: var(--waterink-muted); }
+.ink-motion-control > span { margin-right: auto; }
+.ink-motion-control small { font-size: 12px; }
+.ink-motion-control label { display: inline-flex; align-items: center; min-height: 44px; gap: 8px; cursor: pointer; }
+.ink-motion-control input { width: 18px; height: 18px; }
+.waterink-theme .reading-home-today.has-ink-scene::before,
+.waterink-theme .practice-heading.has-ink-scene::before { content: none; }
+.waterink-theme .practice-heading.has-ink-scene { overflow: hidden; }
+.waterink-theme .reading-home-today.has-ink-scene .ink-scene::after { background: none; }
+.waterink-theme .practice-heading.has-ink-scene > :not(.ink-scene) { position: relative; }
+.waterink-theme .practice-heading.has-ink-scene { background: var(--waterink-paper); }
+.waterink-theme .practice-heading.has-ink-scene .ink-scene { opacity: .40; }
+@media (max-width: 44rem) {
+  .waterink-theme .ink-motion-control { padding-inline: 20px; gap: 4px 12px; }
+  .waterink-theme .reading-home-today.has-ink-scene .ink-scene__art { background-size: auto 320px; background-position: right top; }
+}

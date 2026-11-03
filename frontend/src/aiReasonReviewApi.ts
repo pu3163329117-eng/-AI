@@ -1,4 +1,4 @@
-import { RequestError, requestJson } from './http'
+import { RequestError, requestJson, authResponseCheckpoint } from './http'
 import { validReviewDetail, validReviewQueue, validReviewReceipt, validReviewWrite, type ReviewWrite } from './aiReasonReview'
 import { readReviewBundle } from './aiReasonReviewExport'
 
@@ -6,6 +6,7 @@ const root = import.meta.env.VITE_API_ROOT ?? ''
 const path = '/api/v1/admin/ai-reason-review/cases'
 export const aiReasonReviewApi = {
   async exportBundle(signal?: AbortSignal) {
+    const checkIdentity = authResponseCheckpoint()
     const controller = new AbortController(), external = signal
     const abort = () => controller.abort(external?.reason)
     let timedOut = false
@@ -13,11 +14,13 @@ export const aiReasonReviewApi = {
     const timer = setTimeout(() => { timedOut = true; controller.abort() }, 20_000)
     try {
       if (external?.aborted) throw external.reason ?? new DOMException('Request cancelled', 'AbortError')
-      const response = await fetch(`${root}/api/v1/admin/ai-reason-review/export`, { signal: controller.signal })
+      const response = await fetch(`${root}/api/v1/admin/ai-reason-review/export`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal })
       if (controller.signal.aborted) { await response.body?.cancel(); throw controller.signal.reason ?? new DOMException('Request cancelled', 'AbortError') }
+      try { checkIdentity(response.status) } catch (error) { await response.body?.cancel(); throw error }
       if (!response.ok) { await response.body?.cancel(); throw new RequestError(response.status === 413 ? 'AI_REVIEW_EXPORT_TOO_LARGE' : response.status === 403 ? 'AI_LOCAL_PREVIEW_ONLY' : response.status >= 500 ? 'SERVER_UNAVAILABLE' : 'REQUEST_FAILED', response.status) }
       const bundle = await readReviewBundle(response)
       if (controller.signal.aborted) throw controller.signal.reason ?? new DOMException('Request cancelled', 'AbortError')
+      checkIdentity()
       return bundle
     } catch (reason) {
       if (external?.aborted) throw external.reason ?? new DOMException('Request cancelled', 'AbortError')

@@ -21,7 +21,7 @@ export function SessionObservations({ trace, currentStage, completed }: { trace?
             {first && <>
               <p>首次预设证据覆盖：{first.evidence_rule_matched ? '已覆盖' : '未覆盖'}；不代表开放理由已通过语义审核。</p>
               {first.assistance_kinds.length > 0 && <p>首次判断前记录：{first.assistance_kinds.map(kind => assistanceLabels[kind]).join('、')}</p>}
-              <p className="observation-note">{first.source} · 原文版本 {first.text_version} · 开放理由待复核</p>
+              <p className="observation-note">{first.source} · 原文版本 {first.text_version} · {first.reason_review_status === 'NOT_PROVIDED' ? '理由未补充（选填），不评价开放表达' : '开放理由待复核'}</p>
             </>}
             <p className="observation-note">本阶段已记录的全部辅助：{value.assistance_kinds.length > 0 ? value.assistance_kinds.map(kind => assistanceLabels[kind]).join('、') : '尚无'}</p>
           </details>

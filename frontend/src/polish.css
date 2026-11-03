@@ -39,7 +39,7 @@
 .polished .step-list { padding: 8px 18px; min-height: 48px; border-radius: 8px; }
 .polished .lesson { padding: 24px 28px; grid-column: 1; grid-row: 2; }
 .polished .lesson-meta { margin-bottom: 20px; }
-.polished .training-task { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid #aaa; scroll-margin-top: 100px; }
+.polished .training-task { padding: clamp(14px, 2vw, 24px); margin-bottom: 28px; border: 1px solid #bdbdb7; border-radius: 12px; background: #f8f8f6; scroll-margin-top: 100px; }
 .polished .training-task-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .polished .training-task-heading .stage-label { margin: 0; }
 .polished .training-task .passage { font-size: clamp(23px, 2.3vw, 32px); line-height: 1.8; letter-spacing: .015em; }
@@ -87,7 +87,6 @@
 .polished .command-recovery { margin-top: 16px; padding: 16px; border: 1px solid #111; border-radius: 8px; background: #f6f6f3; }
 .polished .command-recovery p { margin: 10px 0; font-size: 13px; line-height: 1.8; }
 .polished .command-recovery h3 { margin: 0; font-size: 16px; scroll-margin-top: 135px; }
-.polished .connection-status { margin: 0; padding: 12px 24px; border-bottom: 1px solid #ccc; background: #f6f6f3; font-size: 13px; line-height: 1.7; }
 .render-recovery { width: 100%; max-width: 900px; min-height: 55vh; padding: clamp(24px, 5vw, 64px); margin-inline: auto; }
 .render-recovery h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.2; letter-spacing: -.035em; scroll-margin-top: 135px; overflow-wrap: anywhere; text-wrap: balance; }
 .render-recovery h1:focus { outline: none; }
@@ -97,6 +96,17 @@
 .polished .profile-form fieldset label { min-height: 44px; cursor: pointer; }
 .polished .profile-form fieldset:disabled label { opacity: .55; cursor: wait; }
 .polished .profile-form > label input:focus-visible { outline: 2px solid #111; outline-offset: 4px; }
+.polished .onboarding-copy h1 { font-size: clamp(34px, 4.5vw, 58px); line-height: 1.3; letter-spacing: -.035em; }
+.getting-started-steps { display: grid; gap: 0; margin: 26px 0; padding: 0; list-style: none; counter-reset: start-step; }
+.getting-started-steps li { position: relative; display: grid; gap: 6px; padding: 18px 0 18px 42px; border-top: 1px solid #cdcdc7; counter-increment: start-step; }
+.getting-started-steps li::before { content: counter(start-step, decimal-leading-zero); position: absolute; left: 0; top: 18px; color: #444; font-size: 14px; font-weight: 700; }
+.getting-started-steps b { font-size: 16px; line-height: 1.6; }
+.getting-started-steps span, .profile-form-help { color: #555; font-size: 14px; line-height: 1.8; }
+.polished .profile-form-help { margin: -8px 0 0; }
+.polished .profile-form fieldset { padding: 18px; border: 1px solid #c8c8c2; border-radius: 8px; background: #fafaf8; }
+.polished .training-task .reasoning-editor { margin-top: 28px; padding-top: 24px; border-top: 2px solid #bdbdb7; }
+.polished .training-task .reasoning-editor h2 { font-size: 20px; line-height: 1.5; letter-spacing: 0; }
+.polished .training-task .knowledge-note { color: #555; line-height: 1.8; }
 @keyframes page-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 1100px) {
   .polished .app-header { display: grid; grid-template-columns: 1fr auto; height: auto; min-height: 68px; gap: 0; padding-inline: 24px; }
@@ -125,7 +135,7 @@
   .polished .daily-mission { margin-top: 0; }
   .polished .lesson-grid { grid-template-columns: 1fr; gap: 12px; }
   .polished .lesson-card { min-height: 170px; }
-  .polished .training-page { padding: 10px 0 84px; }
+  .polished .training-page { padding: 10px 0 calc(84px + env(safe-area-inset-bottom, 0px)); }
   .polished .step-list { display: flex; gap: 4px 8px; padding: 8px 20px; border-radius: 0; }
   .polished .step-list b { display: none; }
   .polished .step-list span { padding: 6px 2px; font-size: 11px; }
@@ -136,12 +146,17 @@
   .polished .fulltext-layout { grid-template-columns: 1fr; }
   .polished .fulltext-canvas { max-height: 420px; }
   .polished .context-layers { max-height: 480px; }
+  /* Let a continued swipe leave the nested reader at its boundary on phones. */
+  .polished .fulltext-canvas, .polished .context-layers { overscroll-behavior-y: auto; }
   .polished .reading-shortcuts { position: fixed; bottom: 0; left: 0; right: 0; z-index: 25; justify-content: space-between; background: #fff; padding: 10px 20px max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 16px #00000008; }
   .polished .reading-shortcuts { gap: 8px; padding-inline: 12px; }
   .polished .reading-shortcuts button { flex: 1; min-width: 0; padding-inline: 6px; font-size: 13px; }
   /* While typing, reserve the reduced viewport for the field and its actions.
      This is focus-based, not a claim that we can detect every phone keyboard. */
   .polished:has(.reasoning-editor textarea:focus) .reading-shortcuts { display: none; }
+  /* Feedback sits outside the learning shell; hide its fixed training bar
+     while the feedback panel is open so it cannot cover form actions. */
+  body:has(.beta-support > details[open]) .polished .reading-shortcuts { display: none; }
   .polished .evidence-panel p { flex-basis: 100%; margin: 4px 0; font-size: 12px; line-height: 1.6; }
   .polished .practice-controls button { min-height: 44px; }
 }

@@ -1,0 +1,65 @@
+name: Synthetic release checks
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WENYAN_ENV: test
+      WENYAN_ACCESS_MODE: local
+      WENYAN_AI_ENABLED: '0'
+      WENYAN_COLLABORATION_ENABLED: '0'
+      WENYAN_COLLABORATION_REAL_CALLS_ENABLED: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check public candidate diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          BASE="$(python scripts/sec_eng_diff_guard.py --resolve-base "$EVENT_NAME" "$HEAD_SHA" "$PUSH_BASE" "$PR_BASE" "$EVENT_REF" "$DEFAULT_BRANCH")"
+          python scripts/sec_eng_diff_guard.py "$BASE" "$HEAD_SHA"
+      - name: Test diff guard
+        run: python -m unittest scripts/test_sec_eng_diff_guard.py
+      - name: Install backend test dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Backend synthetic release tests
+        run: python scripts/run_release_tests.py
+      - name: Default frontend tests
+        working-directory: frontend
+        run: npm test
+      - name: Frontend synthetic release tests
+        working-directory: frontend
+        run: npm run test:release
+      - name: UX and dual-access tests
+        working-directory: frontend
+        run: npm run test:ux
+      - name: Type check and release build
+        working-directory: frontend
+        run: npm run build:release
